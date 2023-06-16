@@ -39,3 +39,6 @@ RMDB由中国人民大学数据库教学团队开发，平台、赛题和测试�
 - [PostgreSQL 数据库内核分析](https://book.douban.com/subject/6971366//)
 - [数据库系统实现](https://book.douban.com/subject/4838430/)
 - [数据库系统概论(第5版)](http://chinadb.ruc.edu.cn/second/url/2)
+
+## License
+RMDB采用[木兰宽松许可证，第2版](https://license.coscl.org.cn/MulanPSL2)，可以自由拷贝和使用源码, 当做修改或分发时, 请遵守[木兰宽松许可证，第2版](https://license.coscl.org.cn/MulanPSL2).

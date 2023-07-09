@@ -32,6 +32,8 @@ foreach(RMDB_TEST_SOURCE ${RMDB_TEST_SOURCES})
             COMMAND ${rmdb_test_name}
             )
 endforeach()
-
+#################################
+##      在这里添加你自己需要的库    ##
+#################################
 target_link_libraries(storage_test
         lru_replacer)

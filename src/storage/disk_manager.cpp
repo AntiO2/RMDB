@@ -10,8 +10,8 @@ See the Mulan PSL v2 for more details. */
 
 #include "storage/disk_manager.h"
 
-#include <assert.h>    // for assert
-#include <string.h>    // for memset
+#include <cassert>    // for assert
+#include <cstring>    // for memset
 #include <sys/stat.h>  // for stat
 #include <unistd.h>    // for lseek
 

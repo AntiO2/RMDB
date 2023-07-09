@@ -1,6 +1,4 @@
-
 include(GoogleTest)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${PROJECT_SOURCE_DIR}/src)
 
 #set(test_dependency
@@ -18,6 +16,7 @@ foreach(RMDB_TEST_SOURCE ${RMDB_TEST_SOURCES})
             EXTRA_ARGS
             --gtest_color=auto
             --gtest_catch_exceptions=0
+            --verbose
             DISCOVERY_TIMEOUT 120
             PROPERTIES
             TIMEOUT 120

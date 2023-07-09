@@ -2,6 +2,8 @@
 // Created by Anti on 2023/7/9.
 //
 
+#include <random>
+#include <thread>
 #include "gtest/gtest.h"
 #include "replacer/lru_replacer.h"
 TEST(LRU_TEST,SAMPLE_TEST) {
@@ -42,4 +44,87 @@ TEST(LRU_TEST,SAMPLE_TEST) {
     EXPECT_EQ(6, value);
     lru_replacer.victim(&value);
     EXPECT_EQ(4, value);
+}
+TEST(LRU_TEST, HARD_TEST) {
+    int result;
+    int value_size = 10000;
+    auto lru_replacer = new LRUReplacer(value_size);
+    std::vector<int> value(value_size);
+    for (int i = 0; i < value_size; i++) {
+        value[i] = i;
+    }
+    auto rng = std::default_random_engine();
+    std::shuffle(value.begin(), value.end(), rng);
+    for (int i = 0; i < value_size; i++) {
+        lru_replacer->unpin(value[i]);
+    }
+    EXPECT_EQ(value_size, lru_replacer->Size());
+    lru_replacer->pin(777);
+    lru_replacer->unpin(777);
+    EXPECT_EQ(1, lru_replacer->victim(&result));
+    EXPECT_EQ(value[0], result);
+    lru_replacer->unpin(value[0]);
+    for (int i = 0; i < value_size / 2; i++) {
+        if (value[i] != value[0] && value[i] != 777) {
+            lru_replacer->pin(value[i]);
+            lru_replacer->unpin(value[i]);
+        }
+    }
+    std::vector<int> lru_array;
+    for (int i = value_size / 2; i < value_size; ++i) {
+        if (value[i] != value[0] && value[i] != 777) {
+            lru_array.push_back(value[i]);
+        }
+    }
+    lru_array.push_back(777);
+    lru_array.push_back(value[0]);
+    for (int i = 0; i < value_size / 2; ++i) {
+        if (value[i] != value[0] && value[i] != 777) {
+            lru_array.push_back(value[i]);
+        }
+    }
+    EXPECT_EQ(value_size, lru_replacer->Size());
+    for (int e : lru_array) {
+        EXPECT_EQ(true, lru_replacer->victim(&result));
+        EXPECT_EQ(e, result);
+    }
+    EXPECT_EQ(value_size - lru_array.size(), lru_replacer->Size());
+    delete lru_replacer;
+}
+TEST(LRU_TEST, Conc_Test) {
+    const int num_threads = 5;
+    const int num_runs = 50;
+    for (int run = 0; run < num_runs; run++) {
+        int value_size = 1000;
+        std::shared_ptr<LRUReplacer> lru_replacer{new LRUReplacer(value_size)};
+        std::vector<std::thread> threads;
+        int result;
+        std::vector<int> value(value_size);
+        for (int i = 0; i < value_size; i++) {
+            value[i] = i;
+        }
+        auto rng = std::default_random_engine{};
+        std::shuffle(value.begin(), value.end(), rng);
+
+        for (int tid = 0; tid < num_threads; tid++) {
+            threads.emplace_back([tid, &lru_replacer, &value]() {
+                int share = 1000 / 5;
+                for (int i = 0; i < share; i++) {
+                    lru_replacer->unpin(value[tid * share + i]);
+                }
+            });
+        }
+        for (int i = 0; i < num_threads; i++) {
+            threads[i].join();
+        }
+        std::vector<int> out_values;
+        for (int i = 0; i < value_size; i++) {
+            EXPECT_EQ(1, lru_replacer->victim(&result));
+            out_values.push_back(result);
+        }
+        std::sort(value.begin(), value.end());
+        std::sort(out_values.begin(), out_values.end());
+        EXPECT_EQ(value, out_values);
+        EXPECT_EQ(0, lru_replacer->victim(&result));
+    }
 }

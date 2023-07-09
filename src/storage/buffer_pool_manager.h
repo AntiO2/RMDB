@@ -19,7 +19,7 @@ See the Mulan PSL v2 for more details. */
 
 #include "disk_manager.h"
 #include "errors.h"
-#include "page.h"
+#include "storage/page.h"
 #include "replacer/lru_replacer.h"
 #include "replacer/replacer.h"
 
@@ -32,7 +32,7 @@ class BufferPoolManager {
     DiskManager *disk_manager_;
     Replacer *replacer_;    // buffer_pool的置换策略，当前赛题中为LRU置换策略
     std::mutex latch_;      // 用于共享数据结构的并发控制
-
+    std::vector<bool> is_used_; // 如果该frame上有page，标记为true
    public:
     BufferPoolManager(size_t pool_size, DiskManager *disk_manager)
         : pool_size_(pool_size), disk_manager_(disk_manager) {
@@ -50,6 +50,7 @@ class BufferPoolManager {
         for (size_t i = 0; i < pool_size_; ++i) {
             free_list_.emplace_back(static_cast<frame_id_t>(i));  // static_cast转换数据类型
         }
+        is_used_.reserve(pool_size);
     }
 
     ~BufferPoolManager() {

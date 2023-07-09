@@ -10,18 +10,27 @@ See the Mulan PSL v2 for more details. */
 
 #include "buffer_pool_manager.h"
 
+
 /**
  * @description: 从free_list或replacer中得到可淘汰帧页的 *frame_id
  * @return {bool} true: 可替换帧查找成功 , false: 可替换帧查找失败
  * @param {frame_id_t*} frame_id 帧页id指针,返回成功找到的可替换帧id
+ *
  */
 bool BufferPoolManager::find_victim_page(frame_id_t* frame_id) {
-    // Todo:
+    // CHECK(AntiO2) 并行测试
     // 1 使用BufferPoolManager::free_list_判断缓冲池是否已满需要淘汰页面
     // 1.1 未满获得frame
     // 1.2 已满使用lru_replacer中的方法选择淘汰页面
-
-    return false;
+    bool find_victim{false};
+    if(free_list_.empty()) {
+    // buffer pool 已满，需要从replacer中选择淘汰页面。
+    find_victim = replacer_->victim(frame_id);
+    } else {
+        *frame_id = free_list_.front();
+        find_victim = true;
+    }
+    return find_victim;
 }
 
 /**
@@ -31,11 +40,22 @@ bool BufferPoolManager::find_victim_page(frame_id_t* frame_id) {
  * @param {frame_id_t} new_frame_id 新的帧frame_id
  */
 void BufferPoolManager::update_page(Page *page, PageId new_page_id, frame_id_t new_frame_id) {
-    // Todo:
     // 1 如果是脏页，写回磁盘，并且把dirty置为false
     // 2 更新page table
     // 3 重置page的data，更新page id
 
+    // 首先检查该页上是否是有页面。
+    if(is_used_[new_frame_id]) {
+        if(pages_[new_frame_id].is_dirty()) {
+            pages_[new_frame_id]
+            disk_manager_->write_page(pages_[new_frame_id].get_page_id().fd, pages_[new_frame_id].get_page_id().page_no,
+                                      pages_[new_frame_id].get_data(),PAGE_SIZE); // 将原frame上的page刷出。
+            pages_[new_frame_id].is_dirty_ = false;
+        }
+        pages_[new_frame_id]
+    } else {
+        // 当该帧上没有page
+    }
 }
 
 /**
@@ -54,6 +74,7 @@ Page* BufferPoolManager::fetch_page(PageId page_id) {
     // 3.     调用disk_manager_的read_page读取目标页到frame
     // 4.     固定目标页，更新pin_count_
     // 5.     返回目标页
+
     return nullptr;
 }
 
@@ -64,7 +85,6 @@ Page* BufferPoolManager::fetch_page(PageId page_id) {
  * @param {bool} is_dirty 若目标page应该被标记为dirty则为true，否则为false
  */
 bool BufferPoolManager::unpin_page(PageId page_id, bool is_dirty) {
-    // Todo:
     // 0. lock latch
     // 1. 尝试在page_table_中搜寻page_id对应的页P
     // 1.1 P在页表中不存在 return false
@@ -88,7 +108,8 @@ bool BufferPoolManager::flush_page(PageId page_id) {
     // 1.1 目标页P没有被page_table_记录 ，返回false
     // 2. 无论P是否为脏都将其写回磁盘。
     // 3. 更新P的is_dirty_
-   
+   std::scoped_lock<std::mutex> lock(latch_);
+
     return true;
 }
 

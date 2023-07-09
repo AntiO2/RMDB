@@ -1,6 +1,7 @@
 
 include(GoogleTest)
-
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+include_directories(${PROJECT_SOURCE_DIR}/src)
 
 #set(test_dependency
 #        gtest_main
@@ -31,3 +32,6 @@ foreach(RMDB_TEST_SOURCE ${RMDB_TEST_SOURCES})
             COMMAND ${rmdb_test_name}
             )
 endforeach()
+
+target_link_libraries(storage_test
+        lru_replacer)

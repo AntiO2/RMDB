@@ -13,6 +13,7 @@ See the Mulan PSL v2 for more details. */
 #include <list>
 #include <mutex>  
 #include <vector>
+#include <set>
 
 #include "common/config.h"
 #include "replacer/replacer.h"

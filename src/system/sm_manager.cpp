@@ -85,7 +85,26 @@ void SmManager::drop_db(const std::string& db_name) {
  * @param {string&} db_name 数据库名称，与文件夹同名
  */
 void SmManager::open_db(const std::string& db_name) {
-    
+    //lsy
+    //1.判断是否是目录并进入
+    if (is_dir(db_name)) {
+        throw DatabaseExistsError(db_name);
+    }
+    if (chdir(db_name.c_str()) < 0) {
+        throw UnixError();
+    }
+
+    //2.加载数据库元数据和相关文件
+    //lsy:模仿了create_db的代码
+    // 打开一个名为DB_META_NAME的文件
+    std::ifstream ofs(DB_META_NAME);
+
+    // 读入ofs打开的DB_META_NAME文件，写入到db_
+    ofs >> db_;
+
+    //将数据库中包含的表 导入到当前fhs
+    for(const auto& pair : db_.tabs_)
+        fhs_.insert({pair.first,rm_manager_->open_file(pair.first)});
 }
 
 /**
@@ -101,7 +120,18 @@ void SmManager::flush_meta() {
  * @description: 关闭数据库并把数据落盘
  */
 void SmManager::close_db() {
-    
+    //lsy
+    //1.将数据落盘
+    flush_meta();
+
+    //2.关闭当前fhs_的文件及退出目录
+    for(auto &pair : fhs_)
+        rm_manager_->close_file(pair.second.get());
+
+    // 回到根目录
+    if (chdir("..") < 0) {
+        throw UnixError();
+    }
 }
 
 /**
@@ -188,7 +218,22 @@ void SmManager::create_table(const std::string& tab_name, const std::vector<ColD
  * @param {Context*} context
  */
 void SmManager::drop_table(const std::string& tab_name, Context* context) {
-    
+    //lsy
+    //判断
+    if (db_.is_table(tab_name)) {
+        throw TableExistsError(tab_name);
+    }
+
+    //关闭这个table文件
+    rm_manager_->close_file(fhs_.find(tab_name)->second.get());
+
+    //删除db中对这个表的记录
+    //tab与fhs
+    fhs_.erase(tab_name);
+    db_.tabs_.erase(tab_name);
+
+    //删除表文件
+    disk_manager_->destroy_file(tab_name);
 }
 
 /**

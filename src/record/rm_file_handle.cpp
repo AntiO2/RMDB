@@ -113,7 +113,7 @@ void RmFileHandle::delete_record(const Rid& rid, Context* context) {
     RmPageHandle pageHandle = fetch_page_handle(rid.page_no);
 
     //位图判断及更新
-    assert(!Bitmap::is_set(pageHandle.bitmap,rid.slot_no));
+    assert(Bitmap::is_set(pageHandle.bitmap,rid.slot_no));
     Bitmap::reset(pageHandle.bitmap,rid.slot_no);
 
     // 2. 更新page_handle.page_hdr中的数据结构

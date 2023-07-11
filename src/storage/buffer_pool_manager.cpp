@@ -159,7 +159,8 @@ Page* BufferPoolManager::new_page(PageId* page_id) {
     std::scoped_lock<std::mutex> lock(latch_);
     // 1.   获得一个可用的frame，若无法获得则返回nullptr
     frame_id_t frame_id;
-    if(!replacer_->victim(&frame_id)) {
+
+    if(!find_victim_page(&frame_id)) {
         return nullptr;
     }
     // 2.   在fd对应的文件分配一个新的page_id

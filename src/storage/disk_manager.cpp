@@ -111,10 +111,10 @@ void DiskManager::create_file(const std::string &path) {
 
     //判断文件是否已经创建处于这个路径
     if(is_file(path))
-        throw FileExistsError("File already exists: " + path);
+        throw FileExistsError(path);
     auto fd = open(path.c_str(),O_RDWR|O_CREAT,0755);
     if(fd < 0) {
-        throw FileNotFoundError("File not created: " + path);
+        throw FileNotFoundError(path);
     }
     close(fd);
 }
@@ -174,14 +174,15 @@ void DiskManager::close_file(int fd) {
     // 注意不能关闭未打开的文件，并且需要更新文件打开列表
     std::unordered_map<int,std::string>::iterator iter;
     iter = fd2path_.find(fd);
-    if(iter == fd2path_.end() || iter->second.empty()) return;//说明还没有打开
+    if(iter == fd2path_.end() || iter->second.empty())
+    {
+        throw FileNotOpenError(fd); // 说明还没有打开
+    }
     close(fd);//关闭文件
     //更新
     std::string path = fd2path_[fd];
     fd2path_.erase(fd);
     path2fd_.erase(path);
-
-
 }
 
 

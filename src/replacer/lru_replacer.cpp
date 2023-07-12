@@ -22,7 +22,7 @@ LRUReplacer::~LRUReplacer() = default;
 bool LRUReplacer::victim(frame_id_t* frame_id) {
     // C++17 std::scoped_lock
     // 它能够避免死锁发生，其构造函数能够自动进行上锁操作，析构函数会对互斥量进行解锁操作，保证线程安全。
-    std::scoped_lock lock{latch_};  //  如果编译报错可以替换成其他lock
+    std::scoped_lock<std::mutex> lock(latch_);  //  如果编译报错可以替换成其他lock
 
     //  利用lru_replacer中的LRUlist_,LRUHash_实现LRU策略
     //  选择合适的frame指定为淘汰页面,赋值给*frame_id
@@ -45,10 +45,9 @@ bool LRUReplacer::victim(frame_id_t* frame_id) {
  * @param {frame_id_t} 需要固定的frame的id
  */
 void LRUReplacer::pin(frame_id_t frame_id) {
-    std::scoped_lock lock{latch_};
+    std::scoped_lock<std::mutex> lock(latch_);
     // 固定指定id的frame
     // 在数据结构中移除该frame
-
     auto it = LRUhash_.find(frame_id);
     if(it!= LRUhash_.end()) {
         LRUlist_.erase(it->second);
@@ -63,11 +62,11 @@ void LRUReplacer::pin(frame_id_t frame_id) {
 void LRUReplacer::unpin(frame_id_t frame_id) {
     //  支持并发锁
     //  选择一个frame取消固定
-    std::scoped_lock lock{latch_};
+    std::scoped_lock<std::mutex> lock(latch_);
     if(auto it = LRUhash_.find(frame_id)!=LRUhash_.end()) {
         LRUhash_.erase(it);
     }
-    LRUlist_.emplace_back(frame_id);
+    LRUlist_.push_back(frame_id);
     LRUhash_.emplace(frame_id, std::prev(LRUlist_.end()));
     // LRUhash_.emplace(frame_id, LRUlist_.begin());
     // CHECK(AntiO2) 考虑用满报错的情况？
@@ -77,6 +76,6 @@ void LRUReplacer::unpin(frame_id_t frame_id) {
  * @description: 获取当前replacer中可以被淘汰的页面数量
  */
 size_t LRUReplacer::Size() {
-    std::scoped_lock lock{latch_};
+    std::scoped_lock<std::mutex> lock(latch_);
     return LRUlist_.size();
 }

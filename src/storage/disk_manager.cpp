@@ -14,6 +14,7 @@ See the Mulan PSL v2 for more details. */
 #include <cstring>    // for memset
 #include <sys/stat.h>  // for stat
 #include <unistd.h>    // for lseek
+#include <filesystem>   //for filesystem
 
 #include "defs.h"
 
@@ -106,6 +107,10 @@ void DiskManager::create_file(const std::string &path) {
     // Todo:
     // 调用open()函数，使用O_CREAT模式
     // 注意不能重复创建相同文件
+    //判断path是否是文件名
+    if(std::filesystem::is_regular_file(path)==false) return;
+    //判断文件是否已经创建处于这个路径
+    if(std::filesystem::exists(path)==true) throw FileExistsError("File already exists: " + path);
     open(path.c_str(),O_RDWR|O_CREAT,0755);
 }
 
@@ -137,7 +142,7 @@ int DiskManager::open_file(const std::string &path) {
     iter = path2fd_.find(path);
     if(iter != path2fd_.end() && iter->second != -1 ) return -1;//说明已经打开
     int fd = open(path.c_str(), O_RDWR);//否则打开
-    if(fd==-1) return fd;//打开失败
+    if(fd==-1)  throw FileNotFoundError("File not found: " + path);//打开失败
     //更新文件打开列表
     path2fd_[path] = fd;
     fd2path_[fd] = path;

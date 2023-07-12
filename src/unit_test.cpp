@@ -379,7 +379,7 @@ class BufferPoolManagerConcurrencyTest : public ::testing::Test {
 };
 
 TEST_F(BufferPoolManagerConcurrencyTest, ConcurrencyTest) {
-    const int num_threads = 5;
+    const int num_threads = 10;
     const int num_runs = 50;
 
     // get fd
@@ -388,7 +388,7 @@ TEST_F(BufferPoolManagerConcurrencyTest, ConcurrencyTest) {
     for (int run = 0; run < num_runs; run++) {
         // create BufferPoolManager
         auto disk_manager = BufferPoolManagerConcurrencyTest::disk_manager_.get();
-        std::shared_ptr<BufferPoolManager> bpm{new BufferPoolManager(50, disk_manager)};
+        std::shared_ptr<BufferPoolManager> bpm{new BufferPoolManager(5000, disk_manager)};
 
         std::vector<std::thread> threads;
         for (int tid = 0; tid < num_threads; tid++) {

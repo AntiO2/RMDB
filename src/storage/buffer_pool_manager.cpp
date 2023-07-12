@@ -80,7 +80,7 @@ Page* BufferPoolManager::fetch_page(PageId page_id) {
         if(!find_victim_page(&frame_id)) {
             return nullptr;
         }
-        auto p = &pages_[frame_id];
+        auto p   = &pages_[frame_id];
         update_page(p,page_id,frame_id); // 调用update_page将page写回到磁盘
         disk_manager_->read_page(page_id.fd,page_id.page_no,p->get_data(),PAGE_SIZE); // 调用disk_manager_的read_page读取目标页到frame
         p->pin_count_ = 1;

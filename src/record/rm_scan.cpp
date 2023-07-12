@@ -21,7 +21,7 @@ RmScan::RmScan(const RmFileHandle *file_handle) : file_handle_(file_handle) {
 
     //初始化
     file_handle_ = file_handle;
-    Rid{RM_FIRST_RECORD_PAGE,-1};
+    rid_ = Rid{RM_FIRST_RECORD_PAGE,-1};
 
     //使rid指向第一个存放了记录的位置
     next();
@@ -45,8 +45,8 @@ void RmScan::next() {
             rid_.slot_no = ret;
             return;
         }
-        //每次一轮清slot_no
-        //rid_.slot_no = -1;
+        //下一轮又是从-1开始
+        rid_.slot_no = -1;
     }
     //未找到存放记录的非空闲位置
     rid_.page_no = RM_NO_PAGE;

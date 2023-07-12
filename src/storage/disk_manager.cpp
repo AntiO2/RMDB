@@ -33,7 +33,7 @@ void DiskManager::write_page(int fd, page_id_t page_no, const char *offset, int 
     // 注意write返回值与num_bytes不等时 throw InternalError("DiskManager::write_page Error");
     //偏移量应该乘上PAGE_SIZE
     if(lseek(fd,page_no*PAGE_SIZE,SEEK_SET) == -1) return;//定位到文件头并且判断是否成功
-    int res = write(fd,offset,num_bytes);//调用write()函数
+    ssize_t res = write(fd,offset,num_bytes);//调用write()函数
     if(res != num_bytes) throw InternalError("DiskManager::write_page Error");//判断是否写入成功
 }
 
@@ -51,7 +51,7 @@ void DiskManager::read_page(int fd, page_id_t page_no, char *offset, int num_byt
     // 注意read返回值与num_bytes不等时，throw InternalError("DiskManager::read_page Error");
     //偏移量应该乘上PAGE_SIZE
     if(lseek(fd,page_no*PAGE_SIZE,SEEK_SET) == -1) return;//定位到文件头并且判断是否成功
-    int res = read(fd,offset,num_bytes);//调用read()函数
+    ssize_t res = read(fd,offset,num_bytes);//调用read()函数
     if(res != num_bytes) throw InternalError("DiskManager::read_page Error");//判断是否读取成功
 }
 

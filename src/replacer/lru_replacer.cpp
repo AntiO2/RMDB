@@ -63,10 +63,12 @@ void LRUReplacer::unpin(frame_id_t frame_id) {
     //  支持并发锁
     //  选择一个frame取消固定
     std::scoped_lock<std::mutex> lock(latch_);
-    if(auto it = LRUhash_.find(frame_id)!=LRUhash_.end()) {
-        LRUhash_.erase(it);
+    auto list_iter = LRUhash_.find(frame_id); // 寻找unpin的frame中，是否已存在frame_id
+    if(list_iter!=LRUhash_.end()) {
+        LRUlist_.erase(list_iter->second); // 如果存在，则需要删除原来的frame对应关系
+        LRUhash_.erase(list_iter);
     }
-    LRUlist_.push_back(frame_id);
+    LRUlist_.push_back(frame_id); // 将frame加入到list中
     LRUhash_.emplace(frame_id, std::prev(LRUlist_.end()));
     // LRUhash_.emplace(frame_id, LRUlist_.begin());
     // CHECK(AntiO2) 考虑用满报错的情况？

@@ -201,7 +201,7 @@ TEST(LRUReplacerTest, SampleTest) {
     lru_replacer.unpin(4);
     lru_replacer.unpin(5);
     lru_replacer.unpin(6);
-    // lru_replacer.unpin(1);
+    lru_replacer.unpin(1);
     EXPECT_EQ(6, lru_replacer.Size());
 
     // Scenario: get three victims from the lru.

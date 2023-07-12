@@ -65,8 +65,7 @@ void LRUReplacer::unpin(frame_id_t frame_id) {
     std::scoped_lock<std::mutex> lock(latch_);
     auto list_iter = LRUhash_.find(frame_id); // 寻找unpin的frame中，是否已存在frame_id
     if(list_iter!=LRUhash_.end()) {
-        LRUlist_.erase(list_iter->second); // 如果存在，则需要删除原来的frame对应关系
-        LRUhash_.erase(list_iter);
+        return;
     }
     LRUlist_.push_front(frame_id); // 将frame加入到list中
     LRUhash_.emplace(frame_id, LRUlist_.begin());

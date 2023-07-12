@@ -113,7 +113,8 @@ void RmFileHandle::delete_record(const Rid& rid, Context* context) {
     RmPageHandle pageHandle = fetch_page_handle(rid.page_no);
 
     //位图判断及更新
-    assert(Bitmap::is_set(pageHandle.bitmap,rid.slot_no));
+    if(!Bitmap::is_set(pageHandle.bitmap,rid.slot_no))
+        throw RecordNotFoundError(rid.page_no,rid.slot_no);
     Bitmap::reset(pageHandle.bitmap,rid.slot_no);
 
     // 2. 更新page_handle.page_hdr中的数据结构
@@ -138,7 +139,10 @@ void RmFileHandle::update_record(const Rid& rid, char* buf, Context* context) {
     RmPageHandle pageHandle = fetch_page_handle(rid.page_no);
 
     //判断位图
-    assert(Bitmap::is_set(pageHandle.bitmap,rid.slot_no));
+    if (!Bitmap::is_set(pageHandle.bitmap, rid.slot_no)) {
+        throw RecordNotFoundError(rid.page_no, rid.slot_no);
+    }
+
 
     // 2. 更新记录
     char* addr_slot = pageHandle.get_slot(rid.slot_no);
@@ -193,6 +197,7 @@ RmPageHandle RmFileHandle::create_new_page_handle() {
     RmPageHandle pageHandle = RmPageHandle(&file_hdr_,page);
     pageHandle.page_hdr->num_records = 0;
     pageHandle.page_hdr->next_free_page_no = RM_NO_PAGE;
+    Bitmap::init(pageHandle.bitmap,pageHandle.file_hdr->bitmap_size);
 
     // 3.更新file_hdr_
     file_hdr_.num_pages++;

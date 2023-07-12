@@ -151,9 +151,13 @@ int DiskManager::open_file(const std::string &path) {
     // 注意不能重复打开相同文件，并且需要更新文件打开列表
     std::unordered_map<std::string,int>::iterator iter;
     iter = path2fd_.find(path);
-    if(iter != path2fd_.end() && iter->second != -1 ) return iter->second; // 说明已经打开
+    if(iter != path2fd_.end() && iter->second != -1 ) {
+        throw FileNotClosedError(path); // 说明已经打开
+    }
     int fd = open(path.c_str(), O_RDWR);//否则打开
-    if(fd==-1)  throw FileNotFoundError("File not found: " + path); // 打开失败
+    if(fd==-1)  {
+        throw FileNotFoundError(path); // 打开失败
+    }
     //更新文件打开列表
     path2fd_[path] = fd;
     fd2path_[fd] = path;

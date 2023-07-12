@@ -192,12 +192,13 @@ bool BufferPoolManager::delete_page(PageId page_id) {
     if(page->pin_count_>0) {
         return false;
     }
+    page_table_.erase(it);
     // 3.   将目标页数据写回磁盘，从页表中删除目标页，重置其元数据，将其加入free_list_，返回true
     auto new_page_id = page->get_page_id();
     new_page_id.page_no=INVALID_PAGE_ID;
     update_page(page,new_page_id,it->second);
     free_list_.emplace_back(it->second);
-    page_table_.erase(it);
+
     return true;
 }
 
@@ -206,7 +207,7 @@ bool BufferPoolManager::delete_page(PageId page_id) {
  * @param {int} fd 文件句柄
  */
 void BufferPoolManager::flush_all_pages(int fd) {
-    std::scoped_lock lock{latch_};
+    std::scoped_lock lock(latch_);
     for (size_t i = 0; i < pool_size_; i++) {
         Page *page = &pages_[i];
         if (page->get_page_id().fd == fd && page->get_page_id().page_no != INVALID_PAGE_ID) {

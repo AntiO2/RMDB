@@ -107,8 +107,7 @@ void DiskManager::create_file(const std::string &path) {
     // Todo:
     // 调用open()函数，使用O_CREAT模式
     // 注意不能重复创建相同文件
-    //判断path是否是文件名
-    if(std::filesystem::is_regular_file(path)==false) return;
+
     //判断文件是否已经创建处于这个路径
     if(std::filesystem::exists(path)==true) throw FileExistsError("File already exists: " + path);
     open(path.c_str(),O_RDWR|O_CREAT,0755);
@@ -122,10 +121,16 @@ void DiskManager::destroy_file(const std::string &path) {
     // Todo:
     // 调用unlink()函数
     // 注意不能删除未关闭的文件
+    //并且对于不存在的文件不允许删除
+    // 检查文件是否存在
+    if (!std::filesystem::exists(path.c_str())) {
+        throw FileNotFoundError(path.c_str());
+    }
+
     std::unordered_map<std::string,int>::iterator iter;
     iter = path2fd_.find(path);
     if(iter != path2fd_.end() && iter->second != -1 ) return ;//说明已经打开还未关闭
-    unlink(path.c_str());
+    if( unlink(path.c_str())==-1) throw std::runtime_error("删除文件失败！");
 }
 
 

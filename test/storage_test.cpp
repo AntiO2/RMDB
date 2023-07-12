@@ -269,9 +269,3 @@ TEST(LRU_TEST, Conc_Test) {
         EXPECT_EQ(0, lru_replacer->victim(&result));
     }
 }
-
-TEST(LRUReplacerTest, Basic) {
-    LRUReplacer replacer(3);
-    int max_num = 1000;
-    for(int )
-}

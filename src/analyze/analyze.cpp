@@ -153,6 +153,10 @@ Value Analyze::convert_sv_value(const std::shared_ptr<ast::Value> &sv_val) {
         val.set_float(float_lit->val);
     } else if (auto str_lit = std::dynamic_pointer_cast<ast::StringLit>(sv_val)) {
         val.set_str(str_lit->val);
+    } else if (auto bigint_lit = std::dynamic_pointer_cast<ast::BigintLit>(sv_val)) {
+        val.set_str(bigint_lit->val);
+    } else if (auto dateTime_lit = std::dynamic_pointer_cast<ast::DateTimeLit>(sv_val)) {
+        val.set_str(dateTime_lit->val);
     } else {
         throw InternalError("Unexpected sv value type");
     }

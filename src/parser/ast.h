@@ -133,6 +133,18 @@ struct StringLit : public Value {
     StringLit(std::string val_) : val(std::move(val_)) {}
 };
 
+struct BigintLit : public Value {
+    std::string val;
+
+    BigintLit(std::string val_) : val(std::move(val_)) {}
+};
+
+struct DateTimeLit : public Value {
+    std::string val;
+
+    DateTimeLit(std::string val_) : val(std::move(val_)) {}
+};
+
 struct Col : public Expr {
     std::string tab_name;
     std::string col_name;

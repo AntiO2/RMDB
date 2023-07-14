@@ -30,6 +30,9 @@ class SeqScanExecutor : public AbstractExecutor {
 
     SmManager *sm_manager_;
 
+    std::unique_ptr<RmRecord>* rec_; // 存储下一个要返回的rec_
+
+    bool is_end_{false}; // 指示是否完成了扫描
    public:
     SeqScanExecutor(SmManager *sm_manager, std::string tab_name, std::vector<Condition> conds, Context *context) {
         sm_manager_ = sm_manager;
@@ -38,24 +41,93 @@ class SeqScanExecutor : public AbstractExecutor {
         TabMeta &tab = sm_manager_->db_.get_table(tab_name_);
         fh_ = sm_manager_->fhs_.at(tab_name_).get();
         cols_ = tab.cols;
-        len_ = cols_.back().offset + cols_.back().len;
-
+        len_ = cols_.back().offset + cols_.back().len; // 输出字段长度
         context_ = context;
-
         fed_conds_ = conds_;
     }
 
     void beginTuple() override {
-        
+        // 首先初始化。
+        scan_ = std::make_unique<RmScan>(fh_); // 首先通过RmScan 获取对表的扫描
+        while(!scan_->is_end()) {
+            rid_ = scan_->rid();
+            if(CheckConditionByRid(rid_)) {
+                // 找到了满足条件的
+                return;
+            }
+            scan_->next();
+        }
+        is_end_ = true;
     }
 
     void nextTuple() override {
-        
+        scan_->next();
+        while(!scan_->is_end()) {
+            rid_ = scan_->rid();
+            if(CheckConditionByRid(rid_)) {
+                // 找到了满足条件的
+                return;
+            }
+            scan_->next();
+        }
+        is_end_ = true;
     }
 
     std::unique_ptr<RmRecord> Next() override {
-        return nullptr;
+        if(is_end()) {
+            // check(AntiO2) 这里是否需要抛出异常
+            return nullptr;
+        }
+        auto rec = rec_;
+        nextTuple();
+        return std::forward<std::unique_ptr<RmRecord>>(*rec);
     }
 
     Rid &rid() override { return rid_; }
+
+    [[nodiscard]] bool is_end() const override{ return is_end_; }
+
+    bool CheckConditionByRid(const Rid& rid) {
+        *rec_ = fh_->get_record(rid,context_);
+        return CheckConditions(rec_,conds_);
+    }
+    /**
+     * TODO(AntiO2) 这里可以考虑创建 Filter Executor， 从而在Seq Scan中不进行逻辑判断
+     * 判断是否符合条件
+     * @param rec
+     * @param conds
+     * @return
+     */
+    bool CheckConditions(std::unique_ptr<RmRecord>* rec, const std::vector<Condition>& conditions) {
+        /**
+         * 检查所有条件
+         */
+        return std::all_of(conditions.begin(),conditions.end(),[rec, this](const Condition& condition){
+            return CheckCondition(rec,condition);
+        });
+    }
+    /**
+     * @description 检查单个断言是否成立
+     * @param rec
+     * @param conditions
+     * @return
+     */
+    bool CheckCondition(std::unique_ptr<RmRecord>* rec, const Condition& condition) {
+            auto left_col = get_col(cols_,condition.lhs_col); // 首先根据condition中，左侧列的名字，来获取该列的数据
+            char* l_value = rec->get()->data+left_col->offset; // 获得左值。CHECK(AntiO2) 这里左值一定是常量吗？有没有可能两边都是常数。
+            char* r_value;
+            ColType r_type{};
+            if(condition.is_rhs_val) {
+                // 如果右值是一个常数
+                r_value = condition.rhs_val.raw->data;
+                r_type = condition.rhs_val.type;
+            } else {
+                // check(AntiO2) 这里只有同一张表上两个列比较的情况吗？
+               auto r_col =  get_col(cols_,condition.rhs_col);
+               r_value = rec->get()->data + r_col->offset;
+               r_type = r_col->type;
+            }
+            assert(left_col->type==r_type); // 保证两个值类型一样。
+            return evaluate_compare(l_value, r_value, r_type, left_col->len, condition.op); // 判断该condition是否成立（断言为真）
+    }
 };

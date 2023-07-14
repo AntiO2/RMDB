@@ -142,8 +142,6 @@ void RmFileHandle::update_record(const Rid& rid, char* buf, Context* context) {
     if (!Bitmap::is_set(pageHandle.bitmap, rid.slot_no)) {
         throw RecordNotFoundError(rid.page_no, rid.slot_no);
     }
-
-
     // 2. 更新记录
     char* addr_slot = pageHandle.get_slot(rid.slot_no);
     memcpy(addr_slot,buf,pageHandle.file_hdr->record_size);

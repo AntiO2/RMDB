@@ -142,7 +142,7 @@ struct Condition {
     bool is_rhs_val{};  // true if right-hand side is a value (not a column)
     TabCol rhs_col;   // right-hand side column
     Value rhs_val;    // right-hand side value
-
+    bool is_always_false_{false}; // 如果condition永远为false，该值为true。比如Where 1 = 2, 此时is_always_false_为true。
 public:
 
 //    /**

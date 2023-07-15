@@ -112,6 +112,9 @@ class SeqScanExecutor : public AbstractExecutor {
      * @return
      */
     bool CheckCondition(RmRecord* rec, const Condition& condition) {
+            if(condition.is_always_false_) {
+                return false;
+            }
             auto left_col = get_col(cols_,condition.lhs_col); // 首先根据condition中，左侧列的名字，来获取该列的数据
             char* l_value = rec->data+left_col->offset; // 获得左值。CHECK(AntiO2) 这里左值一定是常量吗？有没有可能两边都是常数。
             char* r_value;

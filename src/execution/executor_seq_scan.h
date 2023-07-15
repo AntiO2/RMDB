@@ -30,7 +30,7 @@ class SeqScanExecutor : public AbstractExecutor {
 
     SmManager *sm_manager_;
 
-    std::unique_ptr<RmRecord>* rec_; // 存储下一个要返回的rec_
+    std::unique_ptr<RmRecord> rec_; // 存储下一个要返回的rec_
 
     bool is_end_{false}; // 指示是否完成了扫描
    public:
@@ -78,9 +78,7 @@ class SeqScanExecutor : public AbstractExecutor {
             // check(AntiO2) 这里是否需要抛出异常
             return nullptr;
         }
-        auto rec = rec_;
-        nextTuple();
-        return std::forward<std::unique_ptr<RmRecord>>(*rec);
+        return std::move(rec_);
     }
 
     Rid &rid() override { return rid_; }
@@ -88,8 +86,9 @@ class SeqScanExecutor : public AbstractExecutor {
     [[nodiscard]] bool is_end() const override{ return is_end_; }
 
     bool CheckConditionByRid(const Rid& rid) {
-        *rec_ = fh_->get_record(rid,context_);
-        return CheckConditions(rec_,conds_);
+        rec_ = fh_->get_record(rid,context_);
+        auto rec = rec_.get();
+        return CheckConditions(rec_.get(),conds_);
     }
     /**
      * TODO(AntiO2) 这里可以考虑创建 Filter Executor， 从而在Seq Scan中不进行逻辑判断
@@ -98,7 +97,7 @@ class SeqScanExecutor : public AbstractExecutor {
      * @param conds
      * @return
      */
-    bool CheckConditions(std::unique_ptr<RmRecord>* rec, const std::vector<Condition>& conditions) {
+    bool CheckConditions(RmRecord* rec, const std::vector<Condition>& conditions) {
         /**
          * 检查所有条件
          */
@@ -112,9 +111,9 @@ class SeqScanExecutor : public AbstractExecutor {
      * @param conditions
      * @return
      */
-    bool CheckCondition(std::unique_ptr<RmRecord>* rec, const Condition& condition) {
+    bool CheckCondition(RmRecord* rec, const Condition& condition) {
             auto left_col = get_col(cols_,condition.lhs_col); // 首先根据condition中，左侧列的名字，来获取该列的数据
-            char* l_value = rec->get()->data+left_col->offset; // 获得左值。CHECK(AntiO2) 这里左值一定是常量吗？有没有可能两边都是常数。
+            char* l_value = rec->data+left_col->offset; // 获得左值。CHECK(AntiO2) 这里左值一定是常量吗？有没有可能两边都是常数。
             char* r_value;
             ColType r_type{};
             if(condition.is_rhs_val) {
@@ -124,10 +123,14 @@ class SeqScanExecutor : public AbstractExecutor {
             } else {
                 // check(AntiO2) 这里只有同一张表上两个列比较的情况吗？
                auto r_col =  get_col(cols_,condition.rhs_col);
-               r_value = rec->get()->data + r_col->offset;
+               r_value = rec->data + r_col->offset;
                r_type = r_col->type;
             }
             assert(left_col->type==r_type); // 保证两个值类型一样。
             return evaluate_compare(l_value, r_value, r_type, left_col->len, condition.op); // 判断该condition是否成立（断言为真）
+    }
+
+    const std::vector<ColMeta> &cols() const override {
+        return cols_;
     }
 };

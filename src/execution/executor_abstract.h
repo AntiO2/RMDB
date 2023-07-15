@@ -42,6 +42,11 @@ class AbstractExecutor {
 
     virtual std::unique_ptr<RmRecord> Next() = 0;
 
+    /**
+     * Warn(AntiO2) 不要用这个
+     * @param target
+     * @return
+     */
     virtual ColMeta get_col_offset(const TabCol &target) { return ColMeta();};
 
     std::vector<ColMeta>::const_iterator get_col(const std::vector<ColMeta> &rec_cols, const TabCol &target) {

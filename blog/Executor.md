@@ -113,3 +113,12 @@ return evaluate_compare(l_value, r_value, r_type, left_col->len, condition.op);
 
 参照PostgreSQL，可以将两个表的比较断言变成join条件，或者是在Join之上加一个filter。总之先不要在这里焦虑这个问题了
 
+## 如何执行？
+
+![image-20230715171705187](./Executor.assets/image-20230715171705187.png)
+
+在一次语句执行前，首先调用portabl.start将执行计划转百年为算子数。然后调用run方法进行执行。
+
+按照执行DQL举例，首先执行管理器调用beginTuple()进行初始化（相当于一个迭代器），然后每次通过Next()获取一个tuple。Next()本身不会将迭代器后移。
+
+![image-20230715171940456](./Executor.assets/image-20230715171940456.png)

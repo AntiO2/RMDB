@@ -166,7 +166,7 @@ struct SetClause {
  * @param rec_size
  * @return
  */
-static RmRecord GetRecord(std::vector<Value>& values, std::vector<ColMeta> &cols, int rec_size) {
+static std::unique_ptr<RmRecord> GetRecord(std::vector<Value>& values, std::vector<ColMeta> &cols, int rec_size) {
     assert(values.size()==cols.size());
     auto col_num = cols.size();
     auto rec = RmRecord(rec_size); // 通过rec大小，创建空的rmrecord;
@@ -180,5 +180,5 @@ static RmRecord GetRecord(std::vector<Value>& values, std::vector<ColMeta> &cols
         // 将Value数据存入rec中。
         memcpy(rec.data + col.offset, val.raw->data, col.len);
     }
-    return rec;
+    return std::make_unique<RmRecord>(rec);
 }

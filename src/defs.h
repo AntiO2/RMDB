@@ -42,7 +42,11 @@ struct Rid {
 enum ColType {
     TYPE_INT, TYPE_FLOAT, TYPE_STRING
 };
-
+/**
+ * @TODO 添加新的类之后，在这里添加字符信息
+ * @param type
+ * @return
+ */
 inline std::string coltype2str(ColType type) {
     std::map<ColType, std::string> m = {
             {TYPE_INT,    "INT"},

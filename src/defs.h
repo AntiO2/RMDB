@@ -38,10 +38,22 @@ struct Rid {
 
     friend bool operator!=(const Rid &x, const Rid &y) { return !(x == y); }
 };
-
+/**
+ *
+ * TODO 添加新的类信息。
+ */
 enum ColType {
     TYPE_INT, TYPE_FLOAT, TYPE_STRING
 };
+
+inline int col2len(ColType type) {
+    std::map<ColType, int> l = {
+            {TYPE_INT,    sizeof(int)},
+            {TYPE_FLOAT,  sizeof(float)},
+            // 未知大小 {TYPE_STRING, "STRING"}
+    };
+}
+
 /**
  * @TODO 添加新的类之后，在这里添加字符信息
  * @param type

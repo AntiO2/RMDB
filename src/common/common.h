@@ -102,12 +102,22 @@ inline int value_compare(const char *a, const char *b, ColType type, int col_len
             return (fa < fb) ? -1 : ((fa > fb) ? 1 : 0);
         }
         case TYPE_STRING:
-            return memcmp(a, b, col_len);
+        {
+            // Check (AntiO2) 这个比较出来好像不是字典序
+            auto res = memcmp(a, b, col_len);
+            LOG_DEBUG("String compare %d",res);
+            return res > 0? 1: (res<0 ? -1: 0);
+            break;
+        }
+
+
         default:
             throw InternalError("Unexpected data type");
     }
 }
-
+inline int value_compare(const char *a, const char *b, ColType type) {
+    return value_compare(a, b, type, col2len(type));
+}
 enum CompOp { OP_EQ, OP_NE, OP_LT, OP_GT, OP_LE, OP_GE };
 
 /**

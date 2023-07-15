@@ -113,6 +113,36 @@ return evaluate_compare(l_value, r_value, r_type, left_col->len, condition.op);
 
 参照PostgreSQL，可以将两个表的比较断言变成join条件，或者是在Join之上加一个filter。总之先不要在这里焦虑这个问题了
 
+### Update
+
+```C++
+case T_Update:
+{
+    std::unique_ptr<AbstractExecutor> scan= convert_plan_executor(x->subplan_, context);
+    std::vector<Rid> rids;
+    for (scan->beginTuple(); !scan->is_end(); scan->nextTuple()) {
+        rids.push_back(scan->rid());
+    }
+    std::unique_ptr<AbstractExecutor> root =std::make_unique<UpdateExecutor>(sm_manager_, 
+                                            x->tab_name_, x->set_clauses_, x->conds_, rids, context);
+    return std::make_shared<PortalStmt>(PORTAL_DML_WITHOUT_SELECT, std::vector<TabCol>(), std::move(root), plan);
+}
+
+
+```
+
+在portal中的start中，可以看到update**是先执行子算子**， 然后获取rid，再通过rid进行更新操作。（感觉这种方式有点蠢，需要读取两次tuple。应该将子算子作为Update Executor）
+
+
+
+再看一下是怎么执行DML的，居然是直接一个Next(),那就是说Insert,Update,Delete都是一次性执行完了。
+
+```C++
+void QlManager::run_dml(std::unique_ptr<AbstractExecutor> exec){
+    exec->Next();
+}
+```
+
 ## 如何执行？
 
 ![image-20230715171705187](./Executor.assets/image-20230715171705187.png)

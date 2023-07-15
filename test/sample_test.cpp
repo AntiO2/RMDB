@@ -42,3 +42,15 @@ TEST(SAMPLE_TEST, DISABLED_SET_TEST) {
     EXPECT_EQ(map.size(), 1);
 }
 
+TEST(SAMPLE_TEST, STRINGCMP_TEST) {
+    char str1[15];
+    char str2[15];
+
+    int ret;
+
+    memcpy(str1, "Data Structure",15);
+    memcpy(str2, "A",15);
+
+    LOG_DEBUG("Result: %d",memcmp(str1,str2,6));
+}
+

@@ -13,3 +13,4 @@ See the Mulan PSL v2 for more details. */
 #include "sm_manager.h"
 #include "sm_meta.h"
 #include "sm_defs.h"
+#include "logger.h"

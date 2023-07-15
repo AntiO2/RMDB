@@ -228,14 +228,12 @@ value:
     {
         $$ = std::make_shared<StringLit>($1);
     }
-    |
+    |   VALUE_BIGINT
     {
-        VALUE_BIGINT
         $$ = std::make_shared<BigintLit>($1);
     }
-    |
+    |   VALUE_DATETIME
     {
-        VALUE_DATETIME
         $$ = std::make_shared<DateTimeLit>($1);
     }
     ;

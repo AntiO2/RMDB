@@ -71,18 +71,114 @@ struct Value {
         }
     }
 };
+/**
+ * @description 这个是在ix_index_handle::ix_compare() 改过来的，用于在值之间进行判断大小。之后有新类型需要在这里增加
+ *
+ *
+ * @check 理性讨论，col_len真的需要吗？可以封装type 到col_len的映射
+ *
+ * @check 可以将type作为抽象类，其他类继承type基类，并包含type、col_len等属性，并实现equal、greater等接口。
+ *
+ *
+ * @param a
+ * @param b
+ * @param type
+ * @param col_len
+ * @return a > b 返回1
+ * @return a <&lt; b 返回-1
+ * @return a = b 返回0
+ * @modify_by antio2
+ */
+inline int value_compare(const char *a, const char *b, ColType type, int col_len) {
+    switch (type) {
+        case TYPE_INT: {
+            int ia = *(int *)a;
+            int ib = *(int *)b;
+            return (ia < ib) ? -1 : ((ia > ib) ? 1 : 0);
+        }
+        case TYPE_FLOAT: {
+            float fa = *(float *)a;
+            float fb = *(float *)b;
+            return (fa < fb) ? -1 : ((fa > fb) ? 1 : 0);
+        }
+        case TYPE_STRING:
+            return memcmp(a, b, col_len);
+        default:
+            throw InternalError("Unexpected data type");
+    }
+}
 
 enum CompOp { OP_EQ, OP_NE, OP_LT, OP_GT, OP_LE, OP_GE };
+
+/**
+ * TODO(AntiO2) 创建从type 到col_len的映射，从而减少参数传递
+ * @param a
+ * @param b
+ * @param type
+ * @param col_len
+ * @param op
+ * @return
+ */
+inline bool evaluate_compare(const char*a, const char* b, ColType type, int col_len,  CompOp op) {
+    switch (op) {
+        case OP_EQ:
+            return value_compare(a, b, type, col_len) == 0;
+        case OP_NE:
+            return value_compare(a, b, type, col_len) != 0;
+        case OP_LT:
+            return value_compare(a, b, type, col_len) == -1;
+        case OP_GT:
+            return value_compare(a, b, type, col_len) == 1;
+        case OP_LE:
+            return value_compare(a, b, type, col_len) != 1;
+        case OP_GE:
+            return value_compare(a, b, type, col_len) != -1;
+    }
+}
 
 struct Condition {
     TabCol lhs_col;   // left-hand side column
     CompOp op;        // comparison operator
-    bool is_rhs_val;  // true if right-hand side is a value (not a column)
+    bool is_rhs_val{};  // true if right-hand side is a value (not a column)
     TabCol rhs_col;   // right-hand side column
     Value rhs_val;    // right-hand side value
+
+public:
+
+//    /**
+//     *
+//     * @param lhs_col
+//     * @return
+//     */
+//    inline bool evaluate_condition(ColMeta lhs_col_, char* ) const {
+//        assert(lhs_col_.type==rhs_val.type);
+//    }
 };
 
 struct SetClause {
     TabCol lhs;
     Value rhs;
 };
+/**
+ * 通过Value和ColMetas构造RMrecord
+ * @param values
+ * @param cols
+ * @param rec_size
+ * @return
+ */
+static RmRecord GetRecord(std::vector<Value>& values, std::vector<ColMeta> &cols, int rec_size) {
+    assert(values.size()==cols.size());
+    auto col_num = cols.size();
+    auto rec = RmRecord(rec_size); // 通过rec大小，创建空的rmrecord;
+    for(decltype(col_num) i = 0; i < col_num; i++) {
+        auto &val = values[i];
+        auto &col = cols[i];
+        if (col.type != val.type) {
+            throw IncompatibleTypeError(coltype2str(col.type), coltype2str(val.type));
+        }
+        val.init_raw(col.len);
+        // 将Value数据存入rec中。
+        memcpy(rec.data + col.offset, val.raw->data, col.len);
+    }
+    return rec;
+}

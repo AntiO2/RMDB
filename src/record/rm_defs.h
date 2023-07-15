@@ -69,6 +69,15 @@ struct RmRecord {
         allocated_ = true;
     }
 
+    /**
+     * 通过Values和cols创建一条record
+     * @param values
+     * @param cols
+     */
+//    RmRecord(std::vector<Value> values, std::vector<ColMeta> cols) {
+//        assert(values.size()==cols.size());
+//
+//    }
     void SetData(char* data_) {
         memcpy(data, data_, size);
     }

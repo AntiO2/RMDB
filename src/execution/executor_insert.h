@@ -47,6 +47,7 @@ class InsertExecutor : public AbstractExecutor {
                 throw IncompatibleTypeError(coltype2str(col.type), coltype2str(val.type));
             }
             val.init_raw(col.len);
+            // 将Value数据存入rec中。
             memcpy(rec.data + col.offset, val.raw->data, col.len);
         }
         // Insert into record file

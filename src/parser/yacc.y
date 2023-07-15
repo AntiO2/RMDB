@@ -200,7 +200,7 @@ type:
     }
     |   DATETIME
     {
-        $$ = std::make_shared<TypeLen>(SV_TYPE_BIGINT, sizeof(uint64_t));
+        $$ = std::make_shared<TypeLen>(SV_TYPE_DATETIME, sizeof(uint64_t));
     }
     ;
 

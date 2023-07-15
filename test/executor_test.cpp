@@ -61,7 +61,10 @@ public:
         }
     }
 };
-
+/**
+ * @description 测试测试夹是否有效
+ *
+ */
 TEST_F(ExeTest,SAMPLE_TEST) {
     LOG_DEBUG("Testing");
 }

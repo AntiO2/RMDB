@@ -152,3 +152,4 @@ void QlManager::run_dml(std::unique_ptr<AbstractExecutor> exec){
 按照执行DQL举例，首先执行管理器调用beginTuple()进行初始化（相当于一个迭代器），然后每次通过Next()获取一个tuple。Next()本身不会将迭代器后移。
 
 ![image-20230715171940456](./Executor.assets/image-20230715171940456.png)
+

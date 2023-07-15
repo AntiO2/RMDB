@@ -38,3 +38,6 @@ endforeach()
 target_link_libraries(storage_test
         lru_replacer
         storage)
+
+target_link_libraries(executor_test
+        execution)

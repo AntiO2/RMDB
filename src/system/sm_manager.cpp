@@ -86,7 +86,8 @@ void SmManager::drop_db(const std::string& db_name) {
 void SmManager::open_db(const std::string& db_name) {
     //lsy
     //1.判断是否是目录并进入
-    if (is_dir(db_name)) {
+    // CHECK(AntiO2) 这里应该是非目录报错？
+    if (!is_dir(db_name)) {
         throw DatabaseExistsError(db_name);
     }
     if (chdir(db_name.c_str()) < 0) {

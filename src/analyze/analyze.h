@@ -52,9 +52,13 @@ public:
 private:
     TabCol check_column(const std::vector<ColMeta> &all_cols, TabCol target);
     void get_all_cols(const std::vector<std::string> &tab_names, std::vector<ColMeta> &all_cols);
-    void get_clause(const std::vector<std::shared_ptr<ast::BinaryExpr>> &sv_conds, std::vector<Condition> &conds);
+    //加个了tabs_name的参数，需要在check_clause之前填充col所在表，拿到type，才能进行类型转换
+    void get_clause(const std::vector<std::shared_ptr<ast::BinaryExpr>> &sv_conds, std::vector<Condition> &conds,const std::vector<std::string> &tab_names);
     void check_clause(const std::vector<std::string> &tab_names, std::vector<Condition> &conds);
     Value convert_sv_value(const std::shared_ptr<ast::Value> &sv_val);
     CompOp convert_sv_comp_op(ast::SvCompOp op);
+
+    //lsy
+    CompOp find_convert_comp_op(ast::SvCompOp op);
 };
 

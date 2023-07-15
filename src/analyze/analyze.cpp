@@ -24,11 +24,11 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
         query->tables = std::move(x->tabs);
         /** TODO: 检查表是否存在 */
         //lsy
-        for(auto &tab : query->tables)
-        {
-            if(!sm_manager_->db_.is_table(tab))
-                throw TableNotFoundError(tab);
+        for (auto &sv_sel_tab : query->tables){
+            if(!sm_manager_->db_.is_table(sv_sel_tab))
+                throw TableNotFoundError(sv_sel_tab);
         }
+
 
         // 处理target list，再target list中添加上表名，例如 a.id
         for (auto &sv_sel_col : x->cols) {
@@ -48,10 +48,11 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
             // infer table name from column name
             for (auto &sel_col : query->cols) {
                 sel_col = check_column(all_cols, sel_col);  // 列元数据校验
+                std::cout << sel_col.tab_name << std::endl;
             }
         }
         //处理where条件
-        get_clause(x->conds, query->conds);
+        get_clause(x->conds, query->conds,query->tables);
         check_clause(query->tables, query->conds);
     }
     else if (auto x = std::dynamic_pointer_cast<ast::UpdateStmt>(parse)) {
@@ -67,12 +68,12 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
         }
 
         //处理where条件
-        get_clause(x->conds, query->conds);
+        get_clause(x->conds, query->conds,{x->tab_name});
         check_clause({x->tab_name}, query->conds);        //check:直接用的下面自带的deleteStmt的处理where条件，这里就不语义检查tab_name了吗?
 
     } else if (auto x = std::dynamic_pointer_cast<ast::DeleteStmt>(parse)) {
         //处理where条件
-        get_clause(x->conds, query->conds);
+        get_clause(x->conds, query->conds,{x->tab_name});
         check_clause({x->tab_name}, query->conds);        
     } else if (auto x = std::dynamic_pointer_cast<ast::InsertStmt>(parse)) {
         // 处理insert 的values值
@@ -127,19 +128,81 @@ void Analyze::get_all_cols(const std::vector<std::string> &tab_names, std::vecto
     }
 }
 
-void Analyze::get_clause(const std::vector<std::shared_ptr<ast::BinaryExpr>> &sv_conds, std::vector<Condition> &conds) {
+void Analyze::get_clause(const std::vector<std::shared_ptr<ast::BinaryExpr>> &sv_conds, std::vector<Condition> &conds,const std::vector<std::string> &tab_names) {
     conds.clear();
     for (auto &expr : sv_conds) {
         Condition cond;
-        cond.lhs_col = {.tab_name = expr->lhs->tab_name, .col_name = expr->lhs->col_name};
-        cond.op = convert_sv_comp_op(expr->op);
-        if (auto rhs_val = std::dynamic_pointer_cast<ast::Value>(expr->rhs)) {
-            cond.is_rhs_val = true;
-            cond.rhs_val = convert_sv_value(rhs_val);
-        } else if (auto rhs_col = std::dynamic_pointer_cast<ast::Col>(expr->rhs)) {
-            cond.is_rhs_val = false;
-            cond.rhs_col = {.tab_name = rhs_col->tab_name, .col_name = rhs_col->col_name};
+
+        //左边是value，与右边进行一个交换
+        if (auto lhs_val = std::dynamic_pointer_cast<ast::Value>(expr->lhs)) {
+            cond.is_rhs_val = true;        //交换后右边一定是value
+            cond.rhs_val = convert_sv_value(lhs_val);
+            //将op取反
+            cond.op = find_convert_comp_op(expr->op);
+
+            //获取变换后的lhs,check:右边应该只能是列了吧
+            if (auto rhs_col = std::dynamic_pointer_cast<ast::Col>(expr->rhs)) {
+                cond.lhs_col = {.tab_name = rhs_col->tab_name, .col_name = rhs_col->col_name};
+            }
         }
+        else
+        {
+            cond.lhs_col = {.tab_name = expr->lhs->tab_name, .col_name = expr->lhs->col_name};
+            cond.op = convert_sv_comp_op(expr->op);
+
+            if (auto rhs_val = std::dynamic_pointer_cast<ast::Value>(expr->rhs)) {
+                cond.is_rhs_val = true;
+                cond.rhs_val = convert_sv_value(rhs_val);
+            } else if (auto rhs_col = std::dynamic_pointer_cast<ast::Col>(expr->rhs)) {
+                cond.is_rhs_val = false;
+                cond.rhs_col = {.tab_name = rhs_col->tab_name, .col_name = rhs_col->col_name};
+            }
+        }
+
+        //如果cond的右值是常数，尝试转化成和左值一样的类型
+        if(cond.is_rhs_val)
+        {
+            //1.要先填充上列的tab_name
+            std::vector<ColMeta> all_cols;
+            get_all_cols(tab_names, all_cols);
+            cond.lhs_col = check_column(all_cols, cond.lhs_col);
+            //std::cout << cond.lhs_col.tab_name << std::endl;
+            TabMeta &lhs_tab = sm_manager_->db_.get_table(cond.lhs_col.tab_name);
+            auto lhs_col = lhs_tab.get_col(cond.lhs_col.col_name);
+            ColType lhs_type = lhs_col->type;
+
+            //比照右值与左值列的类型,不相等则类型转换
+            if(cond.rhs_val.type != lhs_type)
+            {
+                if(lhs_type == TYPE_FLOAT)
+                {
+                    //int转float
+                    if(cond.rhs_val.type == TYPE_INT) {
+                        auto num = static_cast<float>(cond.rhs_val.int_val);
+                        cond.rhs_val.int_val = 0;
+                        cond.rhs_val.set_float(num);
+                    }
+                    else if(cond.rhs_val.type == TYPE_STRING){
+                        float num = std::stof(cond.rhs_val.str_val);
+                        cond.rhs_val.set_float(num);
+                    }
+                }
+                else if(lhs_type == TYPE_INT)
+                {
+                    //float转int
+                    if(cond.rhs_val.type == TYPE_FLOAT){
+                        int num = static_cast<int>(cond.rhs_val.float_val);
+                        cond.rhs_val.float_val = 0;
+                        cond.rhs_val.set_int(num);
+                    }
+                    else if(cond.rhs_val.type == TYPE_STRING){
+                        int num = std::stoi(cond.rhs_val.str_val);
+                        cond.rhs_val.set_int(num);
+                    }
+                }
+            }
+        }
+
         conds.push_back(cond);
     }
 }
@@ -196,6 +259,15 @@ CompOp Analyze::convert_sv_comp_op(ast::SvCompOp op) {
     std::map<ast::SvCompOp, CompOp> m = {
         {ast::SV_OP_EQ, OP_EQ}, {ast::SV_OP_NE, OP_NE}, {ast::SV_OP_LT, OP_LT},
         {ast::SV_OP_GT, OP_GT}, {ast::SV_OP_LE, OP_LE}, {ast::SV_OP_GE, OP_GE},
+    };
+    return m.at(op);
+}
+
+//获取相反的op，用于左右值列交换时变换符号
+CompOp Analyze::find_convert_comp_op(ast::SvCompOp op) {
+    std::map<ast::SvCompOp, CompOp> m = {
+            {ast::SV_OP_EQ, OP_NE}, {ast::SV_OP_NE, OP_EQ}, {ast::SV_OP_LT, OP_GT},
+            {ast::SV_OP_GT, OP_LT}, {ast::SV_OP_LE, OP_GE}, {ast::SV_OP_GE, OP_LE},
     };
     return m.at(op);
 }

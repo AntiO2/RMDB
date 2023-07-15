@@ -60,5 +60,7 @@ private:
 
     //lsy
     CompOp find_convert_comp_op(ast::SvCompOp op);
+
+    void fix_setClause(SetClause &setClause, const std::vector<std::string> &tab_names);
 };
 

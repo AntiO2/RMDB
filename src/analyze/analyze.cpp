@@ -29,7 +29,6 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
                 throw TableNotFoundError(sv_sel_tab);
         }
 
-
         // 处理target list，再target list中添加上表名，例如 a.id
         for (auto &sv_sel_col : x->cols) {
             TabCol sel_col = {.tab_name = sv_sel_col->tab_name, .col_name = sv_sel_col->col_name};
@@ -64,6 +63,8 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
             SetClause setClause;
             setClause.lhs = {.tab_name = x->tab_name, .col_name = set_clause->col_name};
             setClause.rhs = convert_sv_value(set_clause->val);
+            //支持一下类型转换
+            fix_setClause(setClause,{x->tab_name});
             query->set_clauses.push_back(setClause);
         }
 
@@ -125,6 +126,48 @@ void Analyze::get_all_cols(const std::vector<std::string> &tab_names, std::vecto
         // 这里db_不能写成get_db(), 注意要传指针
         const auto &sel_tab_cols = sm_manager_->db_.get_table(sel_tab_name).cols;
         all_cols.insert(all_cols.end(), sel_tab_cols.begin(), sel_tab_cols.end());
+    }
+}
+
+void Analyze::fix_setClause(SetClause &setClause, const std::vector<std::string> &tab_names)
+{
+    //1.要先填充上列的tab_name
+    std::vector<ColMeta> all_cols;
+    get_all_cols(tab_names, all_cols);
+    setClause.lhs = check_column(all_cols, setClause.lhs);
+    TabMeta &lhs_tab = sm_manager_->db_.get_table(setClause.lhs.tab_name);
+    auto lhs_col = lhs_tab.get_col(setClause.lhs.col_name);
+    ColType lhs_type = lhs_col->type;
+
+    //比照右值与左值列的类型,不相等则类型转换
+    if(setClause.rhs.type != lhs_type)
+    {
+        if(lhs_type == TYPE_FLOAT)
+        {
+            //int转float
+            if(setClause.rhs.type == TYPE_INT) {
+                auto num = static_cast<float>(setClause.rhs.int_val);
+                setClause.rhs.int_val = 0;
+                setClause.rhs.set_float(num);
+            }
+            else if(setClause.rhs.type == TYPE_STRING){
+                float num = std::stof(setClause.rhs.str_val);
+                setClause.rhs.set_float(num);
+            }
+        }
+        else if(lhs_type == TYPE_INT)
+        {
+            //float转int
+            if(setClause.rhs.type == TYPE_FLOAT){
+                int num = static_cast<int>(setClause.rhs.float_val);
+                setClause.rhs.float_val = 0;
+                setClause.rhs.set_int(num);
+            }
+            else if(setClause.rhs.type == TYPE_STRING){
+                int num = std::stoi(setClause.rhs.str_val);
+                setClause.rhs.set_int(num);
+            }
+        }
     }
 }
 

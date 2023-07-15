@@ -23,6 +23,12 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
         // 处理表名
         query->tables = std::move(x->tabs);
         /** TODO: 检查表是否存在 */
+        //lsy
+        for(auto &tab : query->tables)
+        {
+            if(!sm_manager_->db_.is_table(tab))
+                throw TableNotFoundError(tab);
+        }
 
         // 处理target list，再target list中添加上表名，例如 a.id
         for (auto &sv_sel_col : x->cols) {
@@ -47,8 +53,22 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
         //处理where条件
         get_clause(x->conds, query->conds);
         check_clause(query->tables, query->conds);
-    } else if (auto x = std::dynamic_pointer_cast<ast::UpdateStmt>(parse)) {
+    }
+    else if (auto x = std::dynamic_pointer_cast<ast::UpdateStmt>(parse)) {
         /** TODO: */
+        //lsy
+        //处理set_clause的list
+        for(auto &set_clause : x->set_clauses)
+        {
+            SetClause setClause;
+            setClause.lhs = {.tab_name = x->tab_name, .col_name = set_clause->col_name};
+            setClause.rhs = convert_sv_value(set_clause->val);
+            query->set_clauses.push_back(setClause);
+        }
+
+        //处理where条件
+        get_clause(x->conds, query->conds);
+        check_clause({x->tab_name}, query->conds);        //check:直接用的下面自带的deleteStmt的处理where条件，这里就不语义检查tab_name了吗?
 
     } else if (auto x = std::dynamic_pointer_cast<ast::DeleteStmt>(parse)) {
         //处理where条件
@@ -85,7 +105,16 @@ TabCol Analyze::check_column(const std::vector<ColMeta> &all_cols, TabCol target
         target.tab_name = tab_name;
     } else {
         /** TODO: Make sure target column exists */
-        
+        //lsy
+        bool flag = false;
+        for (auto &col : all_cols) {
+            if (col.name == target.col_name && col.tab_name == target.tab_name) {
+                flag = true;
+                break;
+            }
+        }
+        if(!flag)
+            throw ColumnNotFoundError(target.col_name);
     }
     return target;
 }

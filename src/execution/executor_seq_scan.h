@@ -133,7 +133,7 @@ class SeqScanExecutor : public AbstractExecutor {
             return evaluate_compare(l_value, r_value, r_type, left_col->len, condition.op); // 判断该condition是否成立（断言为真）
     }
 
-    const std::vector<ColMeta> &cols() const override {
+    [[nodiscard]] const std::vector<ColMeta> &cols() const override {
         return cols_;
     }
 };

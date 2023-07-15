@@ -32,17 +32,79 @@ class UpdateExecutor : public AbstractExecutor {
                    std::vector<Condition> conds, std::vector<Rid> rids, Context *context) {
         sm_manager_ = sm_manager;
         tab_name_ = tab_name;
-        set_clauses_ = std::move(set_clauses);
+        set_clauses_ = std::move(set_clauses); // 设置哪一列为哪一个右值
         tab_ = sm_manager_->db_.get_table(tab_name);
         fh_ = sm_manager_->fhs_.at(tab_name).get();
         conds_ = std::move(conds);
-        rids_ = std::move(rids);
+        rids_ = std::move(rids); // rids_
         context_ = context;
     }
+
+
     std::unique_ptr<RmRecord> Next() override {
-        
+        std::vector<int> set_cols; // 需要被设置的cols offset
+        std::vector<int> set_lens;
+        auto set_size = set_clauses_.size();
+        std::for_each(set_clauses_.begin(), set_clauses_.end(),[this,&set_cols, &set_lens](SetClause& set_clause) { // 知识点 引用捕获
+            auto set_col = tab_.get_col(set_clause.lhs.col_name); // 找到在原表中更新的列
+            if(set_col->type!=set_clause.rhs.type) {
+                // 需要目标列和右值匹配
+                throw IncompatibleTypeError(coltype2str(set_col->type), coltype2str(set_clause.rhs.type));
+            }
+            set_lens.emplace_back(set_col->len);
+            set_clause.rhs.init_raw(set_col->len); // 使得原始的二进制数据能够读取
+            set_cols.emplace_back(set_col->offset);
+
+        });
+        assert(set_cols.size()==set_size);
+        std::for_each(rids_.begin(),rids_.end(),[this, set_size,&set_cols, &set_lens](const Rid&rid){
+            auto tuple = fh_->get_record(rid,context_);
+            auto tuple_ptr = tuple.get();
+            if(CheckConditions(tuple_ptr,conds_)) {
+                // 如果满足条件
+                for(decltype(set_size) i = 0; i < set_size; i++) {
+                    memcpy(tuple->data+set_cols[i], set_clauses_[i].rhs.raw->data,set_lens[i]); // 修改所有列
+                }
+                fh_->update_record(rid,tuple->data,context_);
+            }});
+        LOG_DEBUG("Update Complete");
         return nullptr;
     }
 
+    bool CheckConditions(RmRecord* rec, const std::vector<Condition>& conditions) {
+        /**
+         * 检查所有条件
+         */
+        return std::all_of(conditions.begin(),conditions.end(),[rec, this](const Condition& condition){
+            return CheckCondition(rec,condition);
+        });
+    }
+    /**
+     * @description 检查单个断言是否成立
+     * @param rec
+     * @param conditions
+     * @return
+     */
+    bool CheckCondition(RmRecord* rec, const Condition& condition) {
+        if(condition.is_always_false_) {
+            return false;
+        }
+        auto left_col = get_col(tab_.cols,condition.lhs_col); // 首先根据condition中，左侧列的名字，来获取该列的数据
+        char* l_value = rec->data+left_col->offset; // 获得左值。CHECK(AntiO2) 这里左值一定是常量吗？有没有可能两边都是常数。
+        char* r_value;
+        ColType r_type{};
+        if(condition.is_rhs_val) {
+            // 如果右值是一个常数
+            r_value = condition.rhs_val.raw->data;
+            r_type = condition.rhs_val.type;
+        } else {
+            // check(AntiO2) 这里只有同一张表上两个列比较的情况吗？
+            auto r_col =  get_col(tab_.cols,condition.rhs_col);
+            r_value = rec->data + r_col->offset;
+            r_type = r_col->type;
+        }
+        assert(left_col->type==r_type); // 保证两个值类型一样。
+        return evaluate_compare(l_value, r_value, r_type, left_col->len, condition.op); // 判断该condition是否成立（断言为真）
+    }
     Rid &rid() override { return _abstract_rid; }
 };

@@ -218,10 +218,10 @@ void SmManager::create_table(const std::string& tab_name, const std::vector<ColD
  * @param {Context*} context
  */
 void SmManager::drop_table(const std::string& tab_name, Context* context) {
-    //lsy
-    //判断
-    if (db_.is_table(tab_name)) {
-        throw TableExistsError(tab_name);
+    // lsy
+    // 如果不存在table才需要报错
+    if (!db_.is_table(tab_name)) {
+        throw TableNotFoundError(tab_name);
     }
 
     //关闭这个table文件

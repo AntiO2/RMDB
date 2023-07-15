@@ -132,11 +132,13 @@ class Portal
             }
             case PORTAL_MULTI_QUERY:
             {
+                // 进行DDL执行
                 ql->run_mutli_query(portal->plan, context);
                 break;
             }
             case PORTAL_CMD_UTILITY:
             {
+                // 控制台指令，可以开启事务等
                 ql->run_cmd_utility(portal->plan, txn_id, context);
                 break;
             }

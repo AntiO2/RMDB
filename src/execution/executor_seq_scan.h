@@ -136,4 +136,16 @@ class SeqScanExecutor : public AbstractExecutor {
     [[nodiscard]] const std::vector<ColMeta> &cols() const override {
         return cols_;
     }
+
+    [[nodiscard]] size_t tupleLen() const override {
+        return len_;
+    }
+
+    std::string getType() override {
+        return AbstractExecutor::getType();
+    }
+
+    ColMeta get_col_offset(const TabCol &target) override {
+        return AbstractExecutor::get_col_offset(target);
+    }
 };

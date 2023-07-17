@@ -1,5 +1,6 @@
 include(GoogleTest)
 include_directories(${PROJECT_SOURCE_DIR}/src)
+include_directories(${PROJECT_SOURCE_DIR}/deps/fmt/include)
 
 #set(test_dependency
 #        gtest_main
@@ -41,3 +42,6 @@ target_link_libraries(storage_test
 
 target_link_libraries(executor_test
         execution)
+
+target_link_libraries(sample_test
+        fmt)

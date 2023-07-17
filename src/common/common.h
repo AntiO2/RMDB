@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include <vector>
 #include "defs.h"
 #include "record/rm_defs.h"
+#include <regex>
 
 
 struct TabCol {
@@ -34,8 +35,10 @@ struct Value {
         int int_val;      // int value
         float float_val;  // float value
     };
+    //CHECK(liamY) 这里后面改进可以做成union
     std::string str_val;  // string value
     int64_t bigint_val;
+    std::string  datetime_val;//date value
 
     std::shared_ptr<RmRecord> raw;  // raw record buffer
 
@@ -75,6 +78,44 @@ struct Value {
         }
     }
 
+    //liamY检测字符串是否符合日期格式
+    bool is_valid_date(const std::string& date_str) {
+        static const std::regex pattern(R"(^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})$)");
+        std::smatch match;
+        if (!std::regex_match(date_str, match, pattern)) {
+            return false; // 格式不匹配
+        }
+        if (match.size() != 7) {
+            return false; // 捕获组数量错误
+        }
+        int year = std::stoi(match.str(1));
+        int month = std::stoi(match.str(2));
+        int day = std::stoi(match.str(3));
+        int hour = std::stoi(match.str(4));
+        int minute = std::stoi(match.str(5));
+        int second = std::stoi(match.str(6));
+        if (year < 1000 || year > 9999 || month < 1 || month > 12 || day < 1 || day > 31 ||
+            hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59) {
+            return false; // 字段值非法
+        }
+        if (month == 2 && day > 29) {
+            return false; // 2月的天数不合法
+        }
+        //如果还需要更准确的话
+//        if ((month == 4 || month == 6 || month == 9 || month == 11) && day > 30) {
+//            return false; // 4、6、9、11月的天数不合法
+//        }
+        return true;
+    }
+
+    //liamY
+    void set_datetime(const std::string &datetime_val_){
+        //如果日期无效，报错
+        if(!is_valid_date(datetime_val_)){throw DateTimeAbsurdError("",datetime_val_);}
+        type = TYPE_DATETIME;
+        datetime_val = datetime_val_;//存为string数据
+    }
+
     void init_raw(int len) {
         assert(raw == nullptr);
         raw = std::make_shared<RmRecord>(len);
@@ -92,8 +133,27 @@ struct Value {
             memcpy(raw->data, str_val.c_str(), str_val.size());
         } else if(type == TYPE_BIGINT){
             *(int64_t *)(raw->data) = bigint_val;
+        } else if(type == TYPE_DATETIME){//liamY
+            *(std::string *)(raw->data) = datetime_val;
         }
-        //TODO TYPE_DATETIME
+    }
+};
+
+//@description: 比较两个日期是否相等，将日期分为年月日时分秒，从年开始，str1-str2，直到遇到第一组不一样的，返回做差结果
+inline int datetime_compare(const std::string& date_str1,const std::string& date_str2){
+    static const std::regex pattern(R"(^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})$)");
+    std::smatch match1,match2;
+    if (!std::regex_match(date_str1, match1, pattern) || !std::regex_match(date_str2, match2, pattern) ) {
+        throw DateTimeAbsurdError(date_str1,date_str2);
+    }
+    if (match1.size() != 7 || match2.size() != 7) {
+        throw DateTimeAbsurdError(date_str1,date_str2);
+    }
+    int tmp1,tmp2;
+    for(int i=1;i<=6;i++) {
+        tmp1 = std::stoi(match1.str(i));
+        tmp2 = std::stoi(match2.str(i));
+        if ((tmp1 - tmp2) != 0) return tmp1 - tmp2;
     }
 };
 /**
@@ -135,7 +195,9 @@ inline int value_compare(const char *a, const char *b, ColType type, int col_len
             break;
         }
         case TYPE_DATETIME:{
-            //TODO
+            //liamY
+            int res = datetime_compare(a,b);
+            return res > 0? 1: (res<0 ? -1: 0);
         }
         default:
             throw InternalError("Unexpected data type");

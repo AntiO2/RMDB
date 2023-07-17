@@ -168,6 +168,8 @@ void QlManager::select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot, 
                 col_str.resize(strlen(col_str.c_str()));
             }else if(col.type == TYPE_BIGINT){
                 col_str = std::to_string(*(int64_t *)rec_buf);
+            }else if(col.type == TYPE_DATETIME){//liamY
+                col_str = std::string((char *)rec_buf,col.len);
             }
             columns.push_back(col_str);
         }

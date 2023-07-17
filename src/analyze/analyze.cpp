@@ -77,10 +77,28 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
         get_clause(x->conds, query->conds,{x->tab_name});
         check_clause({x->tab_name}, query->conds);        
     } else if (auto x = std::dynamic_pointer_cast<ast::InsertStmt>(parse)) {
+        //拿到所有col的信息
+        std::vector<ColMeta> all_cols;
+        get_all_cols({x->tab_name}, all_cols);
+
         // 处理insert 的values值
-        for (auto &sv_val : x->vals) {
-            query->values.push_back(convert_sv_value(sv_val));
+        for(int i = 0;i < x->vals.size();i++){
+            Value value = convert_sv_value(x->vals[i]);
+            //如果是bigint类型插入int,报错
+            assert(!(value.type == TYPE_BIGINT && all_cols[i].type == TYPE_INT));
+            //如果是int类型插入bigint,转换成bigint
+            if(value.type == TYPE_INT && all_cols[i].type == TYPE_BIGINT){
+                Value num;
+                num.set_bigint(value.int_val);
+                query->values.push_back(num);
+            }
+            else
+                query->values.push_back(value);
         }
+
+//        for (auto &sv_val : x->vals) {
+//            query->values.push_back(convert_sv_value(sv_val));
+//        }
     } else {
         // do nothing
     }

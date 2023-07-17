@@ -35,6 +35,7 @@ struct Value {
         float float_val;  // float value
     };
     std::string str_val;  // string value
+    int64_t bigint_val;
 
     std::shared_ptr<RmRecord> raw;  // raw record buffer
 
@@ -51,6 +52,17 @@ struct Value {
     void set_str(std::string str_val_) {
         type = TYPE_STRING;
         str_val = std::move(str_val_);
+    }
+
+    void set_bigint(int64_t bigint_val_){
+        type = TYPE_BIGINT;
+        bigint_val = bigint_val_;
+    }
+
+    //也支持int值填入bigint
+    void set_bigint(int int_val_){
+        type = TYPE_BIGINT;
+        bigint_val = int_val_;
     }
 
     void init_raw(int len) {

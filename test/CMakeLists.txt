@@ -36,7 +36,7 @@ endforeach()
 #################################
 ##      在这里添加你自己需要的库    ##
 #################################
-target_link_libraries(storage_test
+target_link_libraries(storage2_test
         lru_replacer
         storage)
 

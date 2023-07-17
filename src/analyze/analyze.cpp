@@ -85,6 +85,7 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
         for(int i = 0;i < x->vals.size();i++){
             Value value = convert_sv_value(x->vals[i]);
             //如果是bigint类型插入int,报错
+            //CHECK(liamY)bigint应该只能插入bigint的话，可以改为assert(value.type != TYPE_BIGINT || all_cols[i].type == TYPE_BIGINT);
             assert(!(value.type == TYPE_BIGINT && all_cols[i].type == TYPE_INT));
             //如果是int类型插入bigint,转换成bigint
             if(value.type == TYPE_INT && all_cols[i].type == TYPE_BIGINT){

@@ -17,3 +17,8 @@ add_subdirectory(src)
 add_subdirectory(deps)
 add_subdirectory(test)
 add_subdirectory(rmdb_client)
+
+SET(GDB_INCLUDE_DIRS
+        ${PROJECT_SOURCE_DIR}/deps/fmt/include)
+MESSAGE(INCLUDE ${GDB_INCLUDE_DIRS})
+INCLUDE_DIRECTORIES(GDB_INCLUDE_DIRS)

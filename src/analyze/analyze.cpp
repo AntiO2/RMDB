@@ -85,8 +85,9 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
         for(int i = 0;i < x->vals.size();i++){
             Value value = convert_sv_value(x->vals[i]);
             //如果是bigint类型插入int,报错
-            //CHECK(liamY)bigint应该只能插入bigint的话，可以改为assert(value.type != TYPE_BIGINT || all_cols[i].type == TYPE_BIGINT);
-            assert(!(value.type == TYPE_BIGINT && all_cols[i].type == TYPE_INT));
+            if(value.type == TYPE_BIGINT && all_cols[i].type == TYPE_INT) {
+                throw BigintOutOfRangeError("",std::to_string(value.bigint_val));
+            }
             //如果是int类型插入bigint,转换成bigint
             if(value.type == TYPE_INT && all_cols[i].type == TYPE_BIGINT){
                 Value num;
@@ -163,6 +164,10 @@ void Analyze::fix_setClause(SetClause &setClause, const std::vector<std::string>
     {
         if(lhs_type == TYPE_FLOAT)
         {
+            //如果要更新的值是bigint,直接抛出异常
+            if(setClause.rhs.type == TYPE_BIGINT)
+                throw BigintOutOfRangeError("",std::to_string(setClause.rhs.bigint_val));
+
             //int转float
             if(setClause.rhs.type == TYPE_INT) {
                 auto num = static_cast<float>(setClause.rhs.int_val);
@@ -176,6 +181,10 @@ void Analyze::fix_setClause(SetClause &setClause, const std::vector<std::string>
         }
         else if(lhs_type == TYPE_INT)
         {
+            //如果要更新的值是bigint,直接抛出异常
+            if(setClause.rhs.type == TYPE_BIGINT)
+                throw BigintOutOfRangeError("",std::to_string(setClause.rhs.bigint_val));
+
             //float转int
             if(setClause.rhs.type == TYPE_FLOAT){
                 int num = static_cast<int>(setClause.rhs.float_val);
@@ -185,6 +194,20 @@ void Analyze::fix_setClause(SetClause &setClause, const std::vector<std::string>
             else if(setClause.rhs.type == TYPE_STRING){
                 int num = std::stoi(setClause.rhs.str_val);
                 setClause.rhs.set_int(num);
+            }
+        }
+        else if(lhs_type == TYPE_BIGINT){
+            //int转bigint
+            if(setClause.rhs.type == TYPE_INT) {
+                Value value;
+                value.set_bigint(setClause.rhs.int_val);
+                setClause.rhs = value;
+            }
+            //float转bigint
+            if(setClause.rhs.type == TYPE_FLOAT){
+                Value value;
+                value.set_bigint(static_cast<int>(setClause.rhs.float_val));
+                setClause.rhs = value;
             }
         }
     }
@@ -234,6 +257,7 @@ void Analyze::get_clause(const std::vector<std::shared_ptr<ast::BinaryExpr>> &sv
             ColType lhs_type = lhs_col->type;
 
             //比照右值与左值列的类型,不相等则类型转换
+            //TODO 比如左边是int,右边是bigint的话，无法转换，但可以比较 ? 看看怎么处理好
             if(cond.rhs_val.type != lhs_type)
             {
                 if(lhs_type == TYPE_FLOAT)
@@ -260,6 +284,20 @@ void Analyze::get_clause(const std::vector<std::shared_ptr<ast::BinaryExpr>> &sv
                     else if(cond.rhs_val.type == TYPE_STRING){
                         int num = std::stoi(cond.rhs_val.str_val);
                         cond.rhs_val.set_int(num);
+                    }
+                }
+                else if(lhs_type == TYPE_BIGINT){
+                    //int转bigint
+                    if(cond.rhs_val.type == TYPE_INT) {
+                        Value value;
+                        value.set_bigint(cond.rhs_val.int_val);
+                        cond.rhs_val = value;
+                    }
+                    //float转bigint
+                    if(cond.rhs_val.type == TYPE_FLOAT){
+                        Value value;
+                        value.set_bigint(static_cast<int>(cond.rhs_val.float_val));
+                        cond.rhs_val = value;
                     }
                 }
             }

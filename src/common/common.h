@@ -65,6 +65,16 @@ struct Value {
         bigint_val = int_val_;
     }
 
+    //注意超出bigint范围的要抛出异常
+    void set_bigint(const std::string &bigint_val_){
+        type = TYPE_BIGINT;
+        try {
+            bigint_val = std::stoll(bigint_val_);
+        }catch(std::out_of_range const& ex) {
+            throw BigintOutOfRangeError("", bigint_val_);
+        }
+    }
+
     void init_raw(int len) {
         assert(raw == nullptr);
         raw = std::make_shared<RmRecord>(len);
@@ -80,7 +90,10 @@ struct Value {
             }
             memset(raw->data, 0, len);
             memcpy(raw->data, str_val.c_str(), str_val.size());
+        } else if(type == TYPE_BIGINT){
+            *(int64_t *)(raw->data) = bigint_val;
         }
+        //TODO TYPE_DATETIME
     }
 };
 /**
@@ -121,8 +134,15 @@ inline int value_compare(const char *a, const char *b, ColType type, int col_len
             return res > 0? 1: (res<0 ? -1: 0);
             break;
         }
-
-
+        case TYPE_BIGINT:{
+            int64_t ia = *(int64_t *)a;
+            int64_t ib = *(int64_t *)b;
+            return (ia < ib) ? -1 : ((ia > ib) ? 1 : 0);
+            break;
+        }
+        case TYPE_DATETIME:{
+            //TODO
+        }
         default:
             throw InternalError("Unexpected data type");
     }

@@ -149,6 +149,12 @@ class IncompatibleTypeError : public RMDBError {
         : RMDBError("Incompatible type error: lhs " + lhs + ", rhs " + rhs) {}
 };
 
+class BigintOutOfRangeError : public RMDBError {
+public:
+    BigintOutOfRangeError(const std::string &lhs, const std::string &rhs)
+            : RMDBError("Bigint Out Of Range Error: lhs " + lhs + ", rhs " + rhs) {}
+};
+
 class AmbiguousColumnError : public RMDBError {
    public:
     AmbiguousColumnError(const std::string &col_name) : RMDBError("Ambiguous column: " + col_name) {}

@@ -43,7 +43,7 @@ struct Rid {
  * TODO 添加新的类信息。
  */
 enum ColType {
-    TYPE_INT, TYPE_FLOAT, TYPE_STRING, TYPE_BIGINT,TYPE_DATETIME
+    TYPE_INT, TYPE_FLOAT, TYPE_STRING, TYPE_BIGINT,TYPE_DATETIME,
 };
 
 inline int col2len(ColType type) {

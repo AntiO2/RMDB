@@ -325,7 +325,7 @@ void Analyze::check_clause(const std::vector<std::string> &tab_names, std::vecto
         ColType rhs_type;
         if (cond.is_rhs_val) {
             //试试直接failure
-            if(lhs_col->type == TYPE_INT && cond.rhs_val.type == TYPE_BIGINT)
+            if((lhs_col->type == TYPE_INT || lhs_col->type == TYPE_FLOAT)&& cond.rhs_val.type == TYPE_BIGINT)
                 throw BigintOutOfRangeError("","");
 
             cond.rhs_val.init_raw(lhs_col->len);

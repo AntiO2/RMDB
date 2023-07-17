@@ -42,7 +42,7 @@ struct ColMeta {
 /* 索引元数据 */
 struct IndexMeta {
     std::string tab_name;           // 索引所属表名称
-    int col_tot_len;                // 索引字段长度总和
+    int col_tot_len;                // 索引字段长度总和（sum(cols.len)）
     int col_num;                    // 索引字段数量
     std::vector<ColMeta> cols;      // 索引包含的字段
 
@@ -71,6 +71,7 @@ struct TabMeta {
     std::vector<ColMeta> cols;          // 表包含的字段
     std::vector<IndexMeta> indexes;     // 表上建立的索引
 
+
     TabMeta(){}
 
     TabMeta(const TabMeta &other) {
@@ -83,7 +84,22 @@ struct TabMeta {
         auto pos = std::find_if(cols.begin(), cols.end(), [&](const ColMeta &col) { return col.name == col_name; });
         return pos != cols.end();
     }
-
+    void remove_index(const std::vector<std::string>& col_names) {
+        for(auto index = indexes.begin(); index!=indexes.end();index++) {
+            if(index->col_num == col_names.size()) {
+                size_t i = 0;
+                for(; i < index->col_num; ++i) {
+                    if(index->cols[i].name != col_names[i])
+                        break;
+                }
+                if(i == index->col_num) {
+                    indexes.erase(index);
+                    return;
+                }
+            }
+        }
+        throw IndexNotFoundError(name,col_names);
+    }
     /* 判断当前表上是否建有指定索引，索引包含的字段为col_names */
     bool is_index(const std::vector<std::string>& col_names) const {
         for(auto& index: indexes) {
@@ -96,7 +112,6 @@ struct TabMeta {
                 if(i == index.col_num) return true;
             }
         }
-
         return false;
     }
 

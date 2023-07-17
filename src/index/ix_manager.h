@@ -53,9 +53,11 @@ class IxManager {
         auto ix_name = get_index_name(filename, index_cols);
         return disk_manager_->is_file(ix_name);
     }
-
+    bool exists(const std::string &ix_name) {
+        return disk_manager_->is_file(ix_name);
+    }
     void create_index(const std::string &filename, const std::vector<ColMeta>& index_cols) {
-        std::string ix_name = get_index_name(filename, index_cols);
+        std::string ix_name = get_index_name(filename, index_cols); // 通过table name和列组合，获取index名字。
         // Create index file
         disk_manager_->create_file(ix_name);
         // Open index file
@@ -75,6 +77,8 @@ class IxManager {
         }
         // 根据 |page_hdr| + (|attr| + |rid|) * (n + 1) <= PAGE_SIZE 求得n的最大值btree_order
         // 即 n <= btree_order，那么btree_order就是每个结点最多可插入的键值对数量（实际还多留了一个空位，但其不可插入）
+        // Key: index cols
+        // Value: RID
         int btree_order = static_cast<int>((PAGE_SIZE - sizeof(IxPageHdr)) / (col_tot_len + sizeof(Rid)) - 1);
         assert(btree_order > 2);
 
@@ -89,9 +93,9 @@ class IxManager {
         fhdr->update_tot_len();
         
         char* data = new char[fhdr->tot_len_];
-        fhdr->serialize(data);
+        fhdr->serialize(data); // 将fhdr的数据结构化，存储到data中
 
-        disk_manager_->write_page(fd, IX_FILE_HDR_PAGE, data, fhdr->tot_len_);
+        disk_manager_->write_page(fd, IX_FILE_HDR_PAGE, data, fhdr->tot_len_); // 将索引数据写到索引文件的第0页中（header page）
 
         char page_buf[PAGE_SIZE];  // 在内存中初始化page_buf中的内容，然后将其写入磁盘
         memset(page_buf, 0, PAGE_SIZE);
@@ -142,7 +146,9 @@ class IxManager {
         std::string ix_name = get_index_name(filename, index_cols);
         disk_manager_->destroy_file(ix_name);
     }
-
+    void destroy_index(const std::string &ix_name) {
+        disk_manager_->destroy_file(ix_name);
+    }
     // 注意这里打开文件，创建并返回了index file handle的指针
     std::unique_ptr<IxIndexHandle> open_index(const std::string &filename, const std::vector<ColMeta>& index_cols) {
         std::string ix_name = get_index_name(filename, index_cols);
@@ -155,7 +161,10 @@ class IxManager {
         int fd = disk_manager_->open_file(ix_name);
         return std::make_unique<IxIndexHandle>(disk_manager_, buffer_pool_manager_, fd);
     }
-
+    std::unique_ptr<IxIndexHandle> open_index(const std::string &index_name) {
+        int fd = disk_manager_->open_file(index_name);
+        return std::make_unique<IxIndexHandle>(disk_manager_, buffer_pool_manager_, fd);
+    }
     void close_index(const IxIndexHandle *ih) {
         char* data = new char[ih->file_hdr_->tot_len_];
         ih->file_hdr_->serialize(data);

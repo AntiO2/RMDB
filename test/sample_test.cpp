@@ -4,6 +4,7 @@
 #include <string>
 #include <gtest/gtest.h>
 #include "logger.h"
+#include "system/sm.h"
 
 TEST(LOGGER_TEST, INFO_TEST) {
     std::string msg = "Test Info Logger";
@@ -54,3 +55,29 @@ TEST(SAMPLE_TEST, STRINGCMP_TEST) {
     LOG_DEBUG("Result: %d",memcmp(str1,str2,6));
 }
 
+TEST(SAMPLE_TEST, VECTOR_RM) {
+    using namespace std;
+    vector<int> count = {0,1,2,2,2,2,2,3,4};
+    for(auto iter=count.begin();iter!=count.end();)
+    {
+            iter = count.erase(iter);
+    }
+
+    struct test_rm {
+        vector<int> count_ = {0,1,2,2,2,2,2,3,4};
+        bool test_rm_count() {
+            count_.erase(count_.begin());
+        }
+    };
+}
+
+// std::vector<IndexMeta> indexes;
+TEST(SAMPLE_TEST, INDEX_RM) {
+    using namespace std;
+    std::vector<IndexMeta> indexes;
+    for(auto iter=indexes.begin();iter!=indexes.end();)
+    {
+       indexes.erase(iter);
+    }
+    cout<<endl;
+}

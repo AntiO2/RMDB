@@ -135,7 +135,9 @@ void DiskManager::destroy_file(const std::string &path) {
 
     std::unordered_map<std::string,int>::iterator iter;
     iter = path2fd_.find(path);
-    if(iter != path2fd_.end() && iter->second != -1 ) return ;//说明已经打开还未关闭
+    if(iter != path2fd_.end() && iter->second != -1 ) {
+        throw FileNotClosedError(path);//说明已经打开还未关闭
+    }
     if( unlink(path.c_str())==-1) throw std::runtime_error("删除文件失败！");
 }
 

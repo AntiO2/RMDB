@@ -99,12 +99,6 @@ struct Value {
 /**
  * @description 这个是在ix_index_handle::ix_compare() 改过来的，用于在值之间进行判断大小。之后有新类型需要在这里增加
  *
- *
- * @check 理性讨论，col_len真的需要吗？可以封装type 到col_len的映射
- *
- * @check 可以将type作为抽象类，其他类继承type基类，并包含type、col_len等属性，并实现equal、greater等接口。
- *
- *
  * @param a
  * @param b
  * @param type

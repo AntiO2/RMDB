@@ -122,7 +122,6 @@ inline int value_compare(const char *a, const char *b, ColType type, int col_len
         }
         case TYPE_STRING:
         {
-            // Check (AntiO2) 这个比较出来好像不是字典序
             auto res = memcmp(a, b, col_len);
             LOG_DEBUG("String compare %d",res);
             return res > 0? 1: (res<0 ? -1: 0);

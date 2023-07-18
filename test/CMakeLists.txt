@@ -6,7 +6,6 @@ include_directories(${PROJECT_SOURCE_DIR}/deps/fmt/include)
 #        gtest_main
 #        )
 file(GLOB_RECURSE RMDB_TEST_SOURCES "${PROJECT_SOURCE_DIR}/test/*test.cpp")
-message("PRJ source dir: ${PROJECT_SOURCE_DIR}")
 foreach(RMDB_TEST_SOURCE ${RMDB_TEST_SOURCES})
     get_filename_component(rmdb_test_filename ${RMDB_TEST_SOURCE} NAME)
     string(REPLACE ".cpp" "" rmdb_test_name ${rmdb_test_filename})
@@ -23,7 +22,7 @@ foreach(RMDB_TEST_SOURCE ${RMDB_TEST_SOURCES})
             TIMEOUT 120
             )
 
-    target_link_libraries(${rmdb_test_name} gtest gmock_main)
+    target_link_libraries(${rmdb_test_name} gtest gmock_main fmt)
 
     # Set test target properties and dependencies.
     set_target_properties(${rmdb_test_name}
@@ -42,6 +41,3 @@ target_link_libraries(storage2_test
 
 target_link_libraries(executor_test
         execution)
-
-target_link_libraries(sample_test
-        fmt)

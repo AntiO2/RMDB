@@ -51,6 +51,8 @@ inline int col2len(ColType type) {
             {TYPE_INT,    sizeof(int)},
             {TYPE_FLOAT,  sizeof(float)},
             // 未知大小 {TYPE_STRING, "STRING"}
+            {TYPE_BIGINT, sizeof (int64_t)},
+            {TYPE_DATETIME,sizeof(int64_t)},
     };
 }
 

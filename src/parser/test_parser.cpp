@@ -32,6 +32,12 @@ int main() {
         "select x.a, y.b from x join y where x.a = y.b and c = d;",
         "exit;",
         "help;",
+        "INSERT INTO t VALUES(372036854775807,233421);",
+        "select SUM(id) as sum_id from aggregate;",
+        "select MAX(id) as max_id from aggregate;",
+        "select COUNT(name) as count_name from aggregate where val = 2.0;",
+        "select COUNT(id) as count_id from aggregate;",
+
         "",
     };
     for (auto &sql : sqls) {

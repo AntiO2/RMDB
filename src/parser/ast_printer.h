@@ -47,7 +47,17 @@ private:
                 {SV_TYPE_FLOAT,  "FLOAT"},
                 {SV_TYPE_STRING, "STRING"},
                 {SV_TYPE_BIGINT,"BIGINT"},
-                {SV_TYPE_DATETIME,"DATETIME"}
+                {SV_TYPE_DATETIME,"DATETIME"},
+        };
+        return m.at(type);
+    }
+
+    static std::string type2str(AggregateType type) {
+        static std::map<AggregateType, std::string> m{
+                {SV_MAX,    "MAX"},
+                {SV_MIN,    "MIN"},
+                {SV_COUNT,    "COUNT"},
+                {SV_SUM,    "SUM"},
         };
         return m.at(type);
     }
@@ -111,7 +121,13 @@ private:
             std::cout << "COL\n";
             print_val(x->tab_name, offset);
             print_val(x->col_name, offset);
-        } else if (auto x = std::dynamic_pointer_cast<TypeLen>(node)) {
+        } else if(auto x = std::dynamic_pointer_cast<AggregateCol>(node)) {
+            std::cout << "AGGREGATE_COL\n";
+            print_val(type2str(x->ag_type),offset);
+            print_val(x->col_name, offset);
+            print_val(x->as_col_name, offset);
+        }
+        else if (auto x = std::dynamic_pointer_cast<TypeLen>(node)) {
             std::cout << "TYPE_LEN\n";
             print_val(type2str(x->type), offset);
             print_val(x->len, offset);
@@ -157,7 +173,13 @@ private:
             print_node_list(x->cols, offset);
             print_val_list(x->tabs, offset);
             print_node_list(x->conds, offset);
-        } else if (auto x = std::dynamic_pointer_cast<TxnBegin>(node)) {
+        } else if(auto x = std::dynamic_pointer_cast<AggregateStmt>(node)) {
+            std::cout << "SELECT\n";
+            print_node(x->aggregate_col,offset);
+            print_val(x->tab, offset);
+            print_node_list(x->conds, offset);
+        }
+        else if (auto x = std::dynamic_pointer_cast<TxnBegin>(node)) {
             std::cout << "BEGIN\n";
         } else if (auto x = std::dynamic_pointer_cast<TxnCommit>(node)) {
             std::cout << "COMMIT\n";

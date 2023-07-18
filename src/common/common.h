@@ -15,10 +15,10 @@ See the Mulan PSL v2 for more details. */
 #include <memory>
 #include <string>
 #include <vector>
+#include <regex>
 #include "defs.h"
 #include "record/rm_defs.h"
-#include <regex>
-
+#include "logger.h"
 
 struct TabCol {
     std::string tab_name;
@@ -202,7 +202,7 @@ inline int value_compare(const char *a, const char *b, ColType type, int col_len
         case TYPE_STRING:
         {
             auto res = memcmp(a, b, col_len);
-            LOG_DEBUG("String compare %d",res);
+            // LOG_DEBUG("String compare %d",res);
             return res > 0? 1: (res<0 ? -1: 0);
             break;
         }

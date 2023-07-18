@@ -12,6 +12,7 @@ See the Mulan PSL v2 for more details. */
 
 #include "ix_defs.h"
 #include "transaction/transaction.h"
+#include "common/common.h"
 
 enum class Operation { FIND = 0, INSERT, DELETE };  // 三种操作：查找、插入、删除
 
@@ -38,15 +39,15 @@ static const bool binary_search = false;
 //    }
 //}
 
-//inline int ix_compare(const char* a, const char* b, const std::vector<ColType>& col_types, const std::vector<int>& col_lens) {
-//    int offset = 0;
-//    for(size_t i = 0; i < col_types.size(); ++i) {
-//        int res = ix_compare(a + offset, b + offset, col_types[i], col_lens[i]);
-//        if(res != 0) return res;
-//        offset += col_lens[i];
-//    }
-//    return 0;
-//}
+inline int ix_compare(const char* a, const char* b, const std::vector<ColType>& col_types, const std::vector<int>& col_lens) {
+    int offset = 0;
+    for(size_t i = 0; i < col_types.size(); ++i) {
+        int res = value_compare(a + offset, b + offset, col_types[i], col_lens[i]);
+        if(res != 0) return res;
+        offset += col_lens[i];
+    }
+    return 0;
+}
 
 /* 管理B+树中的每个节点 */
 class IxNodeHandle {
@@ -62,7 +63,7 @@ class IxNodeHandle {
 
    public:
     IxNodeHandle() = default;
-
+    // 存储结构： page_hdr| keys| rids
     IxNodeHandle(const IxFileHdr *file_hdr_, Page *page_) : file_hdr(file_hdr_), page(page_) {
         page_hdr = reinterpret_cast<IxPageHdr *>(page->get_data());
         keys = page->get_data() + sizeof(IxPageHdr);
@@ -157,6 +158,9 @@ class IxNodeHandle {
         assert(rid_idx < page_hdr->num_key);
         return rid_idx;
     }
+
+private:
+
 };
 
 /* B+树 */

@@ -257,21 +257,25 @@ void SmManager::create_index(const std::string& tab_name, const std::vector<std:
         // 如果已经存在index，需要抛出异常
         throw IndexExistsError(tab_name, col_names);
     }
-    IndexMeta indexMeta{.tab_name=tab_name,.col_num=static_cast<int>(col_names.size())};
+    IndexMeta indexMeta{.tab_name=tab_name};
+    auto col_num = static_cast<int>(col_names.size());
     int tot_len = 0;
     std::vector<ColMeta> index_cols;
     for(const auto&col_name:col_names) {
         // 从col中找到对应名字的列
         auto col = table.get_col(col_name);
         index_cols.emplace(col);
+        tot_len+=col->len;
     }
     ix_manager_->create_index(tab_name,index_cols);
     auto index_handler = ix_manager_->open_index(tab_name, index_cols);
-
     auto index_name = ix_manager_->get_index_name(tab_name,index_cols);
     assert(ihs_.count(index_name)==0); // 确保之前没有创建过该index
     ihs_.emplace(index_name,index_handler.get());
 
+    indexMeta.col_num = col_num;
+    indexMeta.col_tot_len = tot_len;
+    table.indexes.emplace_back(indexMeta);
     // TODO(AntiO2) 根据已有的记录创建索引
     flush_meta();
 }

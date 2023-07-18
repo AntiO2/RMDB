@@ -11,7 +11,7 @@ See the Mulan PSL v2 for more details. */
 #pragma once
 
 #include "common/config.h"
-
+#include "common/rwlatch.h"
 /**
  * @description: 存储层每个Page的id的声明
  */
@@ -71,7 +71,12 @@ class Page {
 
     inline void set_page_lsn(lsn_t page_lsn) { memcpy(get_data() + OFFSET_LSN, &page_lsn, sizeof(lsn_t)); }
 
-   private:
+
+    void RLock() {latch_.read_lock();}
+    void RUnlock() {latch_.read_unlock();}
+    void WLock() {latch_.write_lock();}
+    void WUnlock() {latch_.write_unlock();}
+private:
     void reset_memory() { memset(data_, OFFSET_PAGE_START, PAGE_SIZE); }  // 将data_的PAGE_SIZE个字节填充为0
 
     /** page的唯一标识符 */
@@ -87,4 +92,6 @@ class Page {
 
     /** The pin count of this page. */
     int pin_count_ = 0;
+    RWLatch latch_;
+
 };

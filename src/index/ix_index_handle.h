@@ -13,7 +13,7 @@ See the Mulan PSL v2 for more details. */
 #include "ix_defs.h"
 #include "transaction/transaction.h"
 #include "common/common.h"
-
+#include "common/rwlatch.h"
 enum class Operation { FIND = 0, INSERT, DELETE };  // 三种操作：查找、插入、删除
 
 static const bool binary_search = false;
@@ -130,6 +130,12 @@ class IxNodeHandle {
 
     int remove(const char *key);
 
+    void init(page_id_t parent_page_id = INVALID_PAGE_ID, page_id_t next_free_page_no = IX_NO_PAGE, bool is_leaf = false ) {
+        page_hdr->num_key = 0;
+        page_hdr->parent = parent_page_id;
+        page_hdr->next_free_page_no = next_free_page_no;
+        page_hdr->is_leaf = is_leaf;
+    }
     /**
      * @brief used in internal node to remove the last key in root node, and return the last child
      *
@@ -173,8 +179,8 @@ class IxIndexHandle {
     BufferPoolManager *buffer_pool_manager_;
     int fd_;                                    // 存储B+树的文件
     IxFileHdr* file_hdr_;                       // 存了root_page，但其初始化为2（第0页存FILE_HDR_PAGE，第1页存LEAF_HEADER_PAGE）
-    std::mutex root_latch_;
-
+    // std::mutex root_latch_;
+    RWLatch root_latch_;
    public:
     IxIndexHandle(DiskManager *disk_manager, BufferPoolManager *buffer_pool_manager, int fd);
 
@@ -230,7 +236,7 @@ class IxIndexHandle {
     void release_node_handle(IxNodeHandle &node);
 
     void maintain_child(IxNodeHandle *node, int child_idx);
-
+    void release_ancestors(Transaction*transaction);
     // for index test
     Rid get_rid(const Iid &iid) const;
 };

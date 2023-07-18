@@ -131,7 +131,10 @@ class IndexExistsError : public RMDBError {
         _msg += ")";
     }
 };
-
+class IndexEntryDuplicateError : public RMDBError {
+public:
+    IndexEntryDuplicateError():RMDBError("IndexEntryDuplicateError"){};
+};
 // QL errors
 class InvalidValueCountError : public RMDBError {
    public:
@@ -171,4 +174,10 @@ class PageNotExistError : public RMDBError {
    public:
     PageNotExistError(const std::string &table_name, int page_no)
         : RMDBError("Page " + std::to_string(page_no) + " in table " + table_name + "not exits") {}
+};
+
+
+class RunOutMemError : public RMDBError {
+public:
+    RunOutMemError() : RMDBError("Run out  Memory") {}
 };

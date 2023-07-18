@@ -198,7 +198,7 @@ bool BufferPoolManager::delete_page(PageId page_id) {
     new_page_id.page_no=INVALID_PAGE_ID;
     update_page(page,new_page_id,it->second);
     free_list_.emplace_back(it->second);
-
+    disk_manager_->deallocate_page(page_id.page_no);
     return true;
 }
 

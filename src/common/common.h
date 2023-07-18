@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include <vector>
 #include "defs.h"
 #include "record/rm_defs.h"
+#include <regex>
 
 
 struct TabCol {
@@ -34,8 +35,10 @@ struct Value {
         int int_val;      // int value
         float float_val;  // float value
     };
+    //CHECK(liamY) 这里后面改进可以做成union
     std::string str_val;  // string value
     int64_t bigint_val;
+    int64_t datetime_val;//date value 8bytes
 
     std::shared_ptr<RmRecord> raw;  // raw record buffer
 
@@ -75,6 +78,56 @@ struct Value {
         }
     }
 
+    //liamY检测字符串是否符合日期格式
+inline bool is_valid_date(const std::string& date_str) {
+        static const std::regex pattern(R"(^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})$)");
+        std::smatch match;
+        if (!std::regex_match(date_str, match, pattern)) {
+            return false; // 格式不匹配
+        }
+        if (match.size() != 7) {
+            return false; // 捕获组数量错误
+        }
+        int year = std::stoi(match.str(1));
+        int month = std::stoi(match.str(2));
+        int day = std::stoi(match.str(3));
+        int hour = std::stoi(match.str(4));
+        int minute = std::stoi(match.str(5));
+        int second = std::stoi(match.str(6));
+        if (year < 1000 || year > 9999 || month < 1 || month > 12 || day < 1 || day > 31 ||
+            hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59) {
+            return false; // 字段值非法
+        }
+        if (month == 2 && day > 29) {
+            return false; // 2月的天数不合法
+        }
+        //如果还需要更准确的话
+//        if ((month == 4 || month == 6 || month == 9 || month == 11) && day > 30) {
+//            return false; // 4、6、9、11月的天数不合法
+//        }
+        return true;
+    }
+    //@description: 将字符串型日期转为8bytes的整数储存，表示方式为只留下数字，由年为最高位一直到秒。需要前面已经校验过准确性了
+    //@auth: liamY
+    inline int64_t datetime2datenum(const std::string &datetime_val_){
+        static const std::regex pattern(R"(^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})$)");
+        std::smatch match;
+        std::regex_match(datetime_val_, match, pattern);
+        std::string resStr;
+        for(int i=1;i<=6;i++){
+            resStr += match.str(i);
+        }
+        return std::stoll(resStr);
+    }
+
+    //liamY
+    void set_datetime(const std::string &datetime_val_){
+        //如果日期无效，报错
+        if(!is_valid_date(datetime_val_)){throw DateTimeAbsurdError("",datetime_val_);}
+        type = TYPE_DATETIME;
+        datetime_val = datetime2datenum(datetime_val_);//存为64位整数数据
+    }
+
     void init_raw(int len) {
         assert(raw == nullptr);
         raw = std::make_shared<RmRecord>(len);
@@ -92,10 +145,36 @@ struct Value {
             memcpy(raw->data, str_val.c_str(), str_val.size());
         } else if(type == TYPE_BIGINT){
             *(int64_t *)(raw->data) = bigint_val;
+        } else if(type == TYPE_DATETIME){//liamY
+            *(int64_t *)(raw->data) =   datetime_val;
         }
-        //TODO TYPE_DATETIME
     }
 };
+
+//@description: 将64位整数对应的字符串的日期转为标准日期格式的字符串形式进行输出
+inline  std::string datenum2datetime(const std::string &str){
+    std::string datetime_str;
+    datetime_str.reserve(16);  // 预分配内存
+    // 拼接年
+    datetime_str += str.substr(0, 4);
+    datetime_str += "-";
+    // 拼接月
+    datetime_str += str.substr(4, 2);
+    datetime_str += "-";
+    // 拼接日
+    datetime_str += str.substr(6, 2);
+    datetime_str += " ";
+    // 拼接时
+    datetime_str += str.substr(8, 2);
+    datetime_str += ":";
+    // 拼接分
+    datetime_str += str.substr(10, 2);
+    datetime_str += ":";
+    // 拼接秒
+    datetime_str += str.substr(12, 2);
+    return datetime_str;
+}
+
 /**
  * @description 这个是在ix_index_handle::ix_compare() 改过来的，用于在值之间进行判断大小。之后有新类型需要在这里增加
  *
@@ -134,7 +213,11 @@ inline int value_compare(const char *a, const char *b, ColType type, int col_len
             break;
         }
         case TYPE_DATETIME:{
-            //TODO
+            //liamY
+            int64_t ia = *(int64_t *)a;
+            int64_t ib = *(int64_t *)b;
+            return (ia < ib) ? -1 : ((ia > ib) ? 1 : 0);
+            break;
         }
         default:
             throw InternalError("Unexpected data type");

@@ -155,6 +155,13 @@ public:
             : RMDBError("Bigint Out Of Range Error: " + lhs + rhs) {}
 };
 
+//liamY
+class DateTimeAbsurdError : public RMDBError {
+public:
+    DateTimeAbsurdError(const std::string &lhs, const std::string &rhs)
+        : RMDBError("DateTime Is Absurd: "+lhs +rhs){}
+};
+
 class AmbiguousColumnError : public RMDBError {
    public:
     AmbiguousColumnError(const std::string &col_name) : RMDBError("Ambiguous column: " + col_name) {}

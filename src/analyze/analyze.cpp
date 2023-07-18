@@ -85,7 +85,8 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
         for(int i = 0;i < x->vals.size();i++){
             Value value = convert_sv_value(x->vals[i]);
             //如果是bigint类型插入int,报错
-            if(value.type == TYPE_BIGINT && all_cols[i].type == TYPE_INT) {
+            //CHECK(liamY)bigint应该只能插入bigint的话，可以改为assert(value.type != TYPE_BIGINT || all_cols[i].type == TYPE_BIGINT);
+            if(value.type == TYPE_BIGINT && all_cols[i].type != TYPE_BIGINT) {
                 throw BigintOutOfRangeError("",std::to_string(value.bigint_val));
             }
             //如果是int类型插入bigint,转换成bigint
@@ -323,6 +324,10 @@ void Analyze::check_clause(const std::vector<std::string> &tab_names, std::vecto
         ColType lhs_type = lhs_col->type;
         ColType rhs_type;
         if (cond.is_rhs_val) {
+            //试试直接failure
+            if((lhs_col->type == TYPE_INT || lhs_col->type == TYPE_FLOAT)&& cond.rhs_val.type == TYPE_BIGINT)
+                throw BigintOutOfRangeError("","");
+
             cond.rhs_val.init_raw(lhs_col->len);
             rhs_type = cond.rhs_val.type;
         } else {
@@ -348,8 +353,8 @@ Value Analyze::convert_sv_value(const std::shared_ptr<ast::Value> &sv_val) {
     } else if (auto bigint_lit = std::dynamic_pointer_cast<ast::BigintLit>(sv_val)) {
         val.set_bigint(bigint_lit->val);
     } else if (auto dateTime_lit = std::dynamic_pointer_cast<ast::DateTimeLit>(sv_val)) {
-        //TODO datetime
-        val.set_str(dateTime_lit->val);
+        //liamY
+        val.set_datetime(dateTime_lit->val);
     } else {
         throw InternalError("Unexpected sv value type");
     }

@@ -32,6 +32,10 @@ enum OrderByDir {
     OrderBy_DESC
 };
 
+enum AggregateType {
+    SV_COUNT, SV_MIN, SV_MAX ,SV_SUM,
+};
+
 // Base class for tree nodes
 struct TreeNode {
     virtual ~TreeNode() = default;  // enable polymorphism
@@ -153,6 +157,15 @@ struct Col : public Expr {
             tab_name(std::move(tab_name_)), col_name(std::move(col_name_)) {}
 };
 
+struct AggregateCol : public Expr{
+    AggregateType ag_type;
+    std::string col_name;
+    std::string as_col_name;
+
+    AggregateCol(AggregateType ag_type_, std::string col_name_, std::string as_col_name_) :
+        ag_type(ag_type_), col_name(std::move(col_name_)), as_col_name(std::move(as_col_name_)) {}
+};
+
 struct SetClause : public TreeNode {
     std::string col_name;
     std::shared_ptr<Value> val;
@@ -237,17 +250,30 @@ struct SelectStmt : public TreeNode {
             }
 };
 
+struct AggregateStmt : public TreeNode {
+    std::shared_ptr<AggregateCol> aggregate_col;
+    std::string tab;
+    std::vector<std::shared_ptr<BinaryExpr>> conds;
+
+    AggregateStmt(std::shared_ptr<AggregateCol> aggregate_col_,
+                  std::string tab_,
+                  std::vector<std::shared_ptr<BinaryExpr>> conds_) :
+                  aggregate_col(std::move(aggregate_col_)), tab(std::move(tab_)), conds(std::move(conds_)){}
+};
+
 // Semantic value
 struct SemValue {
     int sv_int;
     float sv_float;
     std::string sv_str;
     OrderByDir sv_orderby_dir;
+
     std::vector<std::string> sv_strs;
 
     std::shared_ptr<TreeNode> sv_node;
 
     SvCompOp sv_comp_op;
+    AggregateType sv_aggregate_type;
 
     std::shared_ptr<TypeLen> sv_type_len;
 
@@ -269,6 +295,9 @@ struct SemValue {
     std::vector<std::shared_ptr<BinaryExpr>> sv_conds;
 
     std::shared_ptr<OrderBy> sv_orderby;
+
+    //aggregate
+    std::shared_ptr<AggregateCol> sv_aggregate;
 };
 
 extern std::shared_ptr<ast::TreeNode> parse_tree;

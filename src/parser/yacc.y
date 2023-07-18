@@ -22,7 +22,7 @@ using namespace ast;
 
 // keywords
 %token SHOW TABLES CREATE TABLE DROP DESC INSERT INTO VALUES DELETE FROM ASC ORDER BY
-WHERE UPDATE SET SELECT INT CHAR FLOAT BIGINT DATETIME INDEX AND JOIN EXIT HELP TXN_BEGIN TXN_COMMIT TXN_ABORT TXN_ROLLBACK ORDER_BY
+WHERE UPDATE SET SELECT INT CHAR FLOAT BIGINT DATETIME INDEX AND JOIN EXIT HELP TXN_BEGIN TXN_COMMIT TXN_ABORT TXN_ROLLBACK ORDER_BY COUNT MAX MIN SUM AS
 // non-keywords
 %token LEQ NEQ GEQ T_EOF
 
@@ -46,12 +46,14 @@ WHERE UPDATE SET SELECT INT CHAR FLOAT BIGINT DATETIME INDEX AND JOIN EXIT HELP 
 %type <sv_strs> tableList colNameList
 %type <sv_col> col
 %type <sv_cols> colList selector
+%type <sv_aggregate> aggregator
 %type <sv_set_clause> setClause
 %type <sv_set_clauses> setClauses
 %type <sv_cond> condition
 %type <sv_conds> whereClause optWhereClause
 %type <sv_orderby>  order_clause opt_order_clause
 %type <sv_orderby_dir> opt_asc_desc
+%type <sv_aggregate_type> aggre_count aggre_max aggre_min aggre_sum
 
 %%
 start:
@@ -149,6 +151,11 @@ dml:
     |   SELECT selector FROM tableList optWhereClause opt_order_clause
     {
         $$ = std::make_shared<SelectStmt>($2, $4, $5, $6);
+    }
+    |   SELECT aggregator FROM tbName optWhereClause                 //CHECK(lsy): 翻了大群聊天消息，不要求在聚合函数中使用order by
+                                                                        //CHECK(lsy): 看测试用例似乎也不支持多表，先解析成单表了
+    {
+        $$ = std::make_shared<AggregateStmt>($2, $4, $5);
     }
     ;
 
@@ -348,6 +355,57 @@ selector:
         $$ = {};
     }
     |   colList
+    ;
+
+aggregator:
+        aggre_sum '(' colName ')' AS colName
+    {
+        $$ = std::make_shared<AggregateCol>($1, $3, $6);
+    }
+    |   aggre_max '(' colName ')' AS colName
+    {
+        $$ = std::make_shared<AggregateCol>($1, $3, $6);
+    }
+    |   aggre_min '(' colName ')' AS colName
+    {
+        $$ = std::make_shared<AggregateCol>($1, $3, $6);
+    }
+    |   aggre_count '(' '*' ')' AS colName
+    {
+        $$ = std::make_shared<AggregateCol>($1, "", $6);
+    }
+    |   aggre_count '(' colName ')' AS colName
+    {
+        $$ = std::make_shared<AggregateCol>($1, $3, $6);
+    }
+    ;
+
+aggre_sum:
+        SUM
+    {
+        $$ = SV_SUM;
+    }
+    ;
+
+aggre_max:
+        MAX
+    {
+        $$ = SV_MAX;
+    }
+    ;
+
+aggre_min:
+        MIN
+    {
+        $$ = SV_MIN;
+    }
+    ;
+
+aggre_count:
+        COUNT
+    {
+        $$ = SV_COUNT;
+    }
     ;
 
 tableList:

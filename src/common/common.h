@@ -284,19 +284,19 @@ struct SetClause {
  * @param rec_size
  * @return
  */
-static std::unique_ptr<RmRecord> GetRecord(std::vector<Value>& values, std::vector<ColMeta> &cols, int rec_size) {
-    assert(values.size()==cols.size());
-    auto col_num = cols.size();
-    auto rec = RmRecord(rec_size); // 通过rec大小，创建空的rmrecord;
-    for(decltype(col_num) i = 0; i < col_num; i++) {
-        auto &val = values[i];
-        auto &col = cols[i];
-        if (col.type != val.type) {
-            throw IncompatibleTypeError(coltype2str(col.type), coltype2str(val.type));
-        }
-        val.init_raw(col.len);
-        // 将Value数据存入rec中。
-        memcpy(rec.data + col.offset, val.raw->data, col.len);
-    }
-    return std::make_unique<RmRecord>(rec);
-}
+//static std::unique_ptr<RmRecord> GetRecord(std::vector<Value>& values, std::vector<ColMeta> &cols, int rec_size) {
+//    assert(values.size()==cols.size());
+//    auto col_num = cols.size();
+//    auto rec = RmRecord(rec_size); // 通过rec大小，创建空的rmrecord;
+//    for(decltype(col_num) i = 0; i < col_num; i++) {
+//        auto &val = values[i];
+//        auto &col = cols[i];
+//        if (col.type != val.type) {
+//            throw IncompatibleTypeError(coltype2str(col.type), coltype2str(val.type));
+//        }
+//        val.init_raw(col.len);
+//        // 将Value数据存入rec中。
+//        memcpy(rec.data + col.offset, val.raw->data, col.len);
+//    }
+//    return std::make_unique<RmRecord>(rec);
+//}

@@ -38,7 +38,7 @@ struct Value {
     //CHECK(liamY) 这里后面改进可以做成union
     std::string str_val;  // string value
     int64_t bigint_val;
-    std::string  datetime_val;//date value
+    int64_t datetime_val;//date value 8bytes
 
     std::shared_ptr<RmRecord> raw;  // raw record buffer
 
@@ -79,7 +79,7 @@ struct Value {
     }
 
     //liamY检测字符串是否符合日期格式
-    bool is_valid_date(const std::string& date_str) {
+inline bool is_valid_date(const std::string& date_str) {
         static const std::regex pattern(R"(^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})$)");
         std::smatch match;
         if (!std::regex_match(date_str, match, pattern)) {
@@ -107,13 +107,25 @@ struct Value {
 //        }
         return true;
     }
+    //@description: 将字符串型日期转为8bytes的整数储存，表示方式为只留下数字，由年为最高位一直到秒。需要前面已经校验过准确性了
+    //@auth: liamY
+    inline int64_t datetime2datenum(const std::string &datetime_val_){
+        static const std::regex pattern(R"(^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})$)");
+        std::smatch match;
+        std::regex_match(datetime_val_, match, pattern);
+        std::string resStr;
+        for(int i=1;i<=6;i++){
+            resStr += match.str(i);
+        }
+        return std::stoll(resStr);
+    }
 
     //liamY
     void set_datetime(const std::string &datetime_val_){
         //如果日期无效，报错
         if(!is_valid_date(datetime_val_)){throw DateTimeAbsurdError("",datetime_val_);}
         type = TYPE_DATETIME;
-        datetime_val = datetime_val_;//存为string数据
+        datetime_val = datetime2datenum(datetime_val_);//存为64位整数数据
     }
 
     void init_raw(int len) {
@@ -134,28 +146,35 @@ struct Value {
         } else if(type == TYPE_BIGINT){
             *(int64_t *)(raw->data) = bigint_val;
         } else if(type == TYPE_DATETIME){//liamY
-            *(std::string *)(raw->data) = datetime_val;
+            *(int64_t *)(raw->data) =   datetime_val;
         }
     }
 };
 
-//@description: 比较两个日期是否相等，将日期分为年月日时分秒，从年开始，str1-str2，直到遇到第一组不一样的，返回做差结果
-inline int datetime_compare(const std::string& date_str1,const std::string& date_str2){
-    static const std::regex pattern(R"(^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})$)");
-    std::smatch match1,match2;
-    if (!std::regex_match(date_str1, match1, pattern) || !std::regex_match(date_str2, match2, pattern) ) {
-        throw DateTimeAbsurdError(date_str1,date_str2);
-    }
-    if (match1.size() != 7 || match2.size() != 7) {
-        throw DateTimeAbsurdError(date_str1,date_str2);
-    }
-    int tmp1,tmp2;
-    for(int i=1;i<=6;i++) {
-        tmp1 = std::stoi(match1.str(i));
-        tmp2 = std::stoi(match2.str(i));
-        if ((tmp1 - tmp2) != 0) return tmp1 - tmp2;
-    }
-};
+//@description: 将64位整数对应的字符串的日期转为标准日期格式的字符串形式进行输出
+inline  std::string datenum2datetime(const std::string &str){
+    std::string datetime_str;
+    datetime_str.reserve(16);  // 预分配内存
+    // 拼接年
+    datetime_str += str.substr(0, 4);
+    datetime_str += "-";
+    // 拼接月
+    datetime_str += str.substr(4, 2);
+    datetime_str += "-";
+    // 拼接日
+    datetime_str += str.substr(6, 2);
+    datetime_str += " ";
+    // 拼接时
+    datetime_str += str.substr(8, 2);
+    datetime_str += ":";
+    // 拼接分
+    datetime_str += str.substr(10, 2);
+    datetime_str += ":";
+    // 拼接秒
+    datetime_str += str.substr(12, 2);
+    return datetime_str;
+}
+
 /**
  * @description 这个是在ix_index_handle::ix_compare() 改过来的，用于在值之间进行判断大小。之后有新类型需要在这里增加
  *
@@ -196,8 +215,10 @@ inline int value_compare(const char *a, const char *b, ColType type, int col_len
         }
         case TYPE_DATETIME:{
             //liamY
-            int res = datetime_compare(a,b);
-            return res > 0? 1: (res<0 ? -1: 0);
+            int64_t ia = *(int64_t *)a;
+            int64_t ib = *(int64_t *)b;
+            return (ia < ib) ? -1 : ((ia > ib) ? 1 : 0);
+            break;
         }
         default:
             throw InternalError("Unexpected data type");

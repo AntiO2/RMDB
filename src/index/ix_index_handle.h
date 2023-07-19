@@ -103,9 +103,13 @@ class IxNodeHandle {
 
     void set_parent_page_no(page_id_t parent) { page_hdr->parent = parent; }
 
-    char *get_key(int key_idx) const { return keys + key_idx * file_hdr->col_tot_len_; }
+    char *get_key(int key_idx) const {
+        return keys + key_idx * file_hdr->col_tot_len_;
+    }
 
-    Rid *get_rid(int rid_idx) const { return &rids[rid_idx]; }
+    Rid *get_rid(int rid_idx) const {
+        return &rids[rid_idx];
+    }
 
     void set_key(int key_idx, const char *key) { memcpy(keys + key_idx * file_hdr->col_tot_len_, key, file_hdr->col_tot_len_); }
 
@@ -212,7 +216,7 @@ class IxIndexHandle {
     Iid lower_bound(const char *key);
 
     Iid upper_bound(const char *key);
-
+    Iid upper_bound2(const char *key);
     Iid leaf_end() const;
 
     Iid leaf_begin() const;

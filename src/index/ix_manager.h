@@ -16,7 +16,7 @@ See the Mulan PSL v2 for more details. */
 #include "system/sm_meta.h"
 #include "ix_defs.h"
 #include "ix_index_handle.h"
-
+#include "logger.h"
 class IxManager {
    private:
     DiskManager *disk_manager_;

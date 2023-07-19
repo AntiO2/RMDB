@@ -12,7 +12,7 @@ See the Mulan PSL v2 for more details. */
 
 #include <iostream>
 #include <map>
-
+#include "errors.h"
 // 此处重载了<<操作符，在ColMeta中进行了调用
 template<typename T, typename = typename std::enable_if<std::is_enum<T>::value, T>::type>
 std::ostream &operator<<(std::ostream &os, const T &enum_val) {
@@ -32,8 +32,8 @@ struct Rid {
     int page_no;
     int slot_no;
 
-    Rid(int pageNo, int slotNo) : page_no(pageNo), slot_no(slotNo) {}
-
+//    Rid(int pageNo, int slotNo) : page_no(pageNo), slot_no(slotNo) {}
+//    Rid() = default;
     friend bool operator==(const Rid &x, const Rid &y) {
         return x.page_no == y.page_no && x.slot_no == y.slot_no;
     }
@@ -56,6 +56,11 @@ inline int col2len(ColType type) {
             {TYPE_BIGINT, sizeof (int64_t)},
             {TYPE_DATETIME,sizeof(int64_t)},
     };
+    auto iter_=l.find(type);
+    if(iter_==l.end()) {
+        throw InternalError("Type len unknown");
+    }
+    return iter_->second;
 }
 
 /**

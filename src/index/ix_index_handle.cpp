@@ -155,7 +155,7 @@ void IxNodeHandle::insert_pairs(int pos, const char *key, const Rid *rid, int n)
     memmove(begin_key + n* key_len, begin_key, num* key_len); // 将原来的key后移
     memcpy(begin_key, key, n* key_len);
     memmove(begin_rid +n, begin_rid, num* key_len);
-    memcpy(begin_rid, rid, n* key_len);
+    memcpy(begin_rid, rid, n* rid_len);
     set_size(get_size()+ n);
 }
 
@@ -418,8 +418,8 @@ void IxIndexHandle::insert_into_parent(IxNodeHandle *old_node, const char *key, 
             throw RunOutMemError();
         }
         new_root->init();
-        new_root->insert_pair(0, old_node->get_key(0),Rid(old_node->get_page_no(),-1)); // 将old_node的key和page_no插入
-        new_root->insert_pair(1,new_node->get_key(0),Rid(new_node->get_page_no(),-1));
+        new_root->insert_pair(0, old_node->get_key(0),Rid{.page_no=old_node->get_page_no(),.slot_no=-1}); // 将old_node的key和page_no插入
+        new_root->insert_pair(1,new_node->get_key(0),Rid{.page_no=new_node->get_page_no(),.slot_no=-1});
         auto new_root_id = new_root->get_page_id().page_no;
         file_hdr_->root_page_ = new_root_id;
         old_node->page_hdr->parent = new_root_id;
@@ -436,7 +436,7 @@ void IxIndexHandle::insert_into_parent(IxNodeHandle *old_node, const char *key, 
         auto parent_node = fetch_node(old_node->get_parent_page_no());
         auto pos = parent_node->find_child(old_node);
         // 3. 获取key对应的rid，并将(key, rid)插入到父亲结点
-        parent_node->insert_pair(pos+1, key, Rid(new_node->get_page_no(),IX_NO_PAGE));
+        parent_node->insert_pair(pos+1, key, Rid{.page_no=new_node->get_page_no(),.slot_no=IX_NO_PAGE});
 
 
         // 4. 如果父亲结点仍需要继续分裂，则进行递归插入
@@ -641,9 +641,7 @@ bool IxIndexHandle::adjust_root(IxNodeHandle *old_root_node) {
         file_hdr_->root_page_ = INVALID_PAGE_ID;
         return true;
     }
-
     // 3. 除了上述两种情况，不需要进行操作
-
     return false;
 }
 
@@ -901,11 +899,12 @@ void IxIndexHandle::release_ancestors(Transaction *transaction) {
     for(auto latch_page:*transaction->get_index_latch_page_set()) {
         if(latch_page== nullptr) {
             root_latch_.write_unlock();
-            buffer_pool_manager_->unpin_page(PageId{fd_,file_hdr_->root_page_}, false); // Check(AntiO2) 是否需要释放root?
+            // buffer_pool_manager_->unpin_page(PageId{fd_,file_hdr_->root_page_}, false); // Check(AntiO2) 是否需要释放root?
         } else {
             latch_page->WUnlock();
             buffer_pool_manager_->unpin_page(latch_page->get_page_id(), false);
         }
     }
+    transaction->get_index_latch_page_set()->clear();
 }
 

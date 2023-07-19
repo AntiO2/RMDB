@@ -35,6 +35,9 @@ class Query{
     //insert 的values值
     std::vector<Value> values;
 
+    //CHECK 专门给聚合查询stmt给了一个struct,不然感觉有点乱,看最后需不需要专门给个struct
+    AggreInfo aggreInfo;
+
     Query(){}
 
 };
@@ -62,5 +65,7 @@ private:
     CompOp find_convert_comp_op(ast::SvCompOp op);
 
     void fix_setClause(SetClause &setClause, const std::vector<std::string> &tab_names);
+
+    AggregateOp convert_sv_aggre_op(ast::AggregateType op);
 };
 

@@ -227,6 +227,12 @@ inline int value_compare(const char *a, const char *b, ColType type) {
     return value_compare(a, b, type, col2len(type));
 }
 enum CompOp { OP_EQ, OP_NE, OP_LT, OP_GT, OP_LE, OP_GE };
+enum AggregateOp { AG_OP_COUNT, AG_OP_MAX, AG_OP_MIN, AG_OP_SUM};
+
+struct AggreInfo {
+    AggregateOp op_;
+    TabCol select_col_;
+};
 
 /**
  * TODO(AntiO2) 创建从type 到col_len的映射，从而减少参数传递

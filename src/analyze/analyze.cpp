@@ -22,8 +22,7 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
     {
         // 处理表名
         query->tables = std::move(x->tabs);
-        /** TODO: 检查表是否存在 */
-        //lsy
+        //检查表是否存在
         for (auto &sv_sel_tab : query->tables){
             if(!sm_manager_->db_.is_table(sv_sel_tab))
                 throw TableNotFoundError(sv_sel_tab);
@@ -102,6 +101,31 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
 //        for (auto &sv_val : x->vals) {
 //            query->values.push_back(convert_sv_value(sv_val));
 //        }
+    } else if(auto x = std::dynamic_pointer_cast<ast::AggregateStmt>(parse)) {
+        // 处理表名
+        std::string table = std::move(x->tab);
+        //检查表是否存在
+        if(!sm_manager_->db_.is_table(table))
+            throw TableNotFoundError(table);
+        query->tables.push_back(table);
+
+        //如果有col,检查列是否存在
+        if(!x->aggregate_col->col_name.empty()){
+            if(!sm_manager_->db_.get_table(table).is_col(x->aggregate_col->col_name))
+                throw ColumnNotFoundError(x->aggregate_col->col_name);
+        }
+
+        //将输出列放入cols
+        TabCol as_tabCol = {.tab_name = table, .col_name = x->aggregate_col->as_col_name};
+        query->cols.push_back(as_tabCol);
+
+        //将查询列放入aggreInfo
+        TabCol select_tabCol = {.tab_name = table, .col_name = x->aggregate_col->col_name};
+        query->aggreInfo = {.op_ = convert_sv_aggre_op(x->aggregate_col->ag_type), .select_col_ = select_tabCol};
+
+        //处理where条件
+        get_clause(x->conds, query->conds,query->tables);
+        check_clause(query->tables, query->conds);
     } else {
         // do nothing
     }
@@ -374,6 +398,14 @@ CompOp Analyze::find_convert_comp_op(ast::SvCompOp op) {
     std::map<ast::SvCompOp, CompOp> m = {
             {ast::SV_OP_EQ, OP_NE}, {ast::SV_OP_NE, OP_EQ}, {ast::SV_OP_LT, OP_GT},
             {ast::SV_OP_GT, OP_LT}, {ast::SV_OP_LE, OP_GE}, {ast::SV_OP_GE, OP_LE},
+    };
+    return m.at(op);
+}
+
+//获取聚合函数的op
+AggregateOp Analyze::convert_sv_aggre_op(ast::AggregateType op) {
+    std::map<ast::AggregateType, AggregateOp> m = {
+            {ast::SV_COUNT, AG_OP_COUNT},{ast::SV_MAX, AG_OP_MAX},{ast::SV_MIN, AG_OP_MIN},{ast::SV_SUM, AG_OP_SUM},
     };
     return m.at(op);
 }

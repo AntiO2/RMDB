@@ -105,7 +105,10 @@ class Portal
             
                     return std::make_shared<PortalStmt>(PORTAL_DML_WITHOUT_SELECT, std::vector<TabCol>(), std::move(root), plan);
                 }
-
+                case T_aggregate:
+                {
+                    //TODO
+                }
 
                 default:
                     throw InternalError("Unexpected field type");

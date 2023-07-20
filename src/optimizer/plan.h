@@ -65,6 +65,7 @@ class ScanPlan : public Plan
             len_ = cols_.back().offset + cols_.back().len;
             fed_conds_ = conds_;
             index_col_names_ = index_col_names;
+            op_ = AG_OP_NONE;//设置初始为空
         }
         //liamY 重载一个构造函数，针对聚合函数的scan操作,记录as的表名称，以及op操作
         ScanPlan(PlanTag tag, SmManager *sm_manager, std::string tab_name, std::vector<Condition> conds, std::vector<std::string> index_col_names,std::string col_as_name,AggregateOp op)

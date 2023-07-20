@@ -241,16 +241,19 @@ void QlManager::select_from_aggregate(std::unique_ptr<AbstractExecutor> executor
         }
 
     }
-    //打印
-    // print record into buffer
-    rec_printer.print_record(columns, context);
-    // print record into file
     outfile << "|";
-    for(const auto & column : columns) {
-        outfile << " " << column << " |";
+    if(!columns.empty()) {
+        //打印
+        // print record into buffer
+        rec_printer.print_record(columns, context);
+        // print record into file
+        for (const auto &column: columns) {
+            outfile << " " << column << " |";
+        }
+    }else{
+        num_rec = 0;
     }
     outfile << "\n";
-
     outfile.close();
     // Print footer into buffer
     rec_printer.print_separator(context);

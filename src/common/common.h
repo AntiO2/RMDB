@@ -227,7 +227,7 @@ inline int value_compare(const char *a, const char *b, ColType type) {
     return value_compare(a, b, type, col2len(type));
 }
 enum CompOp { OP_EQ, OP_NE, OP_LT, OP_GT, OP_LE, OP_GE };
-enum AggregateOp { AG_OP_COUNT=1, AG_OP_MAX, AG_OP_MIN, AG_OP_SUM};//liamY 不要从0开始
+enum AggregateOp { AG_OP_NONE , AG_OP_COUNT, AG_OP_MAX, AG_OP_MIN, AG_OP_SUM};//liamY 不要从0开始,要有一个none
 
 struct AggreInfo {
     AggregateOp op_;

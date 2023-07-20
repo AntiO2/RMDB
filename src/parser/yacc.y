@@ -372,7 +372,7 @@ aggregator:
     }
     |   aggre_count '(' '*' ')' AS colName
     {
-        $$ = std::make_shared<AggregateCol>($1, "", $6);
+        $$ = std::make_shared<AggregateCol>($1, "*", $6);
     }
     |   aggre_count '(' colName ')' AS colName
     {

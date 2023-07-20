@@ -49,6 +49,7 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
                 std::cout << sel_col.tab_name << std::endl;
             }
         }
+        query->aggreInfo.op_ = AG_OP_NONE;//liamY 把操作置空;
         //处理where条件
         get_clause(x->conds, query->conds,query->tables);
         check_clause(query->tables, query->conds);
@@ -105,24 +106,27 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
         // 处理表名
         std::string table = std::move(x->tab);
         //检查表是否存在
-        if(!sm_manager_->db_.is_table(table))
+        if (!sm_manager_->db_.is_table(table))
             throw TableNotFoundError(table);
         query->tables.push_back(table);
 
         //如果有col,检查列是否存在
-        if(!x->aggregate_col->col_name.empty()){
-            if(!sm_manager_->db_.get_table(table).is_col(x->aggregate_col->col_name))
+        if (!x->aggregate_col->col_name.empty() && x->aggregate_col->col_name != "*") {
+            if (!sm_manager_->db_.get_table(table).is_col(x->aggregate_col->col_name))
                 throw ColumnNotFoundError(x->aggregate_col->col_name);
         }
 
         //将输出列放入cols
         TabCol as_tabCol = {.tab_name = table, .col_name = x->aggregate_col->as_col_name};
         query->cols.push_back(as_tabCol);
-
-        //将查询列放入aggreInfo
+        std::vector<ColMeta> all_cols;
+        get_all_cols(query->tables, all_cols);
         TabCol select_tabCol = {.tab_name = table, .col_name = x->aggregate_col->col_name};
+        if (x->aggregate_col->col_name == "*" && !all_cols.empty() ) {
+            //liamY把选取第一个col放入
+            select_tabCol = {.tab_name = all_cols[0].tab_name, .col_name = all_cols[0].name};
+        }
         query->aggreInfo = {.op_ = convert_sv_aggre_op(x->aggregate_col->ag_type), .select_col_ = select_tabCol};
-
         //处理where条件
         get_clause(x->conds, query->conds,query->tables);
         check_clause(query->tables, query->conds);

@@ -110,7 +110,7 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
         query->tables.push_back(table);
 
         //如果有col,检查列是否存在
-        if(!x->aggregate_col->col_name.empty()){
+        if(!x->aggregate_col->col_name.empty() && x->aggregate_col->col_name != "*"){
             if(!sm_manager_->db_.get_table(table).is_col(x->aggregate_col->col_name))
                 throw ColumnNotFoundError(x->aggregate_col->col_name);
         }

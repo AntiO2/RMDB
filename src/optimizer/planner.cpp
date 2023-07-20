@@ -22,17 +22,34 @@ See the Mulan PSL v2 for more details. */
 #include "index/ix.h"
 #include "record_printer.h"
 
+//原版，CHECK(lsy):感觉只返回一个布尔值不够
 // 目前的索引匹配规则为：完全匹配索引字段，且全部为单点查询，不会自动调整where条件的顺序
-bool Planner::get_index_cols(std::string tab_name, std::vector<Condition> curr_conds, std::vector<std::string>& index_col_names) {
+//bool Planner::get_index_cols(std::string tab_name, std::vector<Condition> curr_conds, std::vector<std::string>& index_col_names) {
+//    index_col_names.clear();
+//    for(auto& cond: curr_conds) {
+//        //CHECK (lsy):应该不需要cond.op == EQ这个条件
+//        if(cond.is_rhs_val && cond.lhs_col.tab_name.compare(tab_name) == 0)
+//            index_col_names.push_back(cond.lhs_col.col_name);
+//    }
+//    TabMeta& tab = sm_manager_->db_.get_table(tab_name);
+//    if(tab.is_index(index_col_names)) return true;
+//    return false;
+//}
+
+std::optional<IndexMeta> Planner::get_index_cols(std::string tab_name, std::vector<Condition> curr_conds, std::vector<std::string>& index_col_names) {
     index_col_names.clear();
+    std::vector<CompOp> ops;
+    ops.clear();
     for(auto& cond: curr_conds) {
-        if(cond.is_rhs_val && cond.op == OP_EQ && cond.lhs_col.tab_name.compare(tab_name) == 0)
+        if(cond.is_rhs_val && cond.lhs_col.tab_name.compare(tab_name) == 0){
             index_col_names.push_back(cond.lhs_col.col_name);
+            ops.push_back(cond.op);
+        }
     }
     TabMeta& tab = sm_manager_->db_.get_table(tab_name);
-    if(tab.is_index(index_col_names)) return true;
-    return false;
+    return tab.get_index(index_col_names,ops);
 }
+
 
 /**
  * @brief 表算子条件谓词生成
@@ -151,8 +168,8 @@ std::shared_ptr<Plan> Planner::make_one_rel(std::shared_ptr<Query> query)
         auto curr_conds = pop_conds(query->conds, tables[i]);
         // int index_no = get_indexNo(tables[i], curr_conds);
         std::vector<std::string> index_col_names;
-        bool index_exist = get_index_cols(tables[i], curr_conds, index_col_names);
-        if (index_exist == false) {  // 该表没有索引
+        auto indexMeta = get_index_cols(tables[i], curr_conds, index_col_names);
+        if (!indexMeta.has_value()) {  // 该表没有索引
             index_col_names.clear();
             //liamY 区分出聚合函数的select语句
             if(std::dynamic_pointer_cast<ast::SelectStmt>(query->parse)) {
@@ -163,8 +180,10 @@ std::shared_ptr<Plan> Planner::make_one_rel(std::shared_ptr<Query> query)
                         std::make_shared<ScanPlan>(T_SeqScan, sm_manager_, tables[i], curr_conds, index_col_names,x->aggregate_col->as_col_name,query->aggreInfo.op_);
             }
         } else {  // 存在索引
-            table_scan_executors[i] =
-                std::make_shared<ScanPlan>(T_IndexScan, sm_manager_, tables[i], curr_conds, index_col_names);
+            auto plan =
+                    std::make_shared<ScanPlan>(T_IndexScan, sm_manager_, tables[i], curr_conds, index_col_names);
+            plan->index_meta_ = indexMeta.value();
+            table_scan_executors[i] = plan;
         }
     }
     // 只有一个表，不需要join。
@@ -344,18 +363,19 @@ std::shared_ptr<Plan> Planner::do_planner(std::shared_ptr<Query> query, Context 
         // 只有一张表，不需要进行物理优化了
         // int index_no = get_indexNo(x->tab_name, query->conds);
         std::vector<std::string> index_col_names;
-        bool index_exist = get_index_cols(x->tab_name, query->conds, index_col_names);
-        
-        if (index_exist == false) {  // 该表没有索引
+        auto indexMeta = get_index_cols(x->tab_name, query->conds, index_col_names);
+
+        if (!indexMeta.has_value()) {  // 该表没有索引
             index_col_names.clear();
-            table_scan_executors = 
-                std::make_shared<ScanPlan>(T_SeqScan, sm_manager_, x->tab_name, query->conds, index_col_names);
-        } else {  // 存在索引
             table_scan_executors =
-                std::make_shared<ScanPlan>(T_IndexScan, sm_manager_, x->tab_name, query->conds, index_col_names);
+                    std::make_shared<ScanPlan>(T_SeqScan, sm_manager_, x->tab_name, query->conds, index_col_names);
+        } else {  // 存在索引
+            auto plan = std::make_shared<ScanPlan>(T_IndexScan, sm_manager_, x->tab_name, query->conds, index_col_names);
+            plan->index_meta_ = indexMeta.value();
+            table_scan_executors =plan;
         }
 
-        plannerRoot = std::make_shared<DMLPlan>(T_Delete, table_scan_executors, x->tab_name,  
+        plannerRoot = std::make_shared<DMLPlan>(T_Delete, table_scan_executors, x->tab_name,
                                                 std::vector<Value>(), query->conds, std::vector<SetClause>());
     } else if (auto x = std::dynamic_pointer_cast<ast::UpdateStmt>(query->parse)) {
         // update;
@@ -364,19 +384,20 @@ std::shared_ptr<Plan> Planner::do_planner(std::shared_ptr<Query> query, Context 
         // 只有一张表，不需要进行物理优化了
         // int index_no = get_indexNo(x->tab_name, query->conds);
         std::vector<std::string> index_col_names;
-        bool index_exist = get_index_cols(x->tab_name, query->conds, index_col_names);
+        auto indexMeta = get_index_cols(x->tab_name, query->conds, index_col_names);
 
-        if (index_exist == false) {  // 该表没有索引
-        index_col_names.clear();
-            table_scan_executors = 
-                std::make_shared<ScanPlan>(T_SeqScan, sm_manager_, x->tab_name, query->conds, index_col_names);
-        } else {  // 存在索引
+        if (!indexMeta.has_value()) {  // 该表没有索引
+            index_col_names.clear();
             table_scan_executors =
-                std::make_shared<ScanPlan>(T_IndexScan, sm_manager_, x->tab_name, query->conds, index_col_names);
+                    std::make_shared<ScanPlan>(T_SeqScan, sm_manager_, x->tab_name, query->conds, index_col_names);
+        } else {  // 存在索引
+            auto plan = std::make_shared<ScanPlan>(T_IndexScan, sm_manager_, x->tab_name, query->conds, index_col_names);
+            plan->index_meta_ = indexMeta.value();
+            table_scan_executors = plan;
         }
         plannerRoot = std::make_shared<DMLPlan>(T_Update, table_scan_executors, x->tab_name,
-                                                     std::vector<Value>(), query->conds, 
-                                                     query->set_clauses);
+                                                std::vector<Value>(), query->conds,
+                                                query->set_clauses);
     } else if (auto x = std::dynamic_pointer_cast<ast::SelectStmt>(query->parse)) {
         //CHECK(liamY)这个root变量没有被用到呀
         std::shared_ptr<plannerInfo> root = std::make_shared<plannerInfo>(x);
@@ -385,6 +406,7 @@ std::shared_ptr<Plan> Planner::do_planner(std::shared_ptr<Query> query, Context 
         plannerRoot = std::make_shared<DMLPlan>(T_select, projection, std::string(), std::vector<Value>(),
                                                     std::vector<Condition>(), std::vector<SetClause>());
     } else if(auto x = std::dynamic_pointer_cast<ast::AggregateStmt>(query->parse)){//liamY
+        //CHECK(lsy)这个需要做索引吗
         std::shared_ptr<Plan> projection = generate_select_plan(std::move(query), context);
         plannerRoot = std::make_shared<DMLPlan>(T_select, projection, std::string(), std::vector<Value>(),
                                                 std::vector<Condition>(), std::vector<SetClause>());

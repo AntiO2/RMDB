@@ -115,6 +115,51 @@ struct TabMeta {
         return false;
     }
 
+    /* 代替原来is_index返回bool的使用
+     * 如果有index返回IndexMeta*/
+    std::optional<IndexMeta> get_index(const std::vector<std::string>& col_names, const std::vector<CompOp>& ops) const {
+        //最左匹配, 并支持列的顺序交换
+
+        size_t min_mismatch_cols = INT32_MAX;
+        size_t mismatch_cols = 0;
+        IndexMeta const* best_choice = nullptr;
+
+        for(auto& index: indexes) {
+            if(index.col_num == col_names.size()) {
+                size_t i = 0;
+                for(; i < index.col_num; ++i) {
+                    //原版不支持顺序调换,且要求列和索引每一项完全一致的匹配
+//                    if(index.cols[i].name.compare(col_names[i]) != 0)
+//                        break;
+
+                    //1. 假如索引有a,b,c,d，先检测是否有a; 并且可以检测到最多的连续的,比如col_names有a,b,d,这里能找到a,b. i挪到c的位置
+                    // 查找字符串在第一个向量中的位置
+                    auto iter = std::find(col_names.begin(), col_names.end(), index.cols[i].name);
+                    if(iter == col_names.end())
+                        break;
+                    size_t op_index = std::distance(col_names.begin(),iter);
+                    CompOp op = ops[op_index];
+                    //如果不是等号，就不能再匹配下一个列了
+                    if(op != OP_EQ){
+                        i++;
+                        break;
+                    }
+                }
+                //i=0的话显然就是a都没有,可以检测下一个Index了
+                if(i == 0) continue;
+                mismatch_cols = index.col_num - i;
+                if(mismatch_cols < min_mismatch_cols) {
+                    best_choice = &index;
+                    min_mismatch_cols = mismatch_cols;
+                }
+            }
+        }
+
+        if(best_choice)
+            return *best_choice;
+        return std::nullopt;
+    }
+
     /* 根据字段名称集合获取索引元数据 */
     std::vector<IndexMeta>::iterator get_index_meta(const std::vector<std::string>& col_names) {
         for(auto index = indexes.begin(); index != indexes.end(); ++index) {

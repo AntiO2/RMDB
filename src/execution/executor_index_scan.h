@@ -174,7 +174,7 @@ class IndexScanExecutor : public AbstractExecutor {
         }
         if(upper) {
             // 最后的判断条件有小于/小于等于
-            upper_iid = ix_handler_->lower_bound_cnt(upper_key,prev_pos + 1);
+            upper_iid = ix_handler_->upper_bound_cnt(upper_key,prev_pos + 1);
         } else {
             // 没有上限
             if(equal >=0) {

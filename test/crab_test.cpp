@@ -262,7 +262,7 @@ public:
         ASSERT_EQ(it, mock.end());
     }
 };
-TEST(UPPERBOUND,DISABLED_SIMPLE_TEST) {
+TEST(UPPERBOUND,SIMPLE_TEST) {
     // 测试二分查找正确性。
     int num = 10;
     std::vector<int> a ;

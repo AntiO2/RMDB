@@ -280,7 +280,7 @@ void SmManager::create_index(const std::string& tab_name, const std::vector<std:
     auto index_handler = ihs_.find(index_name)->second.get();
     indexMeta.col_num = col_num;
     indexMeta.col_tot_len = tot_len;
-    indexMeta.cols=std::move(index_cols);
+    indexMeta.cols=index_cols;
     table.indexes.emplace_back(indexMeta);
 
     auto table_file_handle = fhs_.find(tab_name)->second.get();

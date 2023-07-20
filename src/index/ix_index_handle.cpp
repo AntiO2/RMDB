@@ -118,20 +118,31 @@ page_id_t IxNodeHandle::internal_lookup(const char *key,size_t col_num,FIND_TYPE
                 }
             }
             break;
-        case FIND_TYPE::COMMON:
+        case FIND_TYPE::COMMON: {
             // 想要找到key 第一次出现的位置
-            pos = lower_bound(key,col_num);
-            flag = ix_compare(get_key(pos), key, col_types, col_lens);
-            if(pos==page_hdr->num_key) {
+            int l = 1, r = page_hdr->num_key, mid;
+            while(l < r){
+                mid = (l+r)/2;
+                flag = ix_compare(get_key(mid), key, col_types, col_lens);
+                if(flag <= 0)
+                    l = mid + 1;
+                else
+                    r = mid;
+            }
+            // 在内部结点中，首先找到第一个大于等于该key的
+            pos = 0;
+            flag = ix_compare(get_key(l), key, col_types, col_lens);
+            if(l==page_hdr->num_key) {
                 // 如果没找到这样的key
-                pos --;
+                pos = l-1;
             } else  if(flag==0){
                 // 如果刚好是这个key
-                // pos = pos;
+                pos = l;
             } else {
-                pos = pos-1;
+                pos = l-1;
             }
             break;
+        }
         case FIND_TYPE::UPPER:
             pos = upper_bound(key,col_num);
             // 我想要找到该key最后出现的子树

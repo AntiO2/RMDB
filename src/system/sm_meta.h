@@ -117,10 +117,12 @@ struct TabMeta {
 
     /* 代替原来is_index返回bool的使用
      * 如果有index返回IndexMeta*/
-    std::optional<IndexMeta> get_index(const std::vector<std::string>& col_names, const std::vector<CompOp>& ops) const {
+    std::pair<IndexMeta,size_t> get_index(const std::vector<std::string>& col_names, const std::vector<bool>& ops) const {
         //最左匹配, 并支持列的顺序交换
 
-        size_t min_mismatch_cols = INT32_MAX;
+        size_t max_match_cols = 0;
+        size_t min_mismatch_cols =INT32_MAX;
+        size_t match_cols = 0;
         size_t mismatch_cols = 0;
         IndexMeta const* best_choice = nullptr;
 
@@ -138,26 +140,27 @@ struct TabMeta {
                     if(iter == col_names.end())
                         break;
                     size_t op_index = std::distance(col_names.begin(),iter);
-                    CompOp op = ops[op_index];
+                    bool op = ops[op_index];
                     //如果不是等号，就不能再匹配下一个列了
-                    if(op != OP_EQ){
+                    if(!op){
                         i++;
                         break;
                     }
                 }
                 //i=0的话显然就是a都没有,可以检测下一个Index了
                 if(i == 0) continue;
-                mismatch_cols = index.col_num - i;
-                if(mismatch_cols < min_mismatch_cols) {
+                match_cols = i;
+                if(match_cols > max_match_cols || (match_cols == max_match_cols && mismatch_cols < min_mismatch_cols)) {
                     best_choice = &index;
                     min_mismatch_cols = mismatch_cols;
+                    max_match_cols = match_cols;
                 }
             }
         }
 
         if(best_choice)
-            return *best_choice;
-        return std::nullopt;
+            return {*best_choice, max_match_cols};
+        return {IndexMeta(),0};
     }
 
     /* 根据字段名称集合获取索引元数据 */

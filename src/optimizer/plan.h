@@ -92,7 +92,9 @@ class ScanPlan : public Plan
         //liamY 加入一个col_as_name_ 记录聚合函数的as的名字 op_记录操作
         std::string col_as_name_;
         AggregateOp op_;
+        //加入索引及其匹配长度
         IndexMeta index_meta_;
+        size_t index_match_length_;
 };
 
 class JoinPlan : public Plan

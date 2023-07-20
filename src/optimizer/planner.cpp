@@ -36,14 +36,17 @@ See the Mulan PSL v2 for more details. */
 //    return false;
 //}
 
-std::optional<IndexMeta> Planner::get_index_cols(std::string tab_name, std::vector<Condition> curr_conds, std::vector<std::string>& index_col_names) {
+std::pair<IndexMeta,size_t> Planner::get_index_cols(std::string tab_name, std::vector<Condition> curr_conds, std::vector<std::string>& index_col_names) {
     index_col_names.clear();
-    std::vector<CompOp> ops;
+    std::vector<bool> ops;
     ops.clear();
     for(auto& cond: curr_conds) {
         if(cond.is_rhs_val && cond.lhs_col.tab_name.compare(tab_name) == 0){
             index_col_names.push_back(cond.lhs_col.col_name);
-            ops.push_back(cond.op);
+            if(cond.op == OP_EQ)
+                ops.push_back(true);
+            else
+                ops.push_back(false);
         }
     }
     TabMeta& tab = sm_manager_->db_.get_table(tab_name);
@@ -168,8 +171,8 @@ std::shared_ptr<Plan> Planner::make_one_rel(std::shared_ptr<Query> query)
         auto curr_conds = pop_conds(query->conds, tables[i]);
         // int index_no = get_indexNo(tables[i], curr_conds);
         std::vector<std::string> index_col_names;
-        auto indexMeta = get_index_cols(tables[i], curr_conds, index_col_names);
-        if (!indexMeta.has_value()) {  // 该表没有索引
+        auto [indexMeta, length] = get_index_cols(tables[i], curr_conds, index_col_names);
+        if (length== 0) {  // 该表没有索引
             index_col_names.clear();
             //liamY 区分出聚合函数的select语句
             if(std::dynamic_pointer_cast<ast::SelectStmt>(query->parse)) {
@@ -182,7 +185,8 @@ std::shared_ptr<Plan> Planner::make_one_rel(std::shared_ptr<Query> query)
         } else {  // 存在索引
             auto plan =
                     std::make_shared<ScanPlan>(T_IndexScan, sm_manager_, tables[i], curr_conds, index_col_names);
-            plan->index_meta_ = indexMeta.value();
+            plan->index_meta_ = indexMeta;
+            plan->index_match_length_ = length;
             table_scan_executors[i] = plan;
         }
     }
@@ -363,15 +367,16 @@ std::shared_ptr<Plan> Planner::do_planner(std::shared_ptr<Query> query, Context 
         // 只有一张表，不需要进行物理优化了
         // int index_no = get_indexNo(x->tab_name, query->conds);
         std::vector<std::string> index_col_names;
-        auto indexMeta = get_index_cols(x->tab_name, query->conds, index_col_names);
+        auto [indexMeta, length] = get_index_cols(x->tab_name, query->conds, index_col_names);
 
-        if (!indexMeta.has_value()) {  // 该表没有索引
+        if (length == 0) {  // 该表没有索引
             index_col_names.clear();
             table_scan_executors =
                     std::make_shared<ScanPlan>(T_SeqScan, sm_manager_, x->tab_name, query->conds, index_col_names);
         } else {  // 存在索引
             auto plan = std::make_shared<ScanPlan>(T_IndexScan, sm_manager_, x->tab_name, query->conds, index_col_names);
-            plan->index_meta_ = indexMeta.value();
+            plan->index_meta_ = indexMeta;
+            plan->index_match_length_ = length;
             table_scan_executors =plan;
         }
 
@@ -384,15 +389,16 @@ std::shared_ptr<Plan> Planner::do_planner(std::shared_ptr<Query> query, Context 
         // 只有一张表，不需要进行物理优化了
         // int index_no = get_indexNo(x->tab_name, query->conds);
         std::vector<std::string> index_col_names;
-        auto indexMeta = get_index_cols(x->tab_name, query->conds, index_col_names);
+        auto [indexMeta, length] = get_index_cols(x->tab_name, query->conds, index_col_names);
 
-        if (!indexMeta.has_value()) {  // 该表没有索引
+        if (length == 0) {  // 该表没有索引
             index_col_names.clear();
             table_scan_executors =
                     std::make_shared<ScanPlan>(T_SeqScan, sm_manager_, x->tab_name, query->conds, index_col_names);
         } else {  // 存在索引
             auto plan = std::make_shared<ScanPlan>(T_IndexScan, sm_manager_, x->tab_name, query->conds, index_col_names);
-            plan->index_meta_ = indexMeta.value();
+            plan->index_meta_ = indexMeta;
+            plan->index_match_length_ = length;
             table_scan_executors = plan;
         }
         plannerRoot = std::make_shared<DMLPlan>(T_Update, table_scan_executors, x->tab_name,

@@ -30,6 +30,7 @@ class IndexScanExecutor : public AbstractExecutor {
 
     std::vector<std::string> index_col_names_;  // index scan涉及到的索引包含的字段
     IndexMeta index_meta_;                      // index scan涉及到的索引元数据
+    size_t index_match_length_;
 
     Rid rid_;
     std::unique_ptr<RecScan> scan_;
@@ -38,7 +39,7 @@ class IndexScanExecutor : public AbstractExecutor {
 
    public:
     IndexScanExecutor(SmManager *sm_manager, std::string tab_name, std::vector<Condition> conds, std::vector<std::string> index_col_names,
-                    Context *context) {
+                    IndexMeta indexMeta, size_t index_match_length, Context *context) {
         sm_manager_ = sm_manager;
         context_ = context;
         tab_name_ = std::move(tab_name);
@@ -46,7 +47,9 @@ class IndexScanExecutor : public AbstractExecutor {
         conds_ = std::move(conds);
         // index_no_ = index_no;
         index_col_names_ = std::move(index_col_names);
-        index_meta_ = *(tab_.get_index_meta(index_col_names_));
+        //index_meta_ = *(tab_.get_index_meta(index_col_names_));
+        index_meta_ = std::move(indexMeta);
+        index_match_length_ = index_match_length;
         fh_ = sm_manager_->fhs_.at(tab_name_).get();
         cols_ = tab_.cols;
         len_ = cols_.back().offset + cols_.back().len;

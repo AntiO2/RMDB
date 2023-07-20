@@ -10,6 +10,8 @@ See the Mulan PSL v2 for more details. */
 
 #include "execution_manager.h"
 
+#include <utility>
+
 #include "executor_delete.h"
 #include "executor_index_scan.h"
 #include "executor_insert.h"
@@ -126,6 +128,136 @@ void QlManager::run_cmd_utility(std::shared_ptr<Plan> plan, txn_id_t *txn_id, Co
 
     }
 }
+//完成aggregate操作 分为sum min max count
+void QlManager::select_from_aggregate(std::unique_ptr<AbstractExecutor> executorTreeRoot, std::vector<TabCol> sel_cols,std::string col_as_name,AggregateOp op,
+                                      Context *context){
+    std::vector<std::string> captions = {std::move(col_as_name)};
+    // Print header into buffer
+    RecordPrinter rec_printer(captions.size());
+    rec_printer.print_separator(context);
+    rec_printer.print_record(captions, context);
+    rec_printer.print_separator(context);
+    // print header into file
+    std::fstream outfile;
+    outfile.open("output.txt", std::ios::out | std::ios::app);
+    outfile << "|";
+    for(int i = 0; i < captions.size(); ++i) {
+        outfile << " " << captions[i] << " |";
+    }
+    outfile << "\n";
+
+    // Print records
+    size_t num_rec = 1;
+    std::vector<std::string> columns;
+    //执行query plan
+    switch (op) {
+        case AG_OP_SUM:
+        {
+            int col_res_int = 0;
+            float col_res_float = 0;
+            for (executorTreeRoot->beginTuple(); !executorTreeRoot->is_end(); executorTreeRoot->nextTuple()) {
+                auto Tuple = executorTreeRoot->Next();
+                for (auto &col : executorTreeRoot->cols()) {
+                    char *rec_buf = Tuple->data + col.offset;
+                    if (col.type == TYPE_INT) {
+                        col_res_int += *(int *)rec_buf;
+                    } else if (col.type == TYPE_FLOAT) {
+                       col_res_float += *(float *)rec_buf;
+                }
+                }
+            }
+            if(col_res_int!=0) {
+                columns.emplace_back(std::to_string(col_res_int));
+            }else if(col_res_float!=0){
+                columns.emplace_back(std::to_string(col_res_float));
+            }
+            break;
+        }
+        case AG_OP_COUNT: {
+            int count = 0;
+            for (executorTreeRoot->beginTuple(); !executorTreeRoot->is_end(); executorTreeRoot->nextTuple()) { count++; }
+            if (count != 0) {
+                columns.emplace_back(std::to_string(count));
+            }
+            break;
+        }
+        case AG_OP_MAX:
+        {
+                std::string maxStr = "";
+                int maxInt = 0;
+                float maxFloat = 0;
+            for (executorTreeRoot->beginTuple(); !executorTreeRoot->is_end(); executorTreeRoot->nextTuple()) {
+                auto Tuple = executorTreeRoot->Next();
+                for (auto &col: executorTreeRoot->cols()) {
+                    char *rec_buf = Tuple->data + col.offset;
+                    if (col.type == TYPE_INT) {
+                        maxInt = maxInt > *(int *) rec_buf ? maxInt : *(int *) rec_buf;
+                    } else if (col.type == TYPE_FLOAT) {
+                        maxFloat = maxFloat > *(float *) rec_buf ? maxFloat : *(float *) rec_buf;
+                    } else if (col.type == TYPE_STRING) {
+                        auto str = std::string((char *) rec_buf, col.len);
+                        maxStr = maxStr > str ? maxStr : str;
+                    }
+                }
+            }
+            if(maxInt !=0) {
+                columns.emplace_back(std::to_string(maxInt));
+            }else if(maxFloat!=0){
+                columns.emplace_back(std::to_string(maxFloat));
+            }else if(maxStr != "" ){
+                maxStr.resize(strlen(maxStr.c_str()));
+                columns.emplace_back(maxStr);
+            }
+            break;
+        }
+        case AG_OP_MIN:
+        {
+            std::string minStr;
+            int minInt = 0;
+            float minFloat = 0;
+            for (executorTreeRoot->beginTuple(); !executorTreeRoot->is_end(); executorTreeRoot->nextTuple()) {
+                auto Tuple = executorTreeRoot->Next();
+                for (auto &col: executorTreeRoot->cols()) {
+                    char *rec_buf = Tuple->data + col.offset;
+                    if (col.type == TYPE_INT) {
+                        minInt = minInt < *(int *) rec_buf ? minInt : *(int *) rec_buf;
+                    } else if (col.type == TYPE_FLOAT) {
+                        minFloat = minFloat < *(float *) rec_buf ? minFloat : *(float *) rec_buf;
+                    } else if (col.type == TYPE_STRING) {
+                        auto str = std::string((char *) rec_buf, col.len);
+                        minStr = minStr < str ? minStr : str;
+                    }
+                }
+            }
+            if(minInt !=0) {
+                columns.emplace_back(std::to_string(minInt));
+            }else if(minFloat!=0){
+                columns.emplace_back(std::to_string(minFloat));
+            }else{
+                minStr.resize(strlen(minStr.c_str()));
+                columns.emplace_back(minStr);
+            }
+            break;
+        }
+
+    }
+    //打印
+    // print record into buffer
+    rec_printer.print_record(columns, context);
+    // print record into file
+    outfile << "|";
+    for(const auto & column : columns) {
+        outfile << " " << column << " |";
+    }
+    outfile << "\n";
+
+    outfile.close();
+    // Print footer into buffer
+    rec_printer.print_separator(context);
+    // Print record count into buffer
+    RecordPrinter::print_record_count(num_rec, context);
+
+}
 
 // 执行select语句，select语句的输出除了需要返回客户端外，还需要写入output.txt文件中
 void QlManager::select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot, std::vector<TabCol> sel_cols, 
@@ -177,8 +309,8 @@ void QlManager::select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot, 
         rec_printer.print_record(columns, context);
         // print record into file
         outfile << "|";
-        for(int i = 0; i < columns.size(); ++i) {
-            outfile << " " << columns[i] << " |";
+        for(const auto & column : columns) {
+            outfile << " " << column << " |";
         }
         outfile << "\n";
         num_rec++;

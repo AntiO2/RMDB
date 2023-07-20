@@ -25,6 +25,10 @@ class SeqScanExecutor : public AbstractExecutor {
     size_t len_;                        // scan后生成的每条记录的长度
     std::vector<Condition> fed_conds_;  // 同conds_，两个字段相同
 
+//    //liamY 加入了处理聚合函数的变量 col_as_name_ 记录聚合函数的as的名字 op_记录操作
+//    std::string col_as_name_;
+//    AggregateOp op_;
+
     Rid rid_;
     std::unique_ptr<RecScan> scan_;     // table_iterator
 
@@ -45,6 +49,20 @@ class SeqScanExecutor : public AbstractExecutor {
         context_ = context;
         fed_conds_ = conds_;
     }
+//    //liamY 重载了构造函数，使得对聚合函数有新的信息col_as_name_ 和 op_
+//    SeqScanExecutor(SmManager *sm_manager, std::string tab_name, std::vector<Condition> conds, Context *context,std::string col_as_name,AggregateOp op) {
+//        sm_manager_ = sm_manager;
+//        tab_name_ = std::move(tab_name);
+//        conds_ = std::move(conds);
+//        TabMeta &tab = sm_manager_->db_.get_table(tab_name_);
+//        fh_ = sm_manager_->fhs_.at(tab_name_).get();
+//        cols_ = tab.cols;
+//        len_ = cols_.back().offset + cols_.back().len; // 输出字段长度
+//        context_ = context;
+//        fed_conds_ = conds_;
+//        col_as_name_ = col_as_name;
+//        op_ = op;
+//    }
 
     void beginTuple() override {
         // 首先初始化。

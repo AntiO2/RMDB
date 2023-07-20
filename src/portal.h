@@ -13,6 +13,7 @@ See the Mulan PSL v2 for more details. */
 #include <cerrno>
 #include <cstring>
 #include <string>
+#include <utility>
 #include "optimizer/plan.h"
 #include "execution/executor_abstract.h"
 #include "execution/executor_nestedloop_join.h"
@@ -30,7 +31,8 @@ typedef enum portalTag{
     PORTAL_ONE_SELECT,
     PORTAL_DML_WITHOUT_SELECT,
     PORTAL_MULTI_QUERY,
-    PORTAL_CMD_UTILITY
+    PORTAL_CMD_UTILITY,
+    PORTAL_ONE_SELECT_AGGREGATE
 } portalTag;
 
 
@@ -40,9 +42,15 @@ struct PortalStmt {
     std::vector<TabCol> sel_cols;
     std::unique_ptr<AbstractExecutor> root;
     std::shared_ptr<Plan> plan;
+    //liamY 加入了处理聚合函数的变量 col_as_name_ 记录聚合函数的as的名字 op_记录操作
+    std::string col_as_name_;
+    AggregateOp op_;
     
     PortalStmt(portalTag tag_, std::vector<TabCol> sel_cols_, std::unique_ptr<AbstractExecutor> root_, std::shared_ptr<Plan> plan_) :
             tag(tag_), sel_cols(std::move(sel_cols_)), root(std::move(root_)), plan(std::move(plan_)) {}
+            //重载了一个加入op和col_as_name的
+    PortalStmt(portalTag tag_, std::vector<TabCol> sel_cols_, std::unique_ptr<AbstractExecutor> root_, std::shared_ptr<Plan> plan_,std::string col_as_name,AggregateOp op) :
+            tag(tag_), sel_cols(std::move(sel_cols_)), root(std::move(root_)), plan(std::move(plan_)) {col_as_name_ = std::move(col_as_name),op_ = op;}
 };
 
 class Portal
@@ -70,7 +78,13 @@ class Portal
                     std::shared_ptr<ProjectionPlan> p = std::dynamic_pointer_cast<ProjectionPlan>(x->subplan_);
                     // root表示取出数据的执行器
                     std::unique_ptr<AbstractExecutor> root= convert_plan_executor(p, context);
-                    return std::make_shared<PortalStmt>(PORTAL_ONE_SELECT, std::move(p->sel_cols_), std::move(root), plan);
+                    if(auto x = std::dynamic_pointer_cast<ScanPlan>(p->subplan_)){//liamY 鉴定是否为聚合函数，更换为PORTAL_ONE_SELECT_AGGREGATE tag返回
+                        if(x->op_==AG_OP_MIN || x->op_ == AG_OP_MAX || x->op_==AG_OP_COUNT||x->op_==AG_OP_SUM){
+                            return std::make_shared<PortalStmt>(PORTAL_ONE_SELECT_AGGREGATE, std::move(p->sel_cols_), std::move(root), plan,x->col_as_name_,x->op_);
+                        }
+                    }
+                    return std::make_shared<PortalStmt>(PORTAL_ONE_SELECT, std::move(p->sel_cols_),
+                                                        std::move(root), plan);
                 }
                     
                 case T_Update:
@@ -128,7 +142,12 @@ class Portal
                 ql->select_from(std::move(portal->root), std::move(portal->sel_cols), context);
                 break;
             }
-
+            //新增处理aggregate 的情况
+            case PORTAL_ONE_SELECT_AGGREGATE:
+            {
+                ql->select_from_aggregate(std::move(portal->root), std::move(portal->sel_cols),portal->col_as_name_,portal->op_, context);
+                break;
+            }
             case PORTAL_DML_WITHOUT_SELECT:
             {
                 ql->run_dml(std::move(portal->root));
@@ -164,7 +183,11 @@ class Portal
                                                         x->sel_cols_);
         } else if(auto x = std::dynamic_pointer_cast<ScanPlan>(plan)) {
             if(x->tag == T_SeqScan) {
-                return std::make_unique<SeqScanExecutor>(sm_manager_, x->tab_name_, x->conds_, context);
+//                if(x->op_){//liamY 如果有聚合函数的操作
+//                    return std::make_unique<SeqScanExecutor>(sm_manager_, x->tab_name_, x->conds_, context,x->col_as_name_,x->op_);
+//                }else {
+                    return std::make_unique<SeqScanExecutor>(sm_manager_, x->tab_name_, x->conds_, context);
+//                }
             }
             else {
                 return std::make_unique<IndexScanExecutor>(sm_manager_, x->tab_name_, x->conds_, x->index_col_names_, context);

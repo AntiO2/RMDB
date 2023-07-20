@@ -65,7 +65,20 @@ class ScanPlan : public Plan
             len_ = cols_.back().offset + cols_.back().len;
             fed_conds_ = conds_;
             index_col_names_ = index_col_names;
-        
+        }
+        //liamY 重载一个构造函数，针对聚合函数的scan操作,记录as的表名称，以及op操作
+        ScanPlan(PlanTag tag, SmManager *sm_manager, std::string tab_name, std::vector<Condition> conds, std::vector<std::string> index_col_names,std::string col_as_name,AggregateOp op)
+        {
+            Plan::tag = tag;
+            tab_name_ = std::move(tab_name);
+            conds_ = std::move(conds);
+            TabMeta &tab = sm_manager->db_.get_table(tab_name_);
+            cols_ = tab.cols;
+            len_ = cols_.back().offset + cols_.back().len;
+            fed_conds_ = conds_;
+            index_col_names_ = index_col_names;
+            col_as_name_ = col_as_name;
+            op_ = op;
         }
         ~ScanPlan(){}
         // 以下变量同ScanExecutor中的变量
@@ -75,6 +88,9 @@ class ScanPlan : public Plan
         size_t len_;                               
         std::vector<Condition> fed_conds_;
         std::vector<std::string> index_col_names_;
+        //liamY 加入一个col_as_name_ 记录聚合函数的as的名字 op_记录操作
+        std::string col_as_name_;
+        AggregateOp op_;
     
 };
 

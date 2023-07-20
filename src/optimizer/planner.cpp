@@ -130,9 +130,11 @@ std::shared_ptr<Plan> Planner::physical_optimization(std::shared_ptr<Query> quer
     std::shared_ptr<Plan> plan = make_one_rel(query);
     
     // 其他物理优化
-
-    // 处理orderby
-    plan = generate_sort_plan(query, std::move(plan)); 
+    //liamY
+    // 处理orderby,仅针对selectStmt，对于聚合函数的select要予以排除
+    if(std::dynamic_pointer_cast<ast::SelectStmt>(query->parse)) {
+        plan = generate_sort_plan(query, std::move(plan));
+    }
 
     return plan;
 }
@@ -140,7 +142,7 @@ std::shared_ptr<Plan> Planner::physical_optimization(std::shared_ptr<Query> quer
 
 
 std::shared_ptr<Plan> Planner::make_one_rel(std::shared_ptr<Query> query)
-{
+{//CHECK(liamY) 这个x没有被使用到，不知道为什么放在这里
     auto x = std::dynamic_pointer_cast<ast::SelectStmt>(query->parse);
     std::vector<std::string> tables = query->tables;
     // // Scan table , 生成表算子列表tab_nodes
@@ -152,8 +154,14 @@ std::shared_ptr<Plan> Planner::make_one_rel(std::shared_ptr<Query> query)
         bool index_exist = get_index_cols(tables[i], curr_conds, index_col_names);
         if (index_exist == false) {  // 该表没有索引
             index_col_names.clear();
-            table_scan_executors[i] = 
-                std::make_shared<ScanPlan>(T_SeqScan, sm_manager_, tables[i], curr_conds, index_col_names);
+            //liamY 区分出聚合函数的select语句
+            if(std::dynamic_pointer_cast<ast::SelectStmt>(query->parse)) {
+                table_scan_executors[i] =
+                        std::make_shared<ScanPlan>(T_SeqScan, sm_manager_, tables[i], curr_conds, index_col_names);
+            }else if(auto x = std::dynamic_pointer_cast<ast::AggregateStmt>(query->parse)){
+                table_scan_executors[i] =
+                        std::make_shared<ScanPlan>(T_SeqScan, sm_manager_, tables[i], curr_conds, index_col_names,x->aggregate_col->as_col_name,query->aggreInfo.op_);
+            }
         } else {  // 存在索引
             table_scan_executors[i] =
                 std::make_shared<ScanPlan>(T_IndexScan, sm_manager_, tables[i], curr_conds, index_col_names);
@@ -284,8 +292,14 @@ std::shared_ptr<Plan> Planner::generate_select_plan(std::shared_ptr<Query> query
     query = logical_optimization(std::move(query), context);
 
     //物理优化
-    auto sel_cols = query->cols;
     std::shared_ptr<Plan> plannerRoot = physical_optimization(query, context);
+    //对于非聚合select，sel_cols就是在query->cols中，而聚合函数的sel_cols在query->query->aggreInfo.select_col_中
+    std::vector<TabCol> sel_cols;
+    if(std::dynamic_pointer_cast<ast::SelectStmt>(query->parse)) {
+        sel_cols = query->cols;
+    }else if(std::dynamic_pointer_cast<ast::AggregateStmt>(query->parse)) {
+        sel_cols = {query->aggreInfo.select_col_};
+    }
     plannerRoot = std::make_shared<ProjectionPlan>(T_Projection, std::move(plannerRoot), 
                                                         std::move(sel_cols));
 
@@ -364,13 +378,19 @@ std::shared_ptr<Plan> Planner::do_planner(std::shared_ptr<Query> query, Context 
                                                      std::vector<Value>(), query->conds, 
                                                      query->set_clauses);
     } else if (auto x = std::dynamic_pointer_cast<ast::SelectStmt>(query->parse)) {
-
+        //CHECK(liamY)这个root变量没有被用到呀
         std::shared_ptr<plannerInfo> root = std::make_shared<plannerInfo>(x);
         // 生成select语句的查询执行计划
         std::shared_ptr<Plan> projection = generate_select_plan(std::move(query), context);
         plannerRoot = std::make_shared<DMLPlan>(T_select, projection, std::string(), std::vector<Value>(),
                                                     std::vector<Condition>(), std::vector<SetClause>());
-    } else {
+    } else if(auto x = std::dynamic_pointer_cast<ast::AggregateStmt>(query->parse)){//liamY
+        std::shared_ptr<Plan> projection = generate_select_plan(std::move(query), context);
+        plannerRoot = std::make_shared<DMLPlan>(T_select, projection, std::string(), std::vector<Value>(),
+                                                std::vector<Condition>(), std::vector<SetClause>());
+    }
+
+    else {
         throw InternalError("Unexpected AST root");
     }
     return plannerRoot;

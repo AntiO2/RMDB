@@ -38,6 +38,7 @@ int main() {
         "select COUNT(name) as count_name from aggregate where val = 2.0;",
         "select COUNT(id) as count_id from aggregate;",
         "select COUNT(*) as max_name from t1;",
+        "show index from warehouse;",
         "",
     };
     for (auto &sql : sqls) {

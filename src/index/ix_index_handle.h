@@ -15,33 +15,15 @@ See the Mulan PSL v2 for more details. */
 #include "common/common.h"
 #include "common/rwlatch.h"
 enum class Operation { FIND = 0, INSERT, DELETE };  // 三种操作：查找、插入、删除
-
+enum class FIND_TYPE {LOWER,UPPER,COMMON};
 static const bool binary_search = false;
 
-// ！请查看 src/common.h
-
-//inline int ix_compare(const char *a, const char *b, ColType type, int col_len) {
-//    switch (type) {
-//        case TYPE_INT: {
-//            int ia = *(int *)a;
-//            int ib = *(int *)b;
-//            return (ia < ib) ? -1 : ((ia > ib) ? 1 : 0);
-//        }
-//        case TYPE_FLOAT: {
-//            float fa = *(float *)a;
-//            float fb = *(float *)b;
-//            return (fa < fb) ? -1 : ((fa > fb) ? 1 : 0);
-//        }
-//        case TYPE_STRING:
-//            return memcmp(a, b, col_len);
-//        default:
-//            throw InternalError("Unexpected data type");
-//    }
-//}
-
-inline int ix_compare(const char* a, const char* b, const std::vector<ColType>& col_types, const std::vector<int>& col_lens) {
+inline int ix_compare(const char* a, const char* b, const std::vector<ColType>& col_types, const std::vector<int>& col_lens, size_t col_num = 0) {
+    if(col_num== 0) {
+        col_num=col_types.size();
+    }
     int offset = 0;
-    for(size_t i = 0; i < col_types.size(); ++i) {
+    for(size_t i = 0; i < col_num; ++i) {
         int res = value_compare(a + offset, b + offset, col_types[i], col_lens[i]);
         if(res != 0) return res;
         offset += col_lens[i];
@@ -70,16 +52,16 @@ class IxNodeHandle {
         rids = reinterpret_cast<Rid *>(keys + file_hdr->keys_size_);
     }
 
-    int get_size() { return page_hdr->num_key; }
+    [[nodiscard]] int get_size() const { return page_hdr->num_key; }
 
-    void set_size(int size) { page_hdr->num_key = size; }
+    void set_size(int size) const { page_hdr->num_key = size; }
 
-    int get_max_size() { return file_hdr->btree_order_ + 1; }
+    int get_max_size() const { return file_hdr->btree_order_ + 1; }
 
     int get_min_size() { return get_max_size() / 2; }
 
     int key_at(int i) { return *(int *)get_key(i); }
-
+    int key_2nd(int i) {return *(int *)(get_key(i)+4);}
     /* 得到第i个孩子结点的page_no */
     page_id_t value_at(int i) { return get_rid(i)->page_no; }
 
@@ -115,15 +97,13 @@ class IxNodeHandle {
 
     void set_rid(int rid_idx, const Rid &rid) { rids[rid_idx] = rid; }
 
-    int lower_bound(const char *target) const;
-
-    int upper_bound(const char *target) const;
-
+    int lower_bound(const char *target, size_t col_num) const;
+    int upper_bound(const char *target,  size_t col_num) const;
     void insert_pairs(int pos, const char *key, const Rid *rid, int n);
 
-    page_id_t internal_lookup(const char *key);
+    page_id_t internal_lookup(const char *key, size_t col_num,FIND_TYPE findType=FIND_TYPE::COMMON);
 
-    bool leaf_lookup(const char *key, Rid **value);
+    bool leaf_lookup(const char *key, Rid **value,  size_t col_num,FIND_TYPE findType=FIND_TYPE::COMMON);
 
     int insert(const char *key, const Rid &value);
 
@@ -192,8 +172,7 @@ class IxIndexHandle {
     bool get_value(const char *key, std::vector<Rid> *result, Transaction *transaction);
 
     std::pair<IxNodeHandle *, bool> find_leaf_page(const char *key, Operation operation, Transaction *transaction,
-                                                 bool find_first = false);
-
+                                                   size_t col_cnt = 0, bool find_first = false,FIND_TYPE find_type=FIND_TYPE::COMMON);
     // for insert
     page_id_t insert_entry(const char *key, const Rid &value, Transaction *transaction);
 
@@ -214,9 +193,9 @@ class IxIndexHandle {
                   Transaction *transaction, bool *root_is_latched);
 
     Iid lower_bound(const char *key);
-
+    Iid lower_bound_cnt(const char *key, size_t cnt);
     Iid upper_bound(const char *key);
-    Iid upper_bound2(const char *key);
+    Iid upper_bound_cnt(const char *key, size_t cnt);
     Iid leaf_end() const;
 
     Iid leaf_begin() const;

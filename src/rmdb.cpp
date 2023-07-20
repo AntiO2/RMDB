@@ -141,7 +141,6 @@ void *client_handler(void *sock_fd) {
                     // portalStmt->plan
                     portal->run(portalStmt, ql_manager.get(), &txn_id, context);
                     portal->drop();
-                    query.reset();
                 } catch (TransactionAbortException &e) {
                     // 事务需要回滚，需要把abort信息返回给客户端并写入output.txt文件中
                     std::string str = "abort\n";

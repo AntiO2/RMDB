@@ -47,7 +47,7 @@ struct PortalStmt {
     AggregateOp op_;
     
     PortalStmt(portalTag tag_, std::vector<TabCol> sel_cols_, std::unique_ptr<AbstractExecutor> root_, std::shared_ptr<Plan> plan_) :
-            tag(tag_), sel_cols(std::move(sel_cols_)), root(std::move(root_)), plan(std::move(plan_)) {}
+            tag(tag_), sel_cols(std::move(sel_cols_)), root(std::move(root_)), plan(std::move(plan_)) {op_ = AG_OP_NONE;}
             //重载了一个加入op和col_as_name的
     PortalStmt(portalTag tag_, std::vector<TabCol> sel_cols_, std::unique_ptr<AbstractExecutor> root_, std::shared_ptr<Plan> plan_,std::string col_as_name,AggregateOp op) :
             tag(tag_), sel_cols(std::move(sel_cols_)), root(std::move(root_)), plan(std::move(plan_)) {col_as_name_ = std::move(col_as_name),op_ = op;}

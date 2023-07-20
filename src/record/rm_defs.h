@@ -11,6 +11,7 @@ See the Mulan PSL v2 for more details. */
 #pragma once
 
 #include "defs.h"
+#include "system/sm_meta.h"
 #include "storage/buffer_pool_manager.h"
 
 constexpr int RM_NO_PAGE = -1;
@@ -97,5 +98,19 @@ struct RmRecord {
         }
         allocated_ = false;
         data = nullptr;
+    }
+
+    std::unique_ptr<RmRecord> key_from_rec(const std::vector<ColMeta>&cols) {
+        int len = 0;
+        for(auto&col:cols) {
+            len+=col.len;
+        }
+        RmRecord rm(len); // 申请长度为len的空间。
+        int offset = 0;
+        for(auto&col:cols) {
+            memcpy(rm.data+offset, data+col.offset,col.len);
+            offset+=col.len;
+        }
+        return std::make_unique<RmRecord>(rm);
     }
 };

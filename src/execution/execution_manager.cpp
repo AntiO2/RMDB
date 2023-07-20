@@ -176,17 +176,33 @@ void QlManager::select_from_aggregate(std::unique_ptr<AbstractExecutor> executor
         case AG_OP_COUNT: {
             int count = 0;
             for (executorTreeRoot->beginTuple(); !executorTreeRoot->is_end(); executorTreeRoot->nextTuple()) { count++; }
-            if (count != 0) {
+//            if (count != 0) {
                 columns.emplace_back(std::to_string(count));
-            }
+//            }
             break;
         }
         case AG_OP_MAX:
         {
-                std::string maxStr = "";
-                int maxInt = 0;
-                float maxFloat = 0;
-            for (executorTreeRoot->beginTuple(); !executorTreeRoot->is_end(); executorTreeRoot->nextTuple()) {
+            std::string maxStr = "";
+            int maxInt = 0;
+            float maxFloat = 0;
+            executorTreeRoot->beginTuple();
+            if(!executorTreeRoot->is_end()) {
+                auto Tuple = executorTreeRoot->Next();
+                for (auto &col: executorTreeRoot->cols()) {
+                    char *rec_buf = Tuple->data + col.offset;
+                    if (col.type == TYPE_INT) {
+                        maxInt = *(int *) rec_buf;
+                    } else if (col.type == TYPE_FLOAT) {
+                        maxFloat = *(float *) rec_buf;
+                    } else if (col.type == TYPE_STRING) {
+                        auto str = std::string((char *) rec_buf, col.len);
+                        maxStr = str;
+                    }
+                }
+                executorTreeRoot->nextTuple();
+            }
+            for (; !executorTreeRoot->is_end(); executorTreeRoot->nextTuple()) {
                 auto Tuple = executorTreeRoot->Next();
                 for (auto &col: executorTreeRoot->cols()) {
                     char *rec_buf = Tuple->data + col.offset;
@@ -212,10 +228,26 @@ void QlManager::select_from_aggregate(std::unique_ptr<AbstractExecutor> executor
         }
         case AG_OP_MIN:
         {
-            std::string minStr;
+            std::string minStr = "";
             int minInt = 0;
             float minFloat = 0;
-            for (executorTreeRoot->beginTuple(); !executorTreeRoot->is_end(); executorTreeRoot->nextTuple()) {
+            executorTreeRoot->beginTuple();
+            if(!executorTreeRoot->is_end()){
+                auto Tuple = executorTreeRoot->Next();
+                for (auto &col: executorTreeRoot->cols()) {
+                    char *rec_buf = Tuple->data + col.offset;
+                    if (col.type == TYPE_INT) {
+                        minInt = *(int *) rec_buf;
+                    } else if (col.type == TYPE_FLOAT) {
+                        minFloat = *(float *) rec_buf;
+                    } else if (col.type == TYPE_STRING) {
+                        auto str = std::string((char *) rec_buf, col.len);
+                        minStr = str;
+                    }
+                }
+                executorTreeRoot->nextTuple();
+            }
+            for (; !executorTreeRoot->is_end(); executorTreeRoot->nextTuple()) {
                 auto Tuple = executorTreeRoot->Next();
                 for (auto &col: executorTreeRoot->cols()) {
                     char *rec_buf = Tuple->data + col.offset;
@@ -233,7 +265,7 @@ void QlManager::select_from_aggregate(std::unique_ptr<AbstractExecutor> executor
                 columns.emplace_back(std::to_string(minInt));
             }else if(minFloat!=0){
                 columns.emplace_back(std::to_string(minFloat));
-            }else{
+            }else if(minStr != ""){
                 minStr.resize(strlen(minStr.c_str()));
                 columns.emplace_back(minStr);
             }
@@ -251,6 +283,7 @@ void QlManager::select_from_aggregate(std::unique_ptr<AbstractExecutor> executor
             outfile << " " << column << " |";
         }
     }else{
+        outfile << " |";
         num_rec = 0;
     }
     outfile << "\n";

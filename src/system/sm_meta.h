@@ -186,7 +186,14 @@ struct TabMeta {
         }
         return pos;
     }
-
+    ColMeta get_col_meta(const std::string &col_name) {
+        for(auto &col:cols) {
+            if(col.name==col_name) {
+                return col;
+            }
+        }
+        throw ColumnNotFoundError(col_name);
+    }
     friend std::ostream &operator<<(std::ostream &os, const TabMeta &tab) {
         os << tab.name << '\n' << tab.cols.size() << '\n';
         for (auto &col : tab.cols) {

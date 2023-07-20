@@ -229,14 +229,20 @@ void SmManager::drop_table(const std::string& tab_name, Context* context) {
     if (!db_.is_table(tab_name)) {
         throw TableNotFoundError(tab_name);
     }
+    auto& indexes = db_.tabs_[tab_name].indexes;
+    for(auto &index:indexes) {
 
+        drop_index(tab_name, index.cols,context);
+    }
+    auto tab = fhs_.find(tab_name)->second.get();
     //关闭这个table文件
-    rm_manager_->close_file(fhs_.find(tab_name)->second.get());
+    rm_manager_->close_file(tab);
 
     //删除db中对这个表的记录
     //tab与fhs
     fhs_.erase(tab_name);
     db_.tabs_.erase(tab_name);
+
 
     //删除表文件
     disk_manager_->destroy_file(tab_name);
@@ -263,18 +269,18 @@ void SmManager::create_index(const std::string& tab_name, const std::vector<std:
     std::vector<ColMeta> index_cols;
     for(const auto&col_name:col_names) {
         // 从col中找到对应名字的列
-        auto col = table.get_col(col_name);
-        index_cols.emplace(col);
-        tot_len+=col->len;
+        ColMeta  col = table.get_col_meta(col_name);
+        index_cols.emplace_back(col);
+        tot_len+=col.len;
     }
     ix_manager_->create_index(tab_name,index_cols);
-    auto index_handler = ix_manager_->open_index(tab_name, index_cols);
     auto index_name = ix_manager_->get_index_name(tab_name,index_cols);
     assert(ihs_.count(index_name)==0); // 确保之前没有创建过该index
-    ihs_.emplace(index_name,index_handler.get());
-
+    ihs_.emplace(index_name,ix_manager_->open_index(tab_name, index_cols));
+    auto index_handler = ihs_.find(index_name)->second.get();
     indexMeta.col_num = col_num;
     indexMeta.col_tot_len = tot_len;
+    indexMeta.cols=std::move(index_cols);
     table.indexes.emplace_back(indexMeta);
 
     auto table_file_handle = fhs_.find(tab_name)->second.get();
@@ -285,6 +291,7 @@ void SmManager::create_index(const std::string& tab_name, const std::vector<std:
         auto origin_key = table_file_handle->get_record(rid,context);
         auto key = origin_key->key_from_rec(index_cols);
         index_handler->insert_entry(key->data,rid, &transaction);
+        rm_scan.next();
     }
     flush_meta();
 }
@@ -308,8 +315,7 @@ void SmManager::drop_index(const std::string& tab_name, const std::vector<std::s
     ix_manager_->destroy_index(ix_name); // 删除索引文件
     ihs_.erase(ihs_iter); // check(AntiO2) 此处删除迭代器是否有错
 
-    auto tab = db_.get_table(tab_name);
-    tab.remove_index(col_names);
+    db_.tabs_[tab_name].remove_index(col_names);
 
     flush_meta();
 }

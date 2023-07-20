@@ -84,7 +84,7 @@ class IndexScanExecutor : public AbstractExecutor {
 
         bool upper = false;
         bool lower = false;
-        bool equal = false;
+        long equal = -1;
         int offset = 0;
 
         long prev_pos = -1;
@@ -103,20 +103,23 @@ class IndexScanExecutor : public AbstractExecutor {
             if(pos!=prev_pos) {
                 //  如果移到了下一列
                 offset+=prev_len;
-                equal = false;
             }
             switch (conds_.at(i).op) {
                 case OP_EQ:
-                    if(equal) {
+                    if(equal==pos) {
                         // 如果在该列上有两个等于，直接跳过
                         break;
                     }
                     memcpy(upper_key+offset,cond.rhs_val.raw->data,col->len);
                     memcpy(lower_key+offset,cond.rhs_val.raw->data,col->len);
-                    equal = true;
+                    equal = pos;
                     break;
                 case OP_LT:
                 case OP_LE:
+                    if(equal==pos) {
+                        // 如果在该列上已经有了等于条件
+                        break;
+                    }
                     if(upper) {
                         // 如果已经有了上限，需要看哪个更小
                         char new_upper[index_meta_.col_tot_len];
@@ -132,6 +135,10 @@ class IndexScanExecutor : public AbstractExecutor {
                     break;
                 case OP_GT:
                 case OP_GE:
+                    if(equal==pos) {
+                        // 如果在该列上已经有了等于条件
+                        break;
+                    }
                     if(lower) {
                         // 如果已经有了上限，需要看哪个更小
                         char new_lower[index_meta_.col_tot_len];
@@ -151,8 +158,33 @@ class IndexScanExecutor : public AbstractExecutor {
             prev_pos = pos;
             prev_len = col->len;
         }
-        auto lower_iid = ix_handler_->lower_bound_cnt(lower_key,prev_pos);
-        auto upper_iid = ix_handler_->upper_bound_cnt(upper_key,prev_pos);
+        Iid lower_iid{},upper_iid{};
+        if(lower) {
+            // 最后的判断条件有大于/大于等于
+            lower_iid = ix_handler_->lower_bound_cnt(lower_key,prev_pos + 1);
+        } else {
+            // 没有下限
+            if(equal >=0) {
+                // 前面有等于号，从等于号开始找
+                lower_iid = ix_handler_->lower_bound_cnt(lower_key,equal+1);
+            } else {
+                // 相当于没有下限了
+                lower_iid = ix_handler_->leaf_begin();
+            }
+        }
+        if(upper) {
+            // 最后的判断条件有小于/小于等于
+            upper_iid = ix_handler_->lower_bound_cnt(upper_key,prev_pos + 1);
+        } else {
+            // 没有上限
+            if(equal >=0) {
+                // 前面有等于号，从等于号开始找
+                upper_iid = ix_handler_->upper_bound_cnt(upper_key,equal+1);
+            } else {
+                // 相当于没有下限了
+                upper_iid = ix_handler_->leaf_end();
+            }
+        }
         ix_scan_ = std::make_unique<IxScan>(ix_handler_,lower_iid,upper_iid,sm_manager_->get_bpm());
 
         nextTuple();

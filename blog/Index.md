@@ -12,3 +12,13 @@ for indexmeta: tabmeta.indexmetas {
 }
 ```
 
+## Test
+
+### drop table
+
+```sql
+create table t(a int);
+create index t(a);
+drop table t;
+```
+

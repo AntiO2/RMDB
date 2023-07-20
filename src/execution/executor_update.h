@@ -27,6 +27,7 @@ class UpdateExecutor : public AbstractExecutor {
     std::vector<SetClause> set_clauses_;
     SmManager *sm_manager_;
 
+    std::vector<IxIndexHandle*> index_handlers;
    public:
     UpdateExecutor(SmManager *sm_manager, const std::string &tab_name, std::vector<SetClause> set_clauses,
                    std::vector<Condition> conds, std::vector<Rid> rids, Context *context) {
@@ -38,6 +39,15 @@ class UpdateExecutor : public AbstractExecutor {
         conds_ = std::move(conds);
         rids_ = std::move(rids); // rids_
         context_ = context;
+        for(auto &index:tab_.indexes) {
+            auto index_name = sm_manager_->get_ix_manager()->get_index_name(tab_name_,index.cols);
+            auto iter = sm_manager_->ihs_.find(index_name);
+            if(iter==sm_manager_->ihs_.end()) {
+                auto index_handler = sm_manager_->get_ix_manager()->open_index(index_name);
+                iter = sm_manager_->ihs_.emplace(index_name,std::move(index_handler)).first;
+            }
+            index_handlers.emplace_back(iter->second.get());
+        }
     }
 
 
@@ -45,7 +55,7 @@ class UpdateExecutor : public AbstractExecutor {
         std::vector<int> set_cols; // 需要被设置的cols offset
         std::vector<int> set_lens;
         auto set_size = set_clauses_.size();
-        std::for_each(set_clauses_.begin(), set_clauses_.end(),[this,&set_cols, &set_lens](SetClause& set_clause) { // 知识点 引用捕获
+        std::for_each(set_clauses_.begin(), set_clauses_.end(),[this,&set_cols, &set_lens](SetClause& set_clause) { //  引用捕获
             auto set_col = tab_.get_col(set_clause.lhs.col_name); // 找到在原表中更新的列
             if(set_col->type!=set_clause.rhs.type) {
                 // 需要目标列和右值匹配
@@ -62,10 +72,18 @@ class UpdateExecutor : public AbstractExecutor {
             auto tuple_ptr = tuple.get();
             if(CheckConditions(tuple_ptr,conds_)) {
                 // 如果满足条件
+                auto index_size = index_handlers.size();
+                for(size_t i = 0; i < index_size;i++) {
+                    index_handlers.at(i)->delete_entry(tuple->key_from_rec(tab_.indexes.at(i).cols)->data, context_->txn_);
+                }
                 for(decltype(set_size) i = 0; i < set_size; i++) {
                     memcpy(tuple->data+set_cols[i], set_clauses_[i].rhs.raw->data,set_lens[i]); // 修改所有列
                 }
                 fh_->update_record(rid,tuple->data,context_);
+                // 对索引进行更新
+                for(size_t i = 0; i < index_size;i++) {
+                    index_handlers.at(i)->insert_entry(tuple->key_from_rec(tab_.indexes.at(i).cols)->data, context_->txn_);
+                }
             }});
         LOG_DEBUG("Update Complete");
         return nullptr;

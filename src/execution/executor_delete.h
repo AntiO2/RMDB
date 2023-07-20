@@ -26,6 +26,7 @@ class DeleteExecutor : public AbstractExecutor {
     std::string tab_name_;          // 表名称
     SmManager *sm_manager_;
 
+    std::vector<IxIndexHandle*> index_handlers;
    public:
     DeleteExecutor(SmManager *sm_manager, const std::string &tab_name, std::vector<Condition> conds,
                    std::vector<Rid> rids, Context *context) {
@@ -36,6 +37,16 @@ class DeleteExecutor : public AbstractExecutor {
         conds_ = std::move(conds);
         rids_ = std::move(rids);
         context_ = context;
+
+        for(auto &index:tab_.indexes) {
+            auto index_name = sm_manager_->get_ix_manager()->get_index_name(tab_name_,index.cols);
+            auto iter = sm_manager_->ihs_.find(index_name);
+            if(iter==sm_manager_->ihs_.end()) {
+                auto index_handler = sm_manager_->get_ix_manager()->open_index(index_name);
+                iter = sm_manager_->ihs_.emplace(index_name,std::move(index_handler)).first;
+            }
+            index_handlers.emplace_back(iter->second.get());
+        }
     }
 
     std::unique_ptr<RmRecord> Next() override {
@@ -45,6 +56,10 @@ class DeleteExecutor : public AbstractExecutor {
             if(CheckConditions(tuple_ptr,conds_)) {
                 // 如果满足条件
                 fh_->delete_record(rid,context_);
+                auto index_size = index_handlers.size();
+                for(size_t i = 0; i < index_size;i++) {
+                    index_handlers.at(i)->delete_entry(tuple->key_from_rec(tab_.indexes.at(i).cols)->data, context_->txn_);
+                }
             }});
         LOG_DEBUG("Delete Complete");
         return nullptr;

@@ -276,7 +276,16 @@ void SmManager::create_index(const std::string& tab_name, const std::vector<std:
     indexMeta.col_num = col_num;
     indexMeta.col_tot_len = tot_len;
     table.indexes.emplace_back(indexMeta);
-    // TODO(AntiO2) 根据已有的记录创建索引
+
+    auto table_file_handle = fhs_.find(tab_name)->second.get();
+    RmScan rm_scan(table_file_handle);
+    Transaction transaction(0); // TODO (AntiO2) 事务
+    while (!rm_scan.is_end()) {
+        auto rid = rm_scan.rid();
+        auto origin_key = table_file_handle->get_record(rid,context);
+        auto key = origin_key->key_from_rec(index_cols);
+        index_handler->insert_entry(key->data,rid, &transaction);
+    }
     flush_meta();
 }
 

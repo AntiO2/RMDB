@@ -10,6 +10,8 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
+#include <utility>
+
 #include "execution_defs.h"
 #include "execution_manager.h"
 #include "executor_abstract.h"
@@ -43,7 +45,7 @@ class IndexScanExecutor : public AbstractExecutor {
         tab_ = sm_manager_->db_.get_table(tab_name_);
         conds_ = std::move(conds);
         // index_no_ = index_no;
-        index_col_names_ = index_col_names; 
+        index_col_names_ = std::move(index_col_names);
         index_meta_ = *(tab_.get_index_meta(index_col_names_));
         fh_ = sm_manager_->fhs_.at(tab_name_).get();
         cols_ = tab_.cols;
@@ -77,4 +79,24 @@ class IndexScanExecutor : public AbstractExecutor {
     }
 
     Rid &rid() override { return rid_; }
+
+    size_t tupleLen() const override {
+        return AbstractExecutor::tupleLen();
+    }
+
+    const std::vector<ColMeta> &cols() const override {
+        return AbstractExecutor::cols();
+    }
+
+    std::string getType() override {
+        return AbstractExecutor::getType();
+    }
+
+    [[nodiscard]] bool is_end() const override {
+        return AbstractExecutor::is_end();
+    }
+
+    ColMeta get_col_offset(const TabCol &target) override {
+        return AbstractExecutor::get_col_offset(target);
+    }
 };

@@ -23,7 +23,7 @@ class InsertExecutor : public AbstractExecutor {
     std::string tab_name_;          // 表名称
     Rid rid_;                       // 插入的位置，由于系统默认插入时不指定位置，因此当前rid_在插入后才赋值
     SmManager *sm_manager_;
-
+    std::vector<IxIndexHandle*> index_handlers;
    public:
     InsertExecutor(SmManager *sm_manager, const std::string &tab_name, std::vector<Value> values, Context *context) {
         sm_manager_ = sm_manager;
@@ -35,6 +35,16 @@ class InsertExecutor : public AbstractExecutor {
         }
         fh_ = sm_manager_->fhs_.at(tab_name).get();
         context_ = context;
+
+        for(auto &index:tab_.indexes) {
+            auto index_name = sm_manager_->get_ix_manager()->get_index_name(tab_name_,index.cols);
+            auto iter = sm_manager_->ihs_.find(index_name);
+            if(iter==sm_manager_->ihs_.end()) {
+                auto index_handler = sm_manager_->get_ix_manager()->open_index(index_name);
+                iter = sm_manager_->ihs_.emplace(index_name,std::move(index_handler)).first;
+            }
+            index_handlers.emplace_back(iter->second.get());
+        }
     };
 
     std::unique_ptr<RmRecord> Next() override {
@@ -56,14 +66,13 @@ class InsertExecutor : public AbstractExecutor {
         // Insert into index
         for(size_t i = 0; i < tab_.indexes.size(); ++i) {
             auto& index = tab_.indexes[i];
-            auto ih = sm_manager_->ihs_.at(sm_manager_->get_ix_manager()->get_index_name(tab_name_, index.cols)).get();
             char* key = new char[index.col_tot_len];
             int offset = 0;
-            for(size_t i = 0; i < index.col_num; ++i) {
-                memcpy(key + offset, rec.data + index.cols[i].offset, index.cols[i].len);
-                offset += index.cols[i].len;
+            for(size_t j = 0; j < index.col_num; ++j) {
+                memcpy(key + offset, rec.data + index.cols[j].offset, index.cols[j].len);
+                offset += index.cols[j].len;
             }
-            ih->insert_entry(key, rid_, context_->txn_);
+            index_handlers.at(i)->insert_entry(key, rid_, context_->txn_);
         }
         return nullptr;
     }

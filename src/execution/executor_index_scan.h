@@ -36,6 +36,7 @@ class IndexScanExecutor : public AbstractExecutor {
 
     SmManager *sm_manager_;
 
+    bool is_end_{false};
    public:
     IndexScanExecutor(SmManager *sm_manager, std::string tab_name, std::vector<Condition> conds, std::vector<std::string> index_col_names,
                     Context *context) {
@@ -64,6 +65,8 @@ class IndexScanExecutor : public AbstractExecutor {
             }
         }
         fed_conds_ = conds_;
+
+
     }
 
     void beginTuple() override {
@@ -80,23 +83,19 @@ class IndexScanExecutor : public AbstractExecutor {
 
     Rid &rid() override { return rid_; }
 
-    size_t tupleLen() const override {
-        return AbstractExecutor::tupleLen();
+    [[nodiscard]] size_t tupleLen() const override {
+        return len_;
     }
 
-    const std::vector<ColMeta> &cols() const override {
-        return AbstractExecutor::cols();
+    [[nodiscard]] const std::vector<ColMeta> &cols() const override {
+        return cols_;
     }
 
     std::string getType() override {
-        return AbstractExecutor::getType();
+        return "Index Scan";
     }
 
     [[nodiscard]] bool is_end() const override {
-        return AbstractExecutor::is_end();
-    }
-
-    ColMeta get_col_offset(const TabCol &target) override {
-        return AbstractExecutor::get_col_offset(target);
+        return is_end_;
     }
 };

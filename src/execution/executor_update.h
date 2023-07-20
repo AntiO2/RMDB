@@ -82,7 +82,7 @@ class UpdateExecutor : public AbstractExecutor {
                 fh_->update_record(rid,tuple->data,context_);
                 // 对索引进行更新
                 for(size_t i = 0; i < index_size;i++) {
-                    index_handlers.at(i)->insert_entry(tuple->key_from_rec(tab_.indexes.at(i).cols)->data, context_->txn_);
+                    index_handlers.at(i)->insert_entry(tuple->key_from_rec(tab_.indexes.at(i).cols)->data, rid, context_->txn_);
                 }
             }});
         LOG_DEBUG("Update Complete");

@@ -4,3 +4,11 @@
 
 
 
+## 最左匹配
+
+```
+for indexmeta: tabmeta.indexmetas {
+	
+}
+```
+

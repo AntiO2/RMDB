@@ -43,3 +43,5 @@ target_link_libraries(executor_test
         execution)
 target_link_libraries(index_test
         index)
+target_link_libraries(index2_test
+        index)

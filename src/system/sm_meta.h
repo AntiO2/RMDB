@@ -206,6 +206,7 @@ struct TabMeta {
                 min_mismatch_cols = mismatch_cols;
                 max_match_cols = match_cols;
             }
+            match_cols = 0;
         }
 
         if(best_choice)

@@ -21,6 +21,7 @@ See the Mulan PSL v2 for more details. */
 int IxNodeHandle::lower_bound(const char *target, size_t col_num = 0) const {
     // 查找当前节点中第一个大于等于target的key，并返回key的位置给上层
     // 提示: 可以采用多种查找方式，如顺序遍历、二分查找等；使用ix_compare()函数进行比较
+
     int l = 0, r = page_hdr->num_key, mid, flag;
     auto& col_types = file_hdr->col_types_;
     auto& col_lens = file_hdr->col_lens_;
@@ -203,7 +204,7 @@ void IxNodeHandle::insert_pairs(int pos, const char *key, const Rid *rid, int n)
 int IxNodeHandle::insert(const char *key, const Rid &value) {
     // 1. 查找要插入的键值对应该插入到当前节点的哪个位置
     auto size = page_hdr->num_key;
-    auto pos = lower_bound(key);
+    auto pos = lower_bound(key, file_hdr->col_num_);
     // 2. 如果key重复则不插入
     if(pos == size) {
         insert_pair(pos,key, value);
@@ -249,7 +250,7 @@ void IxNodeHandle::erase_pair(int pos) {
  */
 int IxNodeHandle::remove(const char *key) {
     // 1. 查找要删除键值对的位置
-    int pos = lower_bound(key);
+    int pos = lower_bound(key, file_hdr->col_num_);
     // 2. 如果要删除的键值对存在，删除键值对
     auto size = get_size();
     if(pos!=size&&!ix_compare(get_key(pos), key, file_hdr->col_types_, file_hdr->col_lens_)) {
@@ -547,7 +548,7 @@ bool IxIndexHandle::delete_entry(const char *key, Transaction *transaction) {
         release_ancestors(transaction);
         return true;
     }
-    auto leaf_node = find_leaf_page(key, Operation::DELETE, transaction).first;
+    auto leaf_node = find_leaf_page(key, Operation::DELETE, transaction, file_hdr_->col_num_, false, FIND_TYPE::COMMON).first;
     int size = leaf_node->get_size();
     // 2. 在该叶子结点中删除键值对
     if(leaf_node->remove(key)==size) {

@@ -15,6 +15,7 @@ See the Mulan PSL v2 for more details. */
 #include "executor_abstract.h"
 #include "index/ix.h"
 #include "system/sm.h"
+#include "fmt/core.h"
 
 class SeqScanExecutor : public AbstractExecutor {
    private:
@@ -67,8 +68,11 @@ class SeqScanExecutor : public AbstractExecutor {
     void beginTuple() override {
         // 首先初始化。
         scan_ = std::make_unique<RmScan>(fh_); // 首先通过RmScan 获取对表的扫描
+
+
         while(!scan_->is_end()) {
             rid_ = scan_->rid();
+            LOG_DEBUG("%s", fmt::format("rid page_no {} slot_no{}",rid_.page_no,rid_.slot_no).c_str());
             if(CheckConditionByRid(rid_)) {
                 // 找到了满足条件的
                 return;
@@ -82,6 +86,7 @@ class SeqScanExecutor : public AbstractExecutor {
         scan_->next();
         while(!scan_->is_end()) {
             rid_ = scan_->rid();
+            LOG_DEBUG("%s", fmt::format("rid page_no {} slot_no{}",rid_.page_no,rid_.slot_no).c_str());
             if(CheckConditionByRid(rid_)) {
                 // 找到了满足条件的
                 return;

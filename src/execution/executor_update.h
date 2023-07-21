@@ -82,7 +82,9 @@ class UpdateExecutor : public AbstractExecutor {
                     try {
                         index_handlers.at(i)->insert_entry(new_tuple.key_from_rec(tab_.indexes.at(i).cols)->data, rid, context_->txn_);
                     } catch(IndexEntryDuplicateError &e) {
-                        index_handlers.at(i)->insert_entry(tuple->key_from_rec(tab_.indexes.at(i).cols)->data, rid, context_->txn_);
+                        for(size_t j = 0; j <= i; j++) {
+                            index_handlers.at(i)->insert_entry(tuple->key_from_rec(tab_.indexes.at(i).cols)->data, rid, context_->txn_);
+                        }
                         throw std::move(e);
                     }
                 }

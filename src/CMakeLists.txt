@@ -1,4 +1,5 @@
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+include_directories(${PROJECT_SOURCE_DIR}/deps/fmt/include)
 
 add_subdirectory(analyze)
 add_subdirectory(record)

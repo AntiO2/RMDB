@@ -70,7 +70,16 @@ class InsertExecutor : public AbstractExecutor {
                 memcpy(key + offset, rec.data + index.cols[j].offset, index.cols[j].len);
                 offset += index.cols[j].len;
             }
-            index_handlers.at(i)->insert_entry(key, rid_, context_->txn_);
+            try {
+                index_handlers.at(i)->insert_entry(key, rid_, context_->txn_);
+            } catch(IndexEntryDuplicateError &e) {
+                // 需要将前i - 1个index回滚
+                for(int j = 0;j < i;j++) {
+                    index_handlers.at(i)->delete_entry(key,context_->txn_);
+                }
+                throw std::move(e);
+            }
+
         }
 
         // Insert into record file

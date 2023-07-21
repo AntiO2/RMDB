@@ -265,10 +265,118 @@ TEST_F(IndexTest_2COL, INTANDSTRING) {
             scan_.next();
         }
     }
-
 }
+/**
+ * 测试点2
+ *
+ */
+TEST_F(IndexTest_2COL, UPDATE) {
+    LOG_INFO("Init test");
+    const int64_t scale = 100;
+    const int order = 10;
 
+    assert(order > 2 && order <= ih_->file_hdr_->btree_order_);
+    ih_->file_hdr_->btree_order_ = order;
 
+    std::vector<int64_t> keys_a;
+    for (int64_t key = 1; key <= scale; key++) {
+        keys_a.push_back(key);
+    }
+    // keys_a={10,534,500};
+    std::vector<char *> keys_b;
+    for (int64_t key = 0; key < scale; key++) {
+        keys_b.emplace_back(new char[4]);
+        memcpy(keys_b.at(key),std::to_string(key*1000+key).c_str(), 8 );
+    }
+    for (int i = 0; i < 100;i++) {
+        auto key_a = keys_a[i];
+        auto key_b = keys_b[i];
+        int value_a = key_a & 0xFFFFFFFF;
+        Rid rid = {.page_no = static_cast<int32_t>(0),
+                .slot_no = static_cast<int>(value_a)};
+        auto index_key = new char[8];
+        memcpy(index_key,(const char*)&value_a,4);
+        memcpy(index_key + 4, key_b, 8);
+        bool insert_ret = ih_->insert_entry(index_key, rid, txn_.get());  // 调用Insert
+        ASSERT_EQ(insert_ret, true);
+        LOG_DEBUG("%s", fmt::format("Insert {}",key_a).c_str());
+        // draw(buffer_pool_manager_.get(),fmt::format("Insert{}.dot",key_a).c_str());
+    }
+    draw(buffer_pool_manager_.get(),"insert.dot");
+    for (auto key_a : keys_a) {
+        // 查找第一列
+        LOG_DEBUG("%ld",key_a);
+        int value_a = key_a & 0xFFFFFFFF;
+        auto iid_begin = ih_->lower_bound_cnt((const char*)&value_a,1);
+        auto iid_end = ih_->upper_bound_cnt((const char*)&value_a,1);
+        IxScan scan_(ih_.get(),iid_begin,iid_end,buffer_pool_manager_.get());
+        while(!scan_.is_end()) {
+            auto rid = scan_.rid();
+            LOG_DEBUG("%s", fmt::format("page {} slot{}",rid.page_no,rid.slot_no).c_str());
+            scan_.next();
+        }
+    }
+    /**
+     * 删除所有奇数
+     *
+     */
+    for (int i = 0; i < 100;i +=2 ) {
+        auto key_a = keys_a[i];
+        auto key_b = keys_b[i];
+        int value_a = key_a & 0xFFFFFFFF;
+        Rid rid = {.page_no = static_cast<int32_t>(0),
+                .slot_no = static_cast<int>(value_a)};
+        auto index_key = new char[8];
+        memcpy(index_key,(const char*)&value_a,4);
+        memcpy(index_key + 4, key_b, 8);
+        bool delete_ret = ih_->delete_entry(index_key, txn_.get());  // 调用Insert
+        ASSERT_EQ(delete_ret, true);
+        LOG_DEBUG("%s", fmt::format("delete {}",key_a).c_str());
+        draw(buffer_pool_manager_.get(),fmt::format("delete{}.dot",key_a).c_str());
+    }
+    draw(buffer_pool_manager_.get(),"delete.dot");
+    for (int i = 1; i < 100;i +=2 ) {
+        auto key_a = keys_a.at(i);
+        int value_a = key_a & 0xFFFFFFFF;
+        auto iid_begin = ih_->lower_bound_cnt((const char*)&value_a,1);
+        auto iid_end = ih_->upper_bound_cnt((const char*)&value_a,1);
+        IxScan scan_(ih_.get(),iid_begin,iid_end,buffer_pool_manager_.get());
+        while(!scan_.is_end()) {
+            auto rid = scan_.rid();
+            LOG_DEBUG("%s", fmt::format("page {} slot{}",rid.page_no,rid.slot_no).c_str());
+            scan_.next();
+        }
+    }
+    // 再把偶数插入回来
+    for (int i = 0; i < 100;i+=2) {
+        auto key_a = keys_a[i];
+        auto key_b = keys_b[i];
+        int value_a = key_a & 0xFFFFFFFF;
+        Rid rid = {.page_no = static_cast<int32_t>(0),
+                .slot_no = static_cast<int>(value_a)};
+        auto index_key = new char[8];
+        memcpy(index_key,(const char*)&value_a,4);
+        memcpy(index_key + 4, key_b, 8);
+        bool insert_ret = ih_->insert_entry(index_key, rid, txn_.get());  // 调用Insert
+        ASSERT_EQ(insert_ret, true);
+        LOG_DEBUG("%s", fmt::format("Insert {}",key_a).c_str());
+        // draw(buffer_pool_manager_.get(),fmt::format("Insert{}.dot",key_a).c_str());
+    }
+    draw(buffer_pool_manager_.get(),"insert2.dot");
+    for (auto key_a : keys_a) {
+        // 查找第一列
+        LOG_DEBUG("%ld",key_a);
+        int value_a = key_a & 0xFFFFFFFF;
+        auto iid_begin = ih_->lower_bound_cnt((const char*)&value_a,1);
+        auto iid_end = ih_->upper_bound_cnt((const char*)&value_a,1);
+        IxScan scan_(ih_.get(),iid_begin,iid_end,buffer_pool_manager_.get());
+        while(!scan_.is_end()) {
+            auto rid = scan_.rid();
+            LOG_DEBUG("%s", fmt::format("page {} slot{}",rid.page_no,rid.slot_no).c_str());
+            scan_.next();
+        }
+    }
+}
 
 class IndexTest : public ::testing::Test {
 public:

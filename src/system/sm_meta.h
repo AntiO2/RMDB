@@ -128,7 +128,6 @@ struct TabMeta {
 
         for(auto& index: indexes) {
             size_t i = 0;
-            std::cout << index.col_num << std::endl;
             for(; i < index.col_num; ++i) {
                 //原版不支持顺序调换,且要求列和索引每一项完全一致的匹配
 //                    if(index.cols[i].name.compare(col_names[i]) != 0)

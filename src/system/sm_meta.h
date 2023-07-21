@@ -149,6 +149,7 @@ struct TabMeta {
             //i=0的话显然就是a都没有,可以检测下一个Index了
             if(i == 0) continue;
             match_cols = i;
+            mismatch_cols = index.col_num - i;
             if(match_cols > max_match_cols || (match_cols == max_match_cols && mismatch_cols < min_mismatch_cols)) {
                 best_choice = &index;
                 min_mismatch_cols = mismatch_cols;

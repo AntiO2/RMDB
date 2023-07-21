@@ -154,9 +154,9 @@ struct TabMeta {
         //最左匹配, 并支持列的顺序交换
 
         size_t max_match_cols = 0;
-        int min_mismatch_cols =INT32_MAX;
+        size_t min_mismatch_cols =INT32_MAX;
         size_t match_cols = 0;
-        int mismatch_cols = 0;
+        size_t mismatch_cols = 0;
         IndexMeta const* best_choice = nullptr;
 
         for(auto& index: indexes) {
@@ -197,7 +197,10 @@ struct TabMeta {
 
             //i=0的话显然就是a都没有,可以检测下一个Index了
             if(i == 0) continue;
-            mismatch_cols = index.col_num - match_cols;
+            if(index.col_num < match_cols)
+                mismatch_cols = 0;
+            else
+                mismatch_cols = index.col_num - match_cols;
             if(match_cols > max_match_cols || (match_cols == max_match_cols && mismatch_cols < min_mismatch_cols)) {
                 best_choice = &index;
                 min_mismatch_cols = mismatch_cols;

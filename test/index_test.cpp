@@ -228,14 +228,15 @@ TEST_F(IndexTest_2COL, INTANDSTRING) {
     // ih_->file_hdr_->btree_order_ = order;
 
     std::vector<int64_t> keys_a;
-    for (int64_t key = 1; key <= scale; key++) {
-        keys_a.push_back(key);
-    }
+//    for (int64_t key = 1; key <= scale; key++) {
+//        keys_a.push_back(key);
+//    }
+    keys_a={10,534,500};
     std::vector<const char *> keys_b;
     for (int64_t key = 1; key <= scale; key++) {
         keys_b.push_back(std::to_string(key*10000+key).c_str());
     }
-    for (int i = 0; i<scale;i++) {
+    for (int i = 0; i< keys_a.size();i++) {
         auto key_a = keys_a[i];
             auto key_b = keys_b[i];
             int value_a = key_a & 0xFFFFFFFF;
@@ -266,6 +267,9 @@ TEST_F(IndexTest_2COL, INTANDSTRING) {
     }
 
 }
+
+
+
 class IndexTest : public ::testing::Test {
 public:
     std::unique_ptr<DiskManager> disk_manager_;

@@ -72,20 +72,29 @@ class UpdateExecutor : public AbstractExecutor {
             auto tuple_ptr = tuple.get();
             if(CheckConditions(tuple_ptr,conds_)) {
                 // 如果满足条件
+                RmRecord new_tuple(tuple->size,tuple->data);
                 auto index_size = index_handlers.size();
+                for(decltype(set_size) i = 0; i < set_size; i++) {
+                    memcpy(new_tuple.data+set_cols[i], set_clauses_[i].rhs.raw->data,set_lens[i]); // 修改所有列
+                }
                 for(size_t i = 0; i < index_size;i++) {
                     index_handlers.at(i)->delete_entry(tuple->key_from_rec(tab_.indexes.at(i).cols)->data, context_->txn_);
+                    try {
+                        index_handlers.at(i)->insert_entry(new_tuple.key_from_rec(tab_.indexes.at(i).cols)->data, rid, context_->txn_);
+                    } catch(IndexEntryDuplicateError &e) {
+                        index_handlers.at(i)->insert_entry(tuple->key_from_rec(tab_.indexes.at(i).cols)->data, rid, context_->txn_);
+                        throw std::move(e);
+                    }
                 }
-                for(decltype(set_size) i = 0; i < set_size; i++) {
-                    memcpy(tuple->data+set_cols[i], set_clauses_[i].rhs.raw->data,set_lens[i]); // 修改所有列
-                }
-                fh_->update_record(rid,tuple->data,context_);
+
                 // 对索引进行更新
                 for(size_t i = 0; i < index_size;i++) {
-                    index_handlers.at(i)->insert_entry(tuple->key_from_rec(tab_.indexes.at(i).cols)->data, rid, context_->txn_);
+
                 }
+                fh_->update_record(rid,tuple->data,context_);
+
             }});
-        LOG_DEBUG("Update Complete");
+        // LOG_DEBUG("Update Complete");
         return nullptr;
     }
 

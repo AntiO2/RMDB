@@ -510,7 +510,7 @@ page_id_t IxIndexHandle::insert_entry(const char *key, const Rid &value, Transac
         release_ancestors(transaction);   // 释放所有祖先page latch
         // leaf_page->page->WUnlock();
         buffer_pool_manager_->unpin_page(leaf_page->get_page_id(), false);
-        // check(AntiO2) 这里是否需要直接抛出异常中止事务
+        throw IndexEntryDuplicateError();
         return IX_NO_PAGE;
     }
 

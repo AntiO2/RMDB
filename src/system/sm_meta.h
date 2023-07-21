@@ -115,19 +115,56 @@ struct TabMeta {
         return false;
     }
 
+    template<typename T>
+    std::vector<typename T::iterator> findAllElements(const T& container, const typename T::value_type& value) {
+        std::vector<typename T::iterator> foundElements;
+        typename T::iterator iter = std::find(container.begin(), container.end(), value);
+
+        while (iter != container.end()) {
+            foundElements.push_back(iter);
+            iter = std::find_if(std::next(iter), container.end(), [&value](const typename T::value_type& element) {
+                return element == value;
+            });
+        }
+
+        return foundElements;
+    }
+
+    struct FoundItem {
+        std::string value;
+        size_t index;
+    };
+
+    std::vector<FoundItem> find_all(const std::vector<std::string>& container, const std::string& value) const {
+        std::vector<FoundItem> result;
+        size_t index = 0;
+        for (auto iter = container.begin(); iter != container.end(); ++iter, ++index) {
+            if (*iter == value) {
+                result.push_back({*iter, index});
+            }
+        }
+        return result;
+    }
+
     /* 代替原来is_index返回bool的使用
      * 如果有index返回IndexMeta*/
-    std::pair<IndexMeta,size_t> get_index(const std::vector<std::string>& col_names, const std::vector<bool>& ops) const {
+    //TODO 参数传CompOp的话好像有嵌套调用的错误,先用int草率处理一下
+    //0:NOT_EQ, 1:EQ, 2:其他
+    std::pair<IndexMeta,size_t> get_index(const std::vector<std::string>& col_names, const std::vector<int>& ops) const {
         //最左匹配, 并支持列的顺序交换
 
         size_t max_match_cols = 0;
         size_t min_mismatch_cols =INT32_MAX;
         size_t match_cols = 0;
         size_t mismatch_cols = 0;
+
         IndexMeta const* best_choice = nullptr;
 
         for(auto& index: indexes) {
             size_t i = 0;
+            bool flag_break = false; //标记还能不能走下一列
+            bool flag_exit = false;
+
             for(; i < index.col_num; ++i) {
                 //原版不支持顺序调换,且要求列和索引每一项完全一致的匹配
 //                    if(index.cols[i].name.compare(col_names[i]) != 0)
@@ -135,26 +172,46 @@ struct TabMeta {
 
                 //1. 假如索引有a,b,c,d，先检测是否有a; 并且可以检测到最多的连续的,比如col_names有a,b,d,这里能找到a,b. i挪到c的位置
                 // 查找字符串在第一个向量中的位置
-                auto iter = std::find(col_names.begin(), col_names.end(), index.cols[i].name);
-                if(iter == col_names.end())
+
+                std::vector<FoundItem> found_items = find_all(col_names,index.cols[i].name);
+
+                if(found_items.empty())
                     break;
-                size_t op_index = std::distance(col_names.begin(),iter);
-                bool op = ops[op_index];
-                //如果不是等号，就不能再匹配下一个列了
-                if(!op){
-                    i++;
-                    break;
+                else {
+                    for (const auto& item : found_items) {
+                        size_t op_index = item.index;
+                        int op = ops[op_index];
+                        if(op){
+                            match_cols++;
+                            if(op!=1)
+                                flag_break = true;
+                        }
+                        else {
+                            flag_exit = true;
+                        }
+                    }
+                    if(flag_break){
+                        i++;
+                        break;
+                    }
+                    if(flag_exit)
+                        break;
                 }
+
             }
+
             //i=0的话显然就是a都没有,可以检测下一个Index了
             if(i == 0) continue;
-            match_cols = i;
-            mismatch_cols = index.col_num - i;
+            if(index.col_num < match_cols)
+                mismatch_cols = 0;
+            else
+                mismatch_cols = index.col_num - match_cols;
             if(match_cols > max_match_cols || (match_cols == max_match_cols && mismatch_cols < min_mismatch_cols)) {
                 best_choice = &index;
                 min_mismatch_cols = mismatch_cols;
                 max_match_cols = match_cols;
             }
+            match_cols = 0;
         }
 
         if(best_choice)

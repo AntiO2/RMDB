@@ -157,12 +157,13 @@ struct TabMeta {
         size_t min_mismatch_cols =INT32_MAX;
         size_t match_cols = 0;
         size_t mismatch_cols = 0;
+
         IndexMeta const* best_choice = nullptr;
 
         for(auto& index: indexes) {
             size_t i = 0;
             bool flag_break = false; //标记还能不能走下一列
-            bool flag_exit;
+            bool flag_exit = false;
 
             for(; i < index.col_num; ++i) {
                 //原版不支持顺序调换,且要求列和索引每一项完全一致的匹配
@@ -180,17 +181,16 @@ struct TabMeta {
                     for (const auto& item : found_items) {
                         size_t op_index = item.index;
                         int op = ops[op_index];
-                        if(!op){
-                            flag_exit = true;
-                            break;      //不等于的话直接break
-                        }
-                        else {
+                        if(op){
                             match_cols++;
                             if(op!=1)
                                 flag_break = true;
                         }
+                        else {
+                            flag_exit = true;
+                        }
                     }
-                    if(flag_break && !flag_exit){
+                    if(flag_break){
                         i++;
                         break;
                     }

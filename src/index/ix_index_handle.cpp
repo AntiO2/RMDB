@@ -124,7 +124,7 @@ page_id_t IxNodeHandle::internal_lookup(const char *key,size_t col_num,FIND_TYPE
             int l = 1, r = page_hdr->num_key, mid;
             while(l < r){
                 mid = (l+r)/2;
-                flag = ix_compare(get_key(mid), key, col_types, col_lens);
+                flag = ix_compare(get_key(mid), key, col_types, col_lens,col_num);
                 if(flag <= 0)
                     l = mid + 1;
                 else
@@ -367,7 +367,7 @@ IxIndexHandle::find_leaf_page(const char *key, Operation operation, Transaction 
 bool IxIndexHandle::get_value(const char *key, std::vector<Rid> *result, Transaction *transaction) {
     // 1. 获取目标key值所在的叶子结点
   //  root_latch_.read_lock();
-    auto leaf_page_hdr = find_leaf_page(key, Operation::FIND, transaction).first;
+    auto leaf_page_hdr = find_leaf_page(key, Operation::FIND, transaction, file_hdr_->col_num_).first;
     // 2. 在叶子节点中查找目标key值的位置，并读取key对应的rid
     Rid* rid;
     auto found = leaf_page_hdr->leaf_lookup(key,&rid, file_hdr_->col_num_);
@@ -495,14 +495,56 @@ page_id_t IxIndexHandle::insert_entry(const char *key, const Rid &value, Transac
     transaction->append_index_latch_page_set(nullptr);
     if(is_empty()) {
         auto root_node = create_node();
-        root_node->init();
+
+        file_hdr_->first_leaf_=root_node->get_page_no();
+        file_hdr_->last_leaf_=root_node->get_page_no();
+        root_node->page_hdr->is_leaf = true;
+        file_hdr_->root_page_=root_node->get_page_no();
+        root_node->page_hdr->next_leaf=IX_LEAF_HEADER_PAGE,
+        root_node->page_hdr->prev_leaf = IX_LEAF_HEADER_PAGE,
         root_node->insert_pair(0,key,value);
         release_ancestors(transaction);
+        char* data = new char[file_hdr_->tot_len_];
+        file_hdr_->serialize(data); // 将fhdr的数据结构化，存储到data中
+        disk_manager_->write_page(fd_, IX_FILE_HDR_PAGE, data, file_hdr_->tot_len_);
+
+        char page_buf[PAGE_SIZE];  // 在内存中初始化page_buf中的内容，然后将其写入磁盘
+        memset(page_buf, 0, PAGE_SIZE);
+        // 注意leaf header页号为1，也标记为叶子结点，其前一个/后一个叶子均指向root node
+        // Create leaf list header page and write to file
+        {
+            memset(page_buf, 0, PAGE_SIZE);
+            auto phdr = reinterpret_cast<IxPageHdr *>(page_buf);
+            *phdr = {
+                    .next_free_page_no = IX_NO_PAGE,
+                    .parent = IX_NO_PAGE,
+                    .num_key = 0,
+                    .is_leaf = true,
+                    .prev_leaf = root_node->get_page_no(),
+                    .next_leaf = root_node->get_page_no(),
+            };
+            disk_manager_->write_page(fd_, IX_LEAF_HEADER_PAGE, page_buf, PAGE_SIZE);
+        }
+        {
+            memset(page_buf, 0, PAGE_SIZE);
+            auto phdr = reinterpret_cast<IxPageHdr *>(page_buf);
+            *phdr = {
+                    .next_free_page_no = IX_NO_PAGE,
+                    .parent = IX_NO_PAGE,
+                    .num_key = 0,
+                    .is_leaf = true,
+                    .prev_leaf = IX_LEAF_HEADER_PAGE,
+                    .next_leaf = IX_LEAF_HEADER_PAGE,
+            };
+            // Must write PAGE_SIZE here in case of future fetch_node()
+            disk_manager_->write_page(fd_, root_node->get_page_no(), page_buf, PAGE_SIZE);
+        }
+
         buffer_pool_manager_->unpin_page(root_node->get_page_id(),true);
         return true;
     }
 
-    auto leaf_page = find_leaf_page(key, Operation::INSERT, transaction).first;
+    auto leaf_page = find_leaf_page(key, Operation::INSERT, transaction, file_hdr_->col_num_).first;
     auto old_size = leaf_page->get_size();
     // 2. 在该叶子节点中插入键值对
     auto new_size = leaf_page->insert(key,value);
@@ -973,4 +1015,20 @@ Iid IxIndexHandle::lower_bound(const char *key) {
  */
 Iid IxIndexHandle::upper_bound(const char *key) {
     return upper_bound_cnt(key, file_hdr_->col_num_);
+}
+
+DiskManager *IxIndexHandle::getDiskManager() const {
+    return disk_manager_;
+}
+
+BufferPoolManager *IxIndexHandle::getBufferPoolManager() const {
+    return buffer_pool_manager_;
+}
+
+int IxIndexHandle::getFd() const {
+    return fd_;
+}
+
+IxFileHdr *IxIndexHandle::getFileHdr() const {
+    return file_hdr_;
 }

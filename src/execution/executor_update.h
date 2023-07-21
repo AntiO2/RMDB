@@ -89,11 +89,7 @@ class UpdateExecutor : public AbstractExecutor {
                     }
                 }
 
-                // 对索引进行更新
-                for(size_t i = 0; i < index_size;i++) {
-
-                }
-                fh_->update_record(rid,tuple->data,context_);
+                fh_->update_record(rid,new_tuple.data,context_);
 
             }});
         // LOG_DEBUG("Update Complete");

@@ -261,12 +261,11 @@ void SmManager::drop_table(const std::string& tab_name, Context* context) {
     auto tab = fhs_.find(tab_name)->second.get();
     //关闭这个table文件
     rm_manager_->close_file(tab);
-
+    buffer_pool_manager_->delete_all_pages(tab->GetFd());
     //删除db中对这个表的记录
     //tab与fhs
     fhs_.erase(tab_name);
     db_.tabs_.erase(tab_name);
-
 
     //删除表文件
     disk_manager_->destroy_file(tab_name);
@@ -335,6 +334,8 @@ void SmManager::drop_index(const std::string& tab_name, const std::vector<std::s
     if(ihs_iter==ihs_.end()) {
         throw IndexNotFoundError(tab_name, col_names);
     }
+
+    buffer_pool_manager_->delete_all_pages(ihs_iter->second->getFd());
     ix_manager_->close_index(ihs_iter->second.get());
     ix_manager_->destroy_index(ix_name); // 删除索引文件
     ihs_.erase(ihs_iter); // check(AntiO2) 此处删除迭代器是否有错

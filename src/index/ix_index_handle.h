@@ -168,6 +168,14 @@ class IxIndexHandle {
    public:
     IxIndexHandle(DiskManager *disk_manager, BufferPoolManager *buffer_pool_manager, int fd);
 
+    DiskManager *getDiskManager() const;
+
+    BufferPoolManager *getBufferPoolManager() const;
+
+    int getFd() const;
+
+    IxFileHdr *getFileHdr() const;
+
     // for search
     bool get_value(const char *key, std::vector<Rid> *result, Transaction *transaction);
 

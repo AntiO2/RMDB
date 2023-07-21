@@ -216,3 +216,19 @@ void BufferPoolManager::flush_all_pages(int fd) {
         }
     }
 }
+
+void BufferPoolManager::delete_all_pages(int fd) {
+    std::scoped_lock lock(latch_);
+    for (size_t i = 0; i < pool_size_; i++) {
+        Page *page = &pages_[i];
+        if (page->get_page_id().fd == fd && page->get_page_id().page_no != INVALID_PAGE_ID) {
+            auto it = page_table_.find(page->get_page_id());
+            page_table_.erase(it);
+            auto new_page_id = page->get_page_id();
+            new_page_id.page_no=INVALID_PAGE_ID;
+            update_page(page,new_page_id,it->second);
+            free_list_.emplace_back(it->second);
+            disk_manager_->deallocate_page(page->get_page_id().page_no);
+        }
+    }
+}

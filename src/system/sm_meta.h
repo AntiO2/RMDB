@@ -124,37 +124,36 @@ struct TabMeta {
         size_t min_mismatch_cols =INT32_MAX;
         size_t match_cols = 0;
         size_t mismatch_cols = 0;
-        IndexMeta const* best_choice = nullptr;
+        IndexMeta const* best_choice ;
 
         for(auto& index: indexes) {
-            if(index.col_num == col_names.size()) {
-                size_t i = 0;
-                for(; i < index.col_num; ++i) {
-                    //原版不支持顺序调换,且要求列和索引每一项完全一致的匹配
+            size_t i = 0;
+            std::cout << index.col_num << std::endl;
+            for(; i < index.col_num; ++i) {
+                //原版不支持顺序调换,且要求列和索引每一项完全一致的匹配
 //                    if(index.cols[i].name.compare(col_names[i]) != 0)
 //                        break;
 
-                    //1. 假如索引有a,b,c,d，先检测是否有a; 并且可以检测到最多的连续的,比如col_names有a,b,d,这里能找到a,b. i挪到c的位置
-                    // 查找字符串在第一个向量中的位置
-                    auto iter = std::find(col_names.begin(), col_names.end(), index.cols[i].name);
-                    if(iter == col_names.end())
-                        break;
-                    size_t op_index = std::distance(col_names.begin(),iter);
-                    bool op = ops[op_index];
-                    //如果不是等号，就不能再匹配下一个列了
-                    if(!op){
-                        i++;
-                        break;
-                    }
+                //1. 假如索引有a,b,c,d，先检测是否有a; 并且可以检测到最多的连续的,比如col_names有a,b,d,这里能找到a,b. i挪到c的位置
+                // 查找字符串在第一个向量中的位置
+                auto iter = std::find(col_names.begin(), col_names.end(), index.cols[i].name);
+                if(iter == col_names.end())
+                    break;
+                size_t op_index = std::distance(col_names.begin(),iter);
+                bool op = ops[op_index];
+                //如果不是等号，就不能再匹配下一个列了
+                if(!op){
+                    i++;
+                    break;
                 }
-                //i=0的话显然就是a都没有,可以检测下一个Index了
-                if(i == 0) continue;
-                match_cols = i;
-                if(match_cols > max_match_cols || (match_cols == max_match_cols && mismatch_cols < min_mismatch_cols)) {
-                    best_choice = &index;
-                    min_mismatch_cols = mismatch_cols;
-                    max_match_cols = match_cols;
-                }
+            }
+            //i=0的话显然就是a都没有,可以检测下一个Index了
+            if(i == 0) continue;
+            match_cols = i;
+            if(match_cols > max_match_cols || (match_cols == max_match_cols && mismatch_cols < min_mismatch_cols)) {
+                best_choice = &index;
+                min_mismatch_cols = mismatch_cols;
+                max_match_cols = match_cols;
             }
         }
 

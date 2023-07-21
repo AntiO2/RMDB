@@ -231,7 +231,6 @@ void SmManager::drop_table(const std::string& tab_name, Context* context) {
     }
     auto& indexes = db_.tabs_[tab_name].indexes;
     for(auto &index:indexes) {
-
         drop_index(tab_name, index.cols,context);
     }
     auto tab = fhs_.find(tab_name)->second.get();

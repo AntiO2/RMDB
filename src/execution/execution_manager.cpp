@@ -176,9 +176,9 @@ void QlManager::select_from_aggregate(std::unique_ptr<AbstractExecutor> executor
         case AG_OP_COUNT: {
             int count = 0;
             for (executorTreeRoot->beginTuple(); !executorTreeRoot->is_end(); executorTreeRoot->nextTuple()) { count++; }
-//            if (count != 0) {
+            if (count != 0) {
                 columns.emplace_back(std::to_string(count));
-//            }
+            }
             break;
         }
         case AG_OP_MAX:
@@ -273,8 +273,8 @@ void QlManager::select_from_aggregate(std::unique_ptr<AbstractExecutor> executor
         }
 
     }
-    outfile << "|";
     if(!columns.empty()) {
+        outfile << "|";
         //打印
         // print record into buffer
         rec_printer.print_record(columns, context);
@@ -282,11 +282,10 @@ void QlManager::select_from_aggregate(std::unique_ptr<AbstractExecutor> executor
         for (const auto &column: columns) {
             outfile << " " << column << " |";
         }
+        outfile << "\n";
     }else{
-        outfile << " |";
         num_rec = 0;
     }
-    outfile << "\n";
     outfile.close();
     // Print footer into buffer
     rec_printer.print_separator(context);

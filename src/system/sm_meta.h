@@ -124,7 +124,7 @@ struct TabMeta {
         size_t min_mismatch_cols =INT32_MAX;
         size_t match_cols = 0;
         size_t mismatch_cols = 0;
-        IndexMeta const* best_choice ;
+        IndexMeta const* best_choice = nullptr;
 
         for(auto& index: indexes) {
             size_t i = 0;

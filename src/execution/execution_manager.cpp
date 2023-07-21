@@ -92,6 +92,11 @@ void QlManager::run_cmd_utility(std::shared_ptr<Plan> plan, txn_id_t *txn_id, Co
                 sm_manager_->show_tables(context);
                 break;
             }
+            case T_ShowIndex:
+            {
+                sm_manager_->show_index(x->tab_name_, context);
+                break;
+            }
             case T_DescTable:
             {
                 sm_manager_->desc_table(x->tab_name_, context);
@@ -273,8 +278,8 @@ void QlManager::select_from_aggregate(std::unique_ptr<AbstractExecutor> executor
         }
 
     }
-    outfile << "|";
     if(!columns.empty()) {
+        outfile << "|";
         //打印
         // print record into buffer
         rec_printer.print_record(columns, context);
@@ -282,11 +287,10 @@ void QlManager::select_from_aggregate(std::unique_ptr<AbstractExecutor> executor
         for (const auto &column: columns) {
             outfile << " " << column << " |";
         }
+        outfile << "\n";
     }else{
-        outfile << " |";
         num_rec = 0;
     }
-    outfile << "\n";
     outfile.close();
     // Print footer into buffer
     rec_printer.print_separator(context);

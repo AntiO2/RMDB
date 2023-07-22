@@ -196,10 +196,11 @@ struct OrderBy : public TreeNode
        cols(std::move(cols_)), orderby_dir(orderby_dir_) {}
 };
 
+//CHECK: 本来觉得多给一个类会更清楚，但是好像只能指针没转过去? 先用pair处理了
 //struct Opt_Orders : public TreeNode
 //{
 //    std::vector<std::shared_ptr<OrderBy>> orders;
-//    int limit;                //负数表示是没有limit, 如果非负，则就是需要的limit值,但是好像转不过去?
+//    int limit;                //负数表示是没有limit, 如果非负，则就是需要的limit值
 //
 //    Opt_Orders(std::vector<std::shared_ptr<OrderBy>> orders_, int limit_) :
 //        orders(std::move(orders_)), limit(limit_) {}
@@ -253,7 +254,7 @@ struct SelectStmt : public TreeNode {
     bool has_sort;
     //std::shared_ptr<Opt_Orders> opt_orders;
     std::vector<std::shared_ptr<OrderBy>> orders;
-    int limit;
+    int limit;                      //负数表示是没有limit, 如果非负，则就是需要的limit值
 
     SelectStmt(std::vector<std::shared_ptr<Col>> cols_,
                std::vector<std::string> tabs_,
@@ -266,7 +267,6 @@ struct SelectStmt : public TreeNode {
         else
             has_sort = true;
     }
-
 };
 
 struct AggregateStmt : public TreeNode {

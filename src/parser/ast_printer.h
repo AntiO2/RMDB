@@ -62,6 +62,15 @@ private:
         return m.at(type);
     }
 
+    static std::string type2str(OrderByDir type) {
+        static std::map<OrderByDir, std::string> m{
+                { OrderBy_ASC," asc"},
+                {OrderBy_DESC, "desc"},
+                {OrderBy_DEFAULT, "default order"},
+        };
+        return m.at(type);
+    }
+
     static std::string op2str(SvCompOp op) {
         static std::map<SvCompOp, std::string> m{
                 {SV_OP_EQ, "=="},
@@ -176,6 +185,11 @@ private:
             print_node_list(x->cols, offset);
             print_val_list(x->tabs, offset);
             print_node_list(x->conds, offset);
+            if(x->has_sort){
+                std::cout << "     LIMIT: ";
+                print_val(x->limit, offset);
+                print_node_list(x->orders,offset);
+            }
         } else if(auto x = std::dynamic_pointer_cast<AggregateStmt>(node)) {
             std::cout << "SELECT\n";
             print_node(x->aggregate_col,offset);
@@ -190,6 +204,10 @@ private:
             std::cout << "ABORT\n";
         } else if (auto x = std::dynamic_pointer_cast<TxnRollback>(node)) {
             std::cout << "ROLLBACK\n";
+        } else if(auto x = std::dynamic_pointer_cast<OrderBy>(node)) {
+            std::cout << "ORDERBY\n";
+            print_node(x->cols,offset);
+            print_val(type2str(x->orderby_dir),offset);
         } else {
             assert(0);
         }

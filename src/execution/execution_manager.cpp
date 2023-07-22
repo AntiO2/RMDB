@@ -181,9 +181,9 @@ void QlManager::select_from_aggregate(std::unique_ptr<AbstractExecutor> executor
         case AG_OP_COUNT: {
             int count = 0;
             for (executorTreeRoot->beginTuple(); !executorTreeRoot->is_end(); executorTreeRoot->nextTuple()) { count++; }
-//            if (count != 0) {
+            if (count != 0) {
                 columns.emplace_back(std::to_string(count));
-//            }
+            }
             break;
         }
         case AG_OP_MAX:

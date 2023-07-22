@@ -160,20 +160,23 @@ void QlManager::select_from_aggregate(std::unique_ptr<AbstractExecutor> executor
         {
             int col_res_int = 0;
             float col_res_float = 0;
+            int choose = 0;//为1则是int 2则是float;
             for (executorTreeRoot->beginTuple(); !executorTreeRoot->is_end(); executorTreeRoot->nextTuple()) {
                 auto Tuple = executorTreeRoot->Next();
                 for (auto &col : executorTreeRoot->cols()) {
                     char *rec_buf = Tuple->data + col.offset;
                     if (col.type == TYPE_INT) {
                         col_res_int += *(int *)rec_buf;
+                        choose = 1;
                     } else if (col.type == TYPE_FLOAT) {
                        col_res_float += *(float *)rec_buf;
-                }
+                        choose = 2;
+                    }
                 }
             }
-            if(col_res_int!=0) {
+            if(choose==1) {
                 columns.emplace_back(std::to_string(col_res_int));
-            }else if(col_res_float!=0){
+            }else if(choose==2){
                 columns.emplace_back(std::to_string(col_res_float));
             }
             break;
@@ -192,17 +195,21 @@ void QlManager::select_from_aggregate(std::unique_ptr<AbstractExecutor> executor
             int maxInt = 0;
             float maxFloat = 0;
             executorTreeRoot->beginTuple();
+            int choose = 0;//选择1为int 2为float 3为string
             if(!executorTreeRoot->is_end()) {
                 auto Tuple = executorTreeRoot->Next();
                 for (auto &col: executorTreeRoot->cols()) {
                     char *rec_buf = Tuple->data + col.offset;
                     if (col.type == TYPE_INT) {
                         maxInt = *(int *) rec_buf;
+                        choose = 1;
                     } else if (col.type == TYPE_FLOAT) {
                         maxFloat = *(float *) rec_buf;
+                        choose = 2;
                     } else if (col.type == TYPE_STRING) {
                         auto str = std::string((char *) rec_buf, col.len);
                         maxStr = str;
+                        choose = 3;
                     }
                 }
                 executorTreeRoot->nextTuple();
@@ -221,11 +228,11 @@ void QlManager::select_from_aggregate(std::unique_ptr<AbstractExecutor> executor
                     }
                 }
             }
-            if(maxInt !=0) {
+            if(choose == 1) {
                 columns.emplace_back(std::to_string(maxInt));
-            }else if(maxFloat!=0){
+            }else if(choose == 2){
                 columns.emplace_back(std::to_string(maxFloat));
-            }else if(maxStr != "" ){
+            }else if(choose == 3 ){
                 maxStr.resize(strlen(maxStr.c_str()));
                 columns.emplace_back(maxStr);
             }
@@ -237,17 +244,21 @@ void QlManager::select_from_aggregate(std::unique_ptr<AbstractExecutor> executor
             int minInt = 0;
             float minFloat = 0;
             executorTreeRoot->beginTuple();
+            int choose = 0;//选择1为int 2为float 3为string,因为最后结果可能为0
             if(!executorTreeRoot->is_end()){
                 auto Tuple = executorTreeRoot->Next();
                 for (auto &col: executorTreeRoot->cols()) {
                     char *rec_buf = Tuple->data + col.offset;
                     if (col.type == TYPE_INT) {
                         minInt = *(int *) rec_buf;
+                        choose = 1;
                     } else if (col.type == TYPE_FLOAT) {
                         minFloat = *(float *) rec_buf;
+                        choose = 2;
                     } else if (col.type == TYPE_STRING) {
                         auto str = std::string((char *) rec_buf, col.len);
                         minStr = str;
+                        choose = 3;
                     }
                 }
                 executorTreeRoot->nextTuple();
@@ -266,11 +277,11 @@ void QlManager::select_from_aggregate(std::unique_ptr<AbstractExecutor> executor
                     }
                 }
             }
-            if(minInt !=0) {
+            if(choose == 1) {
                 columns.emplace_back(std::to_string(minInt));
-            }else if(minFloat!=0){
+            }else if(choose == 2){
                 columns.emplace_back(std::to_string(minFloat));
-            }else if(minStr != ""){
+            }else if(choose == 3){
                 minStr.resize(strlen(minStr.c_str()));
                 columns.emplace_back(minStr);
             }

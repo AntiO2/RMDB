@@ -39,6 +39,11 @@ int main() {
         "select COUNT(id) as count_id from aggregate;",
         "select COUNT(*) as max_name from t1;",
         "show index from warehouse;",
+        "select * from warehouse where w_id <> 10;",
+        "SELECT company, order_number FROM orders ORDER BY order_number;",
+        "SELECT company, order_number FROM orders ORDER BY company, order_number;",
+        "SELECT company, order_number FROM orders ORDER BY company DESC, order_number ASC;",
+        "SELECT company, order_number FROM orders ORDER BY order_number ASC LIMIT 2;",
         "",
     };
     for (auto &sql : sqls) {

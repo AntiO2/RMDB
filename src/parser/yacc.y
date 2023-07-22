@@ -22,7 +22,7 @@ using namespace ast;
 
 // keywords
 %token SHOW TABLES CREATE TABLE DROP DESC INSERT INTO VALUES DELETE FROM ASC ORDER BY
-WHERE UPDATE SET SELECT INT CHAR FLOAT BIGINT DATETIME INDEX AND JOIN EXIT HELP TXN_BEGIN TXN_COMMIT TXN_ABORT TXN_ROLLBACK ORDER_BY COUNT MAX MIN SUM AS
+WHERE UPDATE SET SELECT INT CHAR FLOAT BIGINT DATETIME INDEX AND JOIN EXIT HELP TXN_BEGIN TXN_COMMIT TXN_ABORT TXN_ROLLBACK ORDER_BY COUNT MAX MIN SUM AS LIMIT
 // non-keywords
 %token LEQ NEQ GEQ T_EOF
 
@@ -51,7 +51,9 @@ WHERE UPDATE SET SELECT INT CHAR FLOAT BIGINT DATETIME INDEX AND JOIN EXIT HELP 
 %type <sv_set_clauses> setClauses
 %type <sv_cond> condition
 %type <sv_conds> whereClause optWhereClause
-%type <sv_orderby>  order_clause opt_order_clause
+%type <sv_orderby>  order_clause
+%type <sv_orderbys> order_clauses
+%type <sv_opt_orders> opt_order_clause
 %type <sv_orderby_dir> opt_asc_desc
 %type <sv_aggregate_type> aggre_count aggre_max aggre_min aggre_sum
 
@@ -156,8 +158,7 @@ dml:
     {
         $$ = std::make_shared<SelectStmt>($2, $4, $5, $6);
     }
-    |   SELECT aggregator FROM tbName optWhereClause                 //CHECK(lsy): 翻了大群聊天消息，不要求在聚合函数中使用order by
-                                                                        //CHECK(lsy): 看测试用例似乎也不支持多表，先解析成单表了
+    |   SELECT aggregator FROM tbName optWhereClause
     {
         $$ = std::make_shared<AggregateStmt>($2, $4, $5);
     }
@@ -428,11 +429,26 @@ tableList:
     ;
 
 opt_order_clause:
-    ORDER BY order_clause      
-    { 
-        $$ = $3; 
+    ORDER BY order_clauses
+    {
+        $$ = std::pair<std::vector<std::shared_ptr<OrderBy>>, int>{$3, -1};
+    }
+    | ORDER BY order_clauses LIMIT VALUE_INT
+    {
+        $$ = std::pair<std::vector<std::shared_ptr<OrderBy>>, int>{$3, $5};
     }
     |   /* epsilon */ { /* ignore*/ }
+    ;
+
+order_clauses:
+    order_clause
+    {
+        $$ = std::vector<std::shared_ptr<OrderBy>>{ $1 };
+    }
+    | order_clauses ',' order_clause
+    {
+        $$.push_back($3);
+    }
     ;
 
 order_clause:

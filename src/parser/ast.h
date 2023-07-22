@@ -193,8 +193,17 @@ struct OrderBy : public TreeNode
     std::shared_ptr<Col> cols;
     OrderByDir orderby_dir;
     OrderBy( std::shared_ptr<Col> cols_, OrderByDir orderby_dir_) :
-       cols(std::move(cols_)), orderby_dir(std::move(orderby_dir_)) {}
+       cols(std::move(cols_)), orderby_dir(orderby_dir_) {}
 };
+
+//struct Opt_Orders : public TreeNode
+//{
+//    std::vector<std::shared_ptr<OrderBy>> orders;
+//    int limit;                //负数表示是没有limit, 如果非负，则就是需要的limit值,但是好像转不过去?
+//
+//    Opt_Orders(std::vector<std::shared_ptr<OrderBy>> orders_, int limit_) :
+//        orders(std::move(orders_)), limit(limit_) {}
+//};
 
 struct InsertStmt : public TreeNode {
     std::string tab_name;
@@ -242,17 +251,22 @@ struct SelectStmt : public TreeNode {
 
     
     bool has_sort;
-    std::shared_ptr<OrderBy> order;
-
+    //std::shared_ptr<Opt_Orders> opt_orders;
+    std::vector<std::shared_ptr<OrderBy>> orders;
+    int limit;
 
     SelectStmt(std::vector<std::shared_ptr<Col>> cols_,
                std::vector<std::string> tabs_,
                std::vector<std::shared_ptr<BinaryExpr>> conds_,
-               std::shared_ptr<OrderBy> order_) :
-            cols(std::move(cols_)), tabs(std::move(tabs_)), conds(std::move(conds_)), 
-            order(std::move(order_)) {
-                has_sort = (bool)order;
-            }
+               std::pair<std::vector<std::shared_ptr<OrderBy>>, int> orders_) :
+            cols(std::move(cols_)), tabs(std::move(tabs_)), conds(std::move(conds_)),
+            orders(std::move(orders_.first)), limit(orders_.second) {
+        if(orders.empty())
+            has_sort = false;
+        else
+            has_sort = true;
+    }
+
 };
 
 struct AggregateStmt : public TreeNode {
@@ -300,6 +314,9 @@ struct SemValue {
     std::vector<std::shared_ptr<BinaryExpr>> sv_conds;
 
     std::shared_ptr<OrderBy> sv_orderby;
+    std::vector<std::shared_ptr<OrderBy>> sv_orderbys;
+    //std::shared_ptr<Opt_Orders> sv_opt_orders;
+    std::pair<std::vector<std::shared_ptr<OrderBy>>, int> sv_opt_orders;
 
     //aggregate
     std::shared_ptr<AggregateCol> sv_aggregate;

@@ -299,11 +299,16 @@ std::shared_ptr<Plan> Planner::generate_sort_plan(std::shared_ptr<Query> query, 
     }
     TabCol sel_col;
     for (auto &col : all_cols) {
-        if(col.name.compare(x->order->cols->col_name) == 0 )
-        sel_col = {.tab_name = col.tab_name, .col_name = col.name};
+        //TODO 语法解析时报错，由于修改了order相关结构，先注释了
+//        if(col.name.compare(x->order->cols->col_name) == 0 )
+//        sel_col = {.tab_name = col.tab_name, .col_name = col.name};
     }
-    return std::make_shared<SortPlan>(T_Sort, std::move(plan), sel_col, 
-                                    x->order->orderby_dir == ast::OrderBy_DESC);
+//原版
+//    return std::make_shared<SortPlan>(T_Sort, std::move(plan), sel_col,
+//                                    x->order->orderby_dir == ast::OrderBy_DESC);
+    //TODO 语法解析时报错，由于修改了order相关结构，先随便给了个x->opt_orders->orders[0]
+    return std::make_shared<SortPlan>(T_Sort, std::move(plan), sel_col,
+                                      x->orders[0]->orderby_dir == ast::OrderBy_DESC);
 }
 
 

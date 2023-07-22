@@ -95,6 +95,7 @@ single_op ";"|"("|")"|","|"*"|"="|">"|"<"|"."
 "MIN" { return MIN; }
 "SUM" { return SUM; }
 "AS" { return AS; }
+"LIMIT" { return LIMIT; }
     /* operators */
 ">=" { return GEQ; }
 "<=" { return LEQ; }

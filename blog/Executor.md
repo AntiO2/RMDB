@@ -153,3 +153,5 @@ void QlManager::run_dml(std::unique_ptr<AbstractExecutor> exec){
 
 ![image-20230715171940456](./Executor.assets/image-20230715171940456.png)
 
+### Join
+

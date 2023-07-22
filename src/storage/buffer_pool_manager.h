@@ -19,6 +19,7 @@ See the Mulan PSL v2 for more details. */
 
 #include "disk_manager.h"
 #include "errors.h"
+#include "common/config.h"
 #include "storage/page.h"
 #include "replacer/lru_replacer.h"
 #include "replacer/replacer.h"
@@ -33,6 +34,7 @@ class BufferPoolManager {
     Replacer *replacer_;    // buffer_pool的置换策略，当前赛题中为LRU置换策略
     std::mutex latch_;      // 用于共享数据结构的并发控制
     std::vector<bool> is_used_; // 如果该frame上有page，标记为true
+    // page_id_t tmp_id_{0}; // 下一个tmp_page的id
    public:
     BufferPoolManager(size_t pool_size, DiskManager *disk_manager)
         : pool_size_(pool_size), disk_manager_(disk_manager) {
@@ -81,6 +83,20 @@ class BufferPoolManager {
      * @param fd
      */
     void delete_all_pages(int fd);
+    /**
+     *
+     * @return 当前bpm中空闲页的数量
+     */
+    size_t get_free_size() {
+        std::scoped_lock lock(latch_);
+        return free_list_.size();
+    }
+    /**
+     * 创建一个临时的page (不会在磁盘中出现，只会在buffer_pool中出现)
+     * @param page_id
+     * @return
+     */
+    Page* new_tmp_page(PageId* page_id);
    private:
     bool find_victim_page(frame_id_t* frame_id);
 

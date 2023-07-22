@@ -46,7 +46,7 @@ void BufferPoolManager::update_page(Page *page, PageId new_page_id, frame_id_t n
     // 3 重置page的data，更新page id
 
     // 首先检查该页上是否是有页面。
-    if(page->is_dirty()){
+    if(page->is_dirty()&&page->get_page_id().fd!=TMP_FD){
         page->is_dirty_ = false;
         disk_manager_->write_page(page->get_page_id().fd, page->get_page_id().page_no, page->get_data(), PAGE_SIZE);
     }
@@ -122,6 +122,7 @@ bool BufferPoolManager::unpin_page(PageId page_id, bool is_dirty) {
     // 2.2.1 若自减后等于0，则调用replacer_的Unpin
     if(pin_count==0) {
         replacer_->unpin(it->second);
+        free_list_.emplace_back(it->second);
     }
     // 3 根据参数is_dirty，更改P的is_dirty_
     page->is_dirty_|=is_dirty;
@@ -231,4 +232,26 @@ void BufferPoolManager::delete_all_pages(int fd) {
             disk_manager_->deallocate_page(page->get_page_id().page_no);
         }
     }
+}
+
+Page *BufferPoolManager::new_tmp_page(PageId *page_id) {
+    assert(page_id->fd==TMP_FD);
+    std::scoped_lock<std::mutex> lock(latch_);
+    // 1.   获得一个可用的frame，若无法获得则返回nullptr
+    frame_id_t frame_id;
+
+    if(!find_victim_page(&frame_id)) {
+        return nullptr;
+    }
+    // 2.   在fd对应的文件分配一个新的page_id
+    page_id->page_no = frame_id;  // 直接将frame_id作为新的page_id
+
+    auto page = &pages_[frame_id];
+    // 3.   将frame的数据写回磁盘
+    update_page(page, *page_id,frame_id);
+    // 4.   固定frame，更新pin_count_
+    page->pin_count_++;
+    replacer_->pin(frame_id);
+    // 5.   返回获得的page
+    return page;
 }

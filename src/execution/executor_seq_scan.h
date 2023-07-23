@@ -107,7 +107,9 @@ class SeqScanExecutor : public AbstractExecutor {
 
     Rid &rid() override { return rid_; }
 
-    [[nodiscard]] bool is_end() const override{ return is_end_; }
+    [[nodiscard]] bool is_end() const override{
+      return is_end_;
+    }
 
     bool CheckConditionByRid(const Rid& rid) {
         rec_ = fh_->get_record(rid,context_);

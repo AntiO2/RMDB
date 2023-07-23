@@ -8,3 +8,6 @@ insert into d values ('23456',2);
 select * from t, d;
 select t.id,t_name,d_name from t,d where t.id = d.id;
 select t.id,t_name,d_name from t join d where t.id = d.id;
+
+drop table t;
+drop table d;

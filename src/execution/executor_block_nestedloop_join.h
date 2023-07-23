@@ -127,7 +127,7 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
                     while(left_buffer_page_inner_iter_ < left_num_now_inner_) {
                         memcpy(left_record_.data, left_page->get_data() + left_buffer_page_inner_iter_*left_len_,
                                left_len_);
-                        left_buffer_page_inner_iter_++;
+
                         while(right_buffer_page_iter_ < right_num_now_) {
                             memcpy(right_record_.data, right_buffer_page_->get_data() + right_buffer_page_iter_*right_len_,
                                    right_len_);
@@ -135,12 +135,13 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
                             if(CheckConditions()) {
                                 RmRecord rm(len_);
                                 memcpy(rm.data, left_record_.data,left_len_);
-                                memcpy(rm.data, right_record_.data,left_len_);
+                                memcpy(rm.data+left_len_, right_record_.data,right_len_);
                                 emit_record_ = std::make_unique<RmRecord>(rm);
                                 return;
                             }
                         }
                         right_buffer_page_iter_ = 0;
+                        left_buffer_page_inner_iter_++;
                     }
                     left_buffer_page_iter_++;
                     left_buffer_page_inner_iter_ = 0;

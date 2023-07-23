@@ -87,7 +87,7 @@ class SeqScanExecutor : public AbstractExecutor {
         scan_->next();
         while(!scan_->is_end()) {
             rid_ = scan_->rid();
-            LOG_DEBUG("%s", fmt::format("rid page_no {} slot_no{}",rid_.page_no,rid_.slot_no).c_str());
+            // LOG_DEBUG("%s", fmt::format("rid page_no {} slot_no{}",rid_.page_no,rid_.slot_no).c_str());
             if(CheckConditionByRid(rid_)) {
                 // 找到了满足条件的
                 return;
@@ -107,7 +107,9 @@ class SeqScanExecutor : public AbstractExecutor {
 
     Rid &rid() override { return rid_; }
 
-    [[nodiscard]] bool is_end() const override{ return is_end_; }
+    [[nodiscard]] bool is_end() const override{
+      return is_end_;
+    }
 
     bool CheckConditionByRid(const Rid& rid) {
         rec_ = fh_->get_record(rid,context_);

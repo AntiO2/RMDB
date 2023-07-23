@@ -108,6 +108,7 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
         fill_right_page();
         init_left_page();
         left_buffer_page_iter_ = 0;
+        left_buffer_page_inner_iter_ = 0;
         right_buffer_page_iter_ = 0;
         nextTuple();
     }
@@ -126,7 +127,7 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
                     while(left_buffer_page_inner_iter_ < left_num_now_inner_) {
                         memcpy(left_record_.data, left_page->get_data() + left_buffer_page_inner_iter_*left_len_,
                                left_len_);
-                        left_buffer_page_inner_iter_++;
+
                         while(right_buffer_page_iter_ < right_num_now_) {
                             memcpy(right_record_.data, right_buffer_page_->get_data() + right_buffer_page_iter_*right_len_,
                                    right_len_);
@@ -134,14 +135,16 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
                             if(CheckConditions()) {
                                 RmRecord rm(len_);
                                 memcpy(rm.data, left_record_.data,left_len_);
-                                memcpy(rm.data, right_record_.data,left_len_);
+                                memcpy(rm.data+left_len_, right_record_.data,right_len_);
                                 emit_record_ = std::make_unique<RmRecord>(rm);
                                 return;
                             }
                         }
                         right_buffer_page_iter_ = 0;
+                        left_buffer_page_inner_iter_++;
                     }
                     left_buffer_page_iter_++;
+                    left_buffer_page_inner_iter_ = 0;
                 }
                 // 此时对于已在缓存中的right_tuple,已经比较完了。
                 if(!right_->is_end()) {
@@ -168,10 +171,17 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
                 fill_left_page(left_buffer_page);
                 left_buffer_new_page_cnt_++;
             }
+            fill_right_page();
             left_buffer_page_cnt_ = left_buffer_new_page_cnt_;
+            right_over = false;
         }
 
         is_end_ = true;
+
+        for(auto left_page:left_buffer_pages_) {
+            bpm_->unpin_tmp_page(left_page->get_page_id());
+        }
+        bpm_->unpin_tmp_page(right_page_id_);
         // 释放资源
     }
     std::unique_ptr<RmRecord> Next() override {
@@ -216,7 +226,8 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
     void init_left_page() {
         left_->beginTuple();
         while(!left_->is_end()) {
-            if(bpm_->get_free_size() <= 35) {
+          if(bpm_->get_free_size() <= 35) {
+            // if(left_buffer_pages_.size()>=2) { // 在测试时，可以只用两个buffer page
                 // 已经缓存了足够数量的左侧tuple
                 // 这个35是我随便写的数字，最后给bpm 留个几页防止出什么问题。
                 // 比如 如果不小心调用到了index scan，给b+树的页留个几页。
@@ -226,7 +237,7 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
 
             // 创建新的一页
             PageId left_page_id{.fd=TMP_FD,.page_no=INVALID_PAGE_ID};
-            auto left_buffer_page = bpm_->new_page(&left_page_id);
+            auto left_buffer_page = bpm_->new_tmp_page(&left_page_id);
             if(left_buffer_page== nullptr) {
                 throw RunOutMemError();
             }
@@ -242,7 +253,7 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
         while(!left_->is_end()&&record_cnt < left_num_per_page_) {
             memcpy(page->get_data()+record_cnt*left_len_,left_->Next()->data,left_len_);
             record_cnt++;
-            right_->nextTuple();
+            left_->nextTuple();
         }
         left_num_now_[page->get_page_id()] = record_cnt;
         return left_->is_end();

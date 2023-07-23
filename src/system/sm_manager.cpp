@@ -266,7 +266,7 @@ void SmManager::drop_table(const std::string& tab_name, Context* context) {
     //tab与fhs
     fhs_.erase(tab_name);
     db_.tabs_.erase(tab_name);
-
+    flush_meta();
     //删除表文件
     disk_manager_->destroy_file(tab_name);
 }

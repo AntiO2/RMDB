@@ -30,6 +30,8 @@ std::unique_ptr<RmRecord> RmFileHandle::get_record(const Rid& rid, Context* cont
     record->size = size;
     memcpy(record->data, pageHandle.get_slot(rid.slot_no),size);
 
+    buffer_pool_manager_->unpin_page(PageId{fd_,rid.page_no}, false); // check(AntiO2) 这里是否需要unpin
+
     return record;
 }
 

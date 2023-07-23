@@ -255,3 +255,26 @@ Page *BufferPoolManager::new_tmp_page(PageId *page_id) {
     // 5.   返回获得的page
     return page;
 }
+
+bool BufferPoolManager::unpin_tmp_page(PageId page_id) {
+    std::scoped_lock<std::mutex> lock(latch_);
+
+    auto frame_id = page_id.page_no;
+    auto page = &pages_[frame_id];
+    assert(page->get_page_id().fd==TMP_FD);
+    auto& pin_count = page->pin_count_;
+    // 2.1 若pin_count_已经等于0，则返回false
+    if(pin_count <= 0) {
+        return false;
+    }
+
+    // 2.2 若pin_count_大于0，则pin_count_自减一
+    pin_count--;
+    // 2.2.1 若自减后等于0，则调用replacer_的Unpin
+    if(pin_count==0) {
+        replacer_->unpin(frame_id);
+        free_list_.emplace_back(frame_id);
+    }
+    // 3 根据参数is_dirty，更改P的is_dirty_
+    return true;
+}

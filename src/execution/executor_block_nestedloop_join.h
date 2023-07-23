@@ -28,30 +28,35 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
     std::vector<Condition> fed_conds_;          // join条件
     std::vector<std::pair<ColMeta, ColMeta> > join_cols_;
     bool is_end_;
-    std::unique_ptr<RmRecord> left_tuple_;
-    std::vector<std::unique_ptr<RmRecord>> right_tuples_;
-    std::vector<std::unique_ptr<RmRecord>>::const_iterator  right_tuples_iter_;
-    std::unique_ptr<RmRecord> rmRecord;
+
 
     size_t left_len_;
     size_t right_len_;
     BufferPoolManager* bpm_;
+
     Page* right_buffer_page_; // 当前的innerpage tuple缓存的页。
     PageId right_page_id_;
     std::vector<Page*> left_buffer_pages_; // outer_page的页。
-    std::vector<Page*>::iterator  left_buffer_page_iter_; // 指示当前在查找哪个 缓冲池中的left page
+    int left_buffer_page_cnt_{0}; // left_page中有多少页有效？
+
+    int left_buffer_page_iter_; // 指示当前在查找哪个 缓冲池中的left page
+    int left_buffer_page_inner_iter_; // 指示当前在查找 缓冲池中的left page中的slot编号
     int right_buffer_page_iter_; // 当前在查找right_page中的哪个位置。
 
     int left_num_per_page_; // // 每页最多可以存放多少个左侧记录。
     int right_num_per_page_; // // 每页最多可以存放多少个右侧记录。
 
+
     std::unordered_map<PageId, int> left_num_now_; // buffer中，page含有的left_num数量
+    int left_num_now_inner_; // 当前查找的buffer page中，含有的tuple数量
     int right_num_now_; // buffer中有多少个右侧记录
 
     bool left_over{false}; // 左侧记录是否已经全部进入过buffer_pool_size
-    bool right_over{false}; // 右侧记录是否已经遍历完？
+    bool right_over{false}; // 右侧记录是否已经遍历完？ 注意，right_over不一定等于right_.is_end_!
 
-
+    RmRecord left_record_; // 暂存
+    RmRecord right_record_;
+    std::unique_ptr<RmRecord> emit_record_;
 
    public:
     BlockNestedLoopJoinExecutor(std::unique_ptr<AbstractExecutor> left, std::unique_ptr<AbstractExecutor> right,
@@ -62,11 +67,14 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
 
         left_len_ = left_->tupleLen();
         left_num_per_page_ = PAGE_SIZE/left_len_;
+        left_record_=RmRecord(left_len_);
 
         right_len_ = right_->tupleLen();
         right_num_per_page_ = PAGE_SIZE/right_len_;
+        right_record_=RmRecord(right_len_);
 
         len_ = left_len_ + right_len_;
+
         cols_ = left_->cols();
         auto right_cols = right_->cols();
         for (auto &col : right_cols) {
@@ -99,42 +107,78 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
         init_right_page();
         fill_right_page();
         init_left_page();
-        left_buffer_page_iter_ = left_buffer_pages_.begin();
+        left_buffer_page_iter_ = 0;
+        right_buffer_page_iter_ = 0;
         nextTuple();
     }
 
     void nextTuple() override {
-        while(!is_end_) {
-            if(right_tuples_iter_==right_tuples_.end()) {
-                if(left_->is_end()) {
-                    // 两层都已经循环完了
-                    is_end_ = true;
-                    return;
+        // for(left buffer)
+        //      for(right buffer in whole right)
+        //          for(page in left buffer)
+        //              for(tuple in left buffer)
+        //                  for(tuple in right buffer)
+        while(!left_over) {
+            while(!right_over) {
+                while(left_buffer_page_iter_ < left_buffer_page_cnt_) {
+                    auto left_page = left_buffer_pages_[left_buffer_page_iter_];
+                    left_num_now_inner_ = left_num_now_.find(left_page->get_page_id())->second;
+                    while(left_buffer_page_inner_iter_ < left_num_now_inner_) {
+                        memcpy(left_record_.data, left_page->get_data() + left_buffer_page_inner_iter_*left_len_,
+                               left_len_);
+                        left_buffer_page_inner_iter_++;
+                        while(right_buffer_page_iter_ < right_num_now_) {
+                            memcpy(right_record_.data, right_buffer_page_->get_data() + right_buffer_page_iter_*right_len_,
+                                   right_len_);
+                            right_buffer_page_iter_++;
+                            if(CheckConditions()) {
+                                RmRecord rm(len_);
+                                memcpy(rm.data, left_record_.data,left_len_);
+                                memcpy(rm.data, right_record_.data,left_len_);
+                                emit_record_ = std::make_unique<RmRecord>(rm);
+                                return;
+                            }
+                        }
+                        right_buffer_page_iter_ = 0;
+                    }
+                    left_buffer_page_iter_++;
                 }
-                //
-                left_tuple_ = left_->Next(); // 获取外层循环的tuple;
-                left_->nextTuple();
-                right_tuples_iter_ = right_tuples_.begin();
+                // 此时对于已在缓存中的right_tuple,已经比较完了。
+                if(!right_->is_end()) {
+                    fill_right_page();
+                } else {
+                    right_over = true;
+                }
+                left_buffer_page_iter_ = 0;
             }
-            // 比较当前是否满足join条件
-            if(CheckConditions()) {
-                RmRecord rmRecord1(len_);
-                memcpy(rmRecord1.data,left_tuple_->data,left_len_);
-                memcpy(rmRecord1.data+left_len_,(*right_tuples_iter_)->data,right_len_);
-
-                rmRecord = std::make_unique<RmRecord>(rmRecord1);
-
-                right_tuples_iter_++;
-                return;
+            if(left_->is_end()) {
+                // left已经刷完了.
+                left_over = true;
+                break;
             }
-            right_tuples_iter_++; // 比较下一个tuple
+            // flush left
+            int left_buffer_new_page_cnt_ = 0;
+            while(!left_->is_end()) {
+                if(left_buffer_new_page_cnt_>=left_buffer_page_cnt_) {
+                    // 说明join buffer又填充满了
+                    break;
+                }
+                // 创建新的一页
+                auto left_buffer_page = left_buffer_pages_.at(left_buffer_new_page_cnt_);
+                fill_left_page(left_buffer_page);
+                left_buffer_new_page_cnt_++;
+            }
+            left_buffer_page_cnt_ = left_buffer_new_page_cnt_;
         }
+
+        is_end_ = true;
+        // 释放资源
     }
     std::unique_ptr<RmRecord> Next() override {
         if(is_end_) {
             return nullptr;
         }
-        return std::move(rmRecord);
+        return std::move(emit_record_);
     }
 
     Rid &rid() override { return _abstract_rid; }
@@ -163,7 +207,7 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
             right_num_now_++;
             right_->nextTuple();
         }
-        return right_over = right_->is_end();
+        return right_->is_end();
     }
      /**
       * 初始化左侧表
@@ -174,7 +218,6 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
         while(!left_->is_end()) {
             if(bpm_->get_free_size() <= 35) {
                 // 已经缓存了足够数量的左侧tuple
-
                 // 这个35是我随便写的数字，最后给bpm 留个几页防止出什么问题。
                 // 比如 如果不小心调用到了index scan，给b+树的页留个几页。
                 // 具体怎么解决还留待查资料
@@ -191,7 +234,8 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
 
             fill_left_page(left_buffer_page);
         }
-         left_over = left_->is_end();
+
+        left_buffer_page_cnt_ = left_buffer_pages_.size();
     }
     bool fill_left_page(Page* page) {
         int record_cnt = 0;// 当前页存放的page数
@@ -243,8 +287,8 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
     bool Check_ith_Condition(const size_t i) {
         const auto &left_col = join_cols_.at(i).first;
         const auto &right_col = join_cols_.at(i).second;
-        char* l_value = left_tuple_->data+left_col.offset;
-        char* r_value = (*right_tuples_iter_)->data+right_col.offset;
+        char* l_value = left_record_.data+left_col.offset;
+        char* r_value = right_record_.data+right_col.offset;
         return evaluate_compare(l_value, r_value, left_col.type, left_col.len, fed_conds_.at(i).op); // 判断该condition是否成立（断言为真）
     }
 };

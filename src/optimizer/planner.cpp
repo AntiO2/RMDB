@@ -302,7 +302,7 @@ std::shared_ptr<Plan> Planner::generate_sort_plan(std::shared_ptr<Query> query, 
     for(auto &order : x->orders){
         OrderCol orderCol;
         for (auto &col : all_cols) {
-            if(col.name == order->cols->col_name ){
+            if(col.name == order->cols->col_name && col.tab_name == order->cols->tab_name){
                 orderCol = {.tab_col = {.tab_name = col.tab_name, .col_name = col.name}, .is_desc_ = (order->orderby_dir == ast::OrderBy_DESC)};
             }
         }

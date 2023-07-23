@@ -25,8 +25,8 @@ class ProjectionExecutor : public AbstractExecutor {
    public:
     ProjectionExecutor(std::unique_ptr<AbstractExecutor> prev, const std::vector<TabCol> &sel_cols) {
         prev_ = std::move(prev);
-
         size_t curr_offset = 0;
+
         auto &prev_cols = prev_->cols(); // 从被投影的列中找到 需要选出来的列
         for (auto &sel_col : sel_cols) {
             auto pos = get_col(prev_cols, sel_col);

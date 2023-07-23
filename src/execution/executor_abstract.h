@@ -49,6 +49,16 @@ class AbstractExecutor {
      */
     virtual ColMeta get_col_offset(const TabCol &target) { return ColMeta();};
 
+    //lsy
+    ColMeta get_col_meta(SmManager* sm_manager_,const TabCol &target)  {
+        auto &sel_tab_col = sm_manager_->db_.get_table(target.tab_name);
+        for(auto &col : sel_tab_col.cols){
+            if(col.name == target.col_name)
+                return col;
+        }
+        // return AbstractExecutor::get_col_offset(target);
+    }
+
     std::vector<ColMeta>::const_iterator get_col(const std::vector<ColMeta> &rec_cols, const TabCol &target) {
         auto pos = std::find_if(rec_cols.begin(), rec_cols.end(), [&](const ColMeta &col) {
             return col.tab_name == target.tab_name && col.name == target.col_name;

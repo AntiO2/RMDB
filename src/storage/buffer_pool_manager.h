@@ -97,6 +97,13 @@ class BufferPoolManager {
      * @return
      */
     Page* new_tmp_page(PageId* page_id);
+
+    /**
+     * unpin临时page,因为是临时的，所以是不是脏页无所谓的
+     * @param page_id
+     * @return
+     */
+    bool unpin_tmp_page(PageId page_id);
    private:
     bool find_victim_page(frame_id_t* frame_id);
 

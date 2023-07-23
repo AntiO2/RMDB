@@ -7,10 +7,10 @@
 
 TEST(BLOCK_JOIN,GEN_SQL) {
   fmt::print("create table t ( id int , t_name char (500));\ncreate table d (id int,d_name char(500));\n"); // 这里char填多一点，方便测试溢出的情况
-  for(int i = 50; i > 0; i--) {
+  for(int i = 10000; i > 0; i--) {
     fmt::print("insert into t values({},'');\n",i);
   }
-  for(int i = 50; i > 0; i--) {
+  for(int i = 10000; i > 0; i--) {
     fmt::print("insert into d values({},'');\n",i);
   }
   fmt::print("select * from t, d;\n");

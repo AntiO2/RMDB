@@ -226,8 +226,8 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
     void init_left_page() {
         left_->beginTuple();
         while(!left_->is_end()) {
-          if(bpm_->get_free_size() <= 35) {
-            // if(left_buffer_pages_.size()>=2) { // 在测试时，可以只用两个buffer page
+          // if(bpm_->get_free_size() <= 35) {
+             if(left_buffer_pages_.size()>=100) { // 在测试时，可以只用两个buffer page
                 // 已经缓存了足够数量的左侧tuple
                 // 这个35是我随便写的数字，最后给bpm 留个几页防止出什么问题。
                 // 比如 如果不小心调用到了index scan，给b+树的页留个几页。

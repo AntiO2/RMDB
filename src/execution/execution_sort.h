@@ -70,6 +70,7 @@ public:
             else
                 return false;
         }
+        return false;
     }
 
     void beginTuple() override
@@ -78,7 +79,8 @@ public:
         prev_->beginTuple();
         if(prev_->is_end()) {
             is_end_ = true;
-        }
+        } else
+            is_end_ = false;
 
         //一开始先遍历一遍，获取到所有record, 再进行排序
         for( ; !prev_->is_end(); prev_->nextTuple()){
@@ -90,12 +92,13 @@ public:
             return compare(lhs, rhs);
         });
 
-        //重置，还需要第二次遍历
-        prev_->beginTuple();
-        if(prev_->is_end()) {
-            is_end_ = true;
-        } else
-            is_end_ = false;
+        //重置，还需要第二次遍历, 这个对join不行，通过tuple_num来判断结束
+//        prev_->beginTuple();
+//        if(prev_->is_end()) {
+//            is_end_ = true;
+//        } else
+//            is_end_ = false;
+         tuple_num = 0;
     }
 
     void nextTuple() override
@@ -116,10 +119,10 @@ public:
 
     //limit 的is_end判断不能用原来的
     [[nodiscard]] bool is_end() const override {
-        if((limit > 0 && tuple_num == limit)) {
+        if(limit > 0 && tuple_num == limit) {
             return true;
         }
-        return is_end_;
+        return tuple_num == tuples.size();
     };
 
     [[nodiscard]] const std::vector<ColMeta> &cols() const override

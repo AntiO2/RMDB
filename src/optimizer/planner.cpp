@@ -422,7 +422,6 @@ std::shared_ptr<Plan> Planner::do_planner(std::shared_ptr<Query> query, Context 
         plannerRoot = std::make_shared<DMLPlan>(T_select, projection, std::string(), std::vector<Value>(),
                                                     std::vector<Condition>(), std::vector<SetClause>());
     } else if(auto x = std::dynamic_pointer_cast<ast::AggregateStmt>(query->parse)){//liamY
-        //CHECK(lsy)这个需要做索引吗
         std::shared_ptr<Plan> projection = generate_select_plan(std::move(query), context);
         plannerRoot = std::make_shared<DMLPlan>(T_select, projection, std::string(), std::vector<Value>(),
                                                 std::vector<Condition>(), std::vector<SetClause>());

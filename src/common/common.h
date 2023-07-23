@@ -29,6 +29,7 @@ struct TabCol {
     }
 };
 
+//将每个排序键与顺序绑定起来
 struct OrderCol {
     TabCol tab_col;
     bool is_desc_;

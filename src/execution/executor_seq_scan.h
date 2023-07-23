@@ -75,6 +75,7 @@ class SeqScanExecutor : public AbstractExecutor {
             // LOG_DEBUG("%s", fmt::format("rid page_no {} slot_no{}",rid_.page_no,rid_.slot_no).c_str());
             if(CheckConditionByRid(rid_)) {
                 // 找到了满足条件的
+                is_end_ = false;
                 return;
             }
             scan_->next();

@@ -297,18 +297,19 @@ std::shared_ptr<Plan> Planner::generate_sort_plan(std::shared_ptr<Query> query, 
         const auto &sel_tab_cols = sm_manager_->db_.get_table(sel_tab_name).cols;
         all_cols.insert(all_cols.end(), sel_tab_cols.begin(), sel_tab_cols.end());
     }
-    TabCol sel_col;
-    for (auto &col : all_cols) {
-        //TODO 语法解析时报错，由于修改了order相关结构，先注释了
-//        if(col.name.compare(x->order->cols->col_name) == 0 )
-//        sel_col = {.tab_name = col.tab_name, .col_name = col.name};
+
+    std::vector<OrderCol> order_cols;
+    for(auto &order : x->orders){
+        OrderCol orderCol;
+        for (auto &col : all_cols) {
+            if(col.name == order->cols->col_name ){
+                orderCol = {.tab_col = {.tab_name = col.tab_name, .col_name = col.name}, .is_desc_ = (order->orderby_dir == ast::OrderBy_DESC)};
+            }
+        }
+        order_cols.push_back(orderCol);
     }
-//原版
-//    return std::make_shared<SortPlan>(T_Sort, std::move(plan), sel_col,
-//                                    x->order->orderby_dir == ast::OrderBy_DESC);
-    //TODO 语法解析时报错，由于修改了order相关结构，先随便给了个x->opt_orders->orders[0]
-    return std::make_shared<SortPlan>(T_Sort, std::move(plan), sel_col,
-                                      x->orders[0]->orderby_dir == ast::OrderBy_DESC);
+
+    return std::make_shared<SortPlan>(T_Sort, std::move(plan), order_cols,x->limit);
 }
 
 

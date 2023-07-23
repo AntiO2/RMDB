@@ -29,6 +29,11 @@ struct TabCol {
     }
 };
 
+struct OrderCol {
+    TabCol tab_col;
+    bool is_desc_;
+};
+
 struct Value {
     ColType type;  // type of value
     union {

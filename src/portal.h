@@ -196,14 +196,14 @@ class Portal
 //            std::unique_ptr<AbstractExecutor> join = std::make_unique<NestedLoopJoinExecutor>(
 //                                std::move(left),
 //                                std::move(right), std::move(x->conds_));
-//            std::unique_ptr<AbstractExecutor> join = std::make_unique<BlockNestedLoopJoinExecutor>(
-//                                std::move(left),
-//                                std::move(right), std::move(x->conds_),
-//                                sm_manager_->get_bpm());
-            std::unique_ptr<AbstractExecutor> join = std::make_unique<StupidBlockNestedLoopJoinExecutor>(
+            std::unique_ptr<AbstractExecutor> join = std::make_unique<BlockNestedLoopJoinExecutor>(
                                 std::move(left),
                                 std::move(right), std::move(x->conds_),
                                 sm_manager_->get_bpm());
+//            std::unique_ptr<AbstractExecutor> join = std::make_unique<StupidBlockNestedLoopJoinExecutor>(
+//                                std::move(left),
+//                                std::move(right), std::move(x->conds_),
+//                                sm_manager_->get_bpm());
             return join;
         } else if(auto x = std::dynamic_pointer_cast<SortPlan>(plan)) {
             return std::make_unique<SortExecutor>(convert_plan_executor(x->subplan_, context), 

@@ -198,7 +198,6 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
         right_page_id_.fd=TMP_FD;
         right_buffer_page_ = bpm_->new_tmp_page(&right_page_id_); // 为右侧 缓冲池。
         if(right_buffer_page_== nullptr) {
-          assert(false);
           throw RunOutMemError();
         }
         right_->beginTuple();
@@ -243,11 +242,10 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
             PageId left_page_id{.fd=TMP_FD,.page_no=INVALID_PAGE_ID};
             auto left_buffer_page = bpm_->new_tmp_page(&left_page_id);
             if(left_buffer_page== nullptr) {
-              assert(false);
+              break ;
               throw RunOutMemError();
             }
             left_buffer_pages_.emplace_back(left_buffer_page);
-
             fill_left_page(left_buffer_page);
         }
 

@@ -6,16 +6,16 @@
 #include "gtest/gtest.h"
 
 TEST(BLOCK_JOIN,GEN_SQL) {
-  int scale = 98765;
-  fmt::print("create table t ( id int , t_name char (500));\ncreate table d (id int,d_name char(500));\n"); // 这里char填多一点，方便测试溢出的情况
+  int scale = 12345;
+  fmt::print("create table t1 ( id int , t_name char (500));\ncreate table t2 (id int,d_name char(500));\n"); // 这里char填多一点，方便测试溢出的情况
   for(int i = scale; i > 0; i--) {
-    fmt::print("insert into t values({},'');\n",i);
+    fmt::print("insert into t1 values({},'');\n",i);
   }
   for(int i = scale; i > 0; i--) {
-    fmt::print("insert into d values({},'');\n",i);
+    fmt::print("insert into t2 values({},'');\n",i);
   }
 
-  fmt::print("select * from t,d where t.id  = d.id order by t.id;\n");
+  fmt::print("select * from t1,d1 where t1.id  = d1.id order by t1.id;\n");
 
-  fmt::print("drop table t;\ndrop table d;\n");
+  // fmt::print("drop table t1;\ndrop table d1;\n");
 }

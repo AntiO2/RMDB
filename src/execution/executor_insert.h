@@ -83,10 +83,6 @@ class InsertExecutor : public AbstractExecutor {
             }
 
         }
-
-
-        
-
         return nullptr;
     }
     Rid &rid() override { return rid_; }

@@ -122,7 +122,7 @@ bool BufferPoolManager::unpin_page(PageId page_id, bool is_dirty) {
     // 2.2.1 若自减后等于0，则调用replacer_的Unpin
     if(pin_count==0) {
         replacer_->unpin(it->second);
-        free_list_.emplace_back(it->second);
+        // free_list_.emplace_back(it->second);
     }
     // 3 根据参数is_dirty，更改P的is_dirty_
     page->is_dirty_|=is_dirty;

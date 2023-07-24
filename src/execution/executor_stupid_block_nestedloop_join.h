@@ -217,7 +217,7 @@ public:
   }
 
   std::string getType() override {
-    return "Block NestedLoop Join Executor";
+    return "Stupid Block NestedLoop Join Executor";
   }
 
   bool is_end() const override {

@@ -153,6 +153,7 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
                     right_over = true;
                 }
                 left_buffer_page_iter_ = 0;
+
             }
             if(left_->is_end()) {
                 // left已经刷完了.
@@ -171,8 +172,12 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
                 fill_left_page(left_buffer_page);
                 left_buffer_new_page_cnt_++;
             }
-            fill_right_page();
             left_buffer_page_cnt_ = left_buffer_new_page_cnt_;
+            left_buffer_page_inner_iter_ = 0;
+            left_buffer_page_iter_ = 0;
+
+
+            fill_right_page();
             right_over = false;
         }
 
@@ -217,6 +222,7 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
             right_num_now_++;
             right_->nextTuple();
         }
+        right_buffer_page_iter_ = 0;
         return right_->is_end();
     }
      /**
@@ -227,7 +233,7 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
         left_->beginTuple();
         while(!left_->is_end()) {
           // if(bpm_->get_free_size() <= 35) {
-             if(left_buffer_pages_.size()>=100) { // 在测试时，可以只用两个buffer page
+             if(left_buffer_pages_.size()>=JOIN_POOL_SIZE) { // 在测试时，可以只用两个buffer page
                 // 已经缓存了足够数量的左侧tuple
                 // 这个35是我随便写的数字，最后给bpm 留个几页防止出什么问题。
                 // 比如 如果不小心调用到了index scan，给b+树的页留个几页。

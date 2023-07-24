@@ -78,6 +78,7 @@ Page* BufferPoolManager::fetch_page(PageId page_id) {
         // not find
         frame_id_t frame_id;
         if(!find_victim_page(&frame_id)) {
+          assert(false);
             return nullptr;
         }
         auto p   = &pages_[frame_id];

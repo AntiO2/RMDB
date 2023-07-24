@@ -160,7 +160,6 @@ public:
     right_page_id_.fd=TMP_FD;
     right_buffer_page_ = bpm_->new_tmp_page(&right_page_id_); // 为右侧 缓冲池。
     if(right_buffer_page_== nullptr) {
-      assert(false);
       throw RunOutMemError();
     }
     right_->beginTuple();
@@ -193,7 +192,6 @@ public:
     left_page_id_.fd=TMP_FD;
     left_buffer_page_ = bpm_->new_tmp_page(&left_page_id_); // 为右侧 缓冲池。
     if(left_buffer_page_== nullptr) {
-      assert(false);
       throw RunOutMemError();
     }
     left_->beginTuple();

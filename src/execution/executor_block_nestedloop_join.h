@@ -14,6 +14,7 @@ See the Mulan PSL v2 for more details. */
 #include "executor_abstract.h"
 #include "index/ix.h"
 #include "system/sm.h"
+#include "logger.h"
 /**
  * @see README
  * @tip 实现的Join类型： INNER_JOIN 未实现 LEFT_JOIN, RIGHT_JOIN, FULL_JOIN
@@ -78,7 +79,7 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
         cols_ = left_->cols();
         auto right_cols = right_->cols();
         for (auto &col : right_cols) {
-            col.offset += left_->tupleLen(); // Check(AntiO2) offset应该为size_t,而不是int
+            col.offset += left_len_; // Check(AntiO2) offset应该为size_t,而不是int
         }
         cols_.insert(cols_.end(), right_cols.begin(), right_cols.end());
         is_end_ = false;
@@ -91,12 +92,12 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
                 throw IncompatibleTypeError(coltype2str(left_join_col.type),
                                             coltype2str(right_join_col.type));
             }
-            if(left_join_col.offset>=left_len_) {
-                left_join_col.offset = left_join_col.offset- left_len_;
-            }
-            if(right_join_col.offset>=left_len_) {
-                right_join_col.offset = right_join_col.offset- left_len_;
-            }
+//            if(left_join_col.offset>=left_len_) {
+//                left_join_col.offset = left_join_col.offset- left_len_;
+//            }
+//            if(right_join_col.offset>=left_len_) {
+//                right_join_col.offset = right_join_col.offset- left_len_;
+//            }
             join_cols_.emplace_back(left_join_col, right_join_col);
         }
 
@@ -116,8 +117,8 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
     void nextTuple() override {
         // for(left buffer)
         //      for(right buffer in whole right)
-        //          for(page in left buffer)
-        //              for(tuple in left buffer)
+        //          for(page in left buffer)          \
+        //              for(tuple in left buffer)     / 遍历左侧buffer中的tuple
         //                  for(tuple in right buffer)
         while(!left_over) {
             while(!right_over) {
@@ -125,17 +126,13 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
                     auto left_page = left_buffer_pages_[left_buffer_page_iter_];
                     left_num_now_inner_ = left_num_now_.find(left_page->get_page_id())->second;
                     while(left_buffer_page_inner_iter_ < left_num_now_inner_) {
-                        memcpy(left_record_.data, left_page->get_data() + left_buffer_page_inner_iter_*left_len_,
-                               left_len_);
-
+                        RmRecord rm(len_);
+                        memcpy(rm.data, left_page->get_data() + left_buffer_page_inner_iter_*left_len_,left_len_);
                         while(right_buffer_page_iter_ < right_num_now_) {
-                            memcpy(right_record_.data, right_buffer_page_->get_data() + right_buffer_page_iter_*right_len_,
+                            memcpy(rm.data+left_len_, right_buffer_page_->get_data() + right_buffer_page_iter_*right_len_,
                                    right_len_);
                             right_buffer_page_iter_++;
-                            if(CheckConditions()) {
-                                RmRecord rm(len_);
-                                memcpy(rm.data, left_record_.data,left_len_);
-                                memcpy(rm.data+left_len_, right_record_.data,right_len_);
+                            if(CheckConditions(rm.data)) {
                                 emit_record_ = std::make_unique<RmRecord>(rm);
                                 return;
                             }
@@ -202,7 +199,7 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
         right_buffer_page_ = bpm_->new_tmp_page(&right_page_id_); // 为右侧 缓冲池。
         if(right_buffer_page_== nullptr) {
           assert(false);
-            throw RunOutMemError();
+          throw RunOutMemError();
         }
         right_->beginTuple();
     }
@@ -247,7 +244,7 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
             auto left_buffer_page = bpm_->new_tmp_page(&left_page_id);
             if(left_buffer_page== nullptr) {
               assert(false);
-                throw RunOutMemError();
+              throw RunOutMemError();
             }
             left_buffer_pages_.emplace_back(left_buffer_page);
 
@@ -286,14 +283,14 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
     ColMeta get_col_offset(const TabCol &target) override {
         return AbstractExecutor::get_col_offset(target);
     }
-    bool CheckConditions() {
+    bool CheckConditions(const char *data) {
         /**
          * 检查所有条件
          */
         bool result = true;
         auto join_size = fed_conds_.size();
         for(decltype(join_size) i = 0; i < join_size; i++) {
-            result&= Check_ith_Condition(i); // Check(AntiO2) 此处bool运算是否正确
+            result&= Check_ith_Condition(data,i); // Check(AntiO2) 此处bool运算是否正确
         }
         return result;
 
@@ -303,11 +300,11 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
      * @param i
      * @return
      */
-    bool Check_ith_Condition(const size_t i) {
+    bool Check_ith_Condition(const char *data,const size_t i) {
         const auto &left_col = join_cols_.at(i).first;
         const auto &right_col = join_cols_.at(i).second;
-        char* l_value = left_record_.data+left_col.offset;
-        char* r_value = right_record_.data+right_col.offset;
+        const char *l_value = data+left_col.offset;
+        const char *r_value = data+right_col.offset;
         return evaluate_compare(l_value, r_value, left_col.type, left_col.len, fed_conds_.at(i).op); // 判断该condition是否成立（断言为真）
     }
 };

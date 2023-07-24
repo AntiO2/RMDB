@@ -2000,4 +2000,5 @@ insert into d values(4,'');
 insert into d values(3,'');
 insert into d values(2,'');
 insert into d values(1,'');
-select * from t,d where d.id  < t.id order by t.id,d.id;
+select * from t,d where d.id  = t.id order by t.id,d.id;
+select * from t,d where t.id  = d.id order by t.id,d.id;

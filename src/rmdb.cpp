@@ -274,7 +274,7 @@ int main(int argc, char **argv) {
         std::cerr << "Usage: " << argv[0] << " <database>" << std::endl;
         exit(1);
     }
-
+    assert(false);
     signal(SIGINT, sigint_handler);
     try {
         std::cout << "\n"

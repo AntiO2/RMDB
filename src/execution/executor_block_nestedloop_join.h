@@ -164,6 +164,9 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
                 right_buffer_page_cnt_ = right_buffer_new_page_cnt_;
                 right_buffer_page_inner_iter_ = 0;
                 right_buffer_page_iter_ = 0;
+
+                left_buffer_page_iter_ = 0;
+                left_buffer_page_inner_iter_ = 0;
             }
             if(left_->is_end()) {
                 // left已经刷完了.

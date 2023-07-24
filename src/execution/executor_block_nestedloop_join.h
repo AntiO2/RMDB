@@ -37,7 +37,7 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
 
     Page* right_buffer_page_; // 当前的innerpage tuple缓存的页。
     PageId right_page_id_;
-    std::vector<std::pair<char *,int>> left_buffer_pages_; // outer_page的页。第二个参数表示当前
+    std::vector<Page*> left_buffer_pages_; // outer_page的页。
     int left_buffer_page_cnt_{0}; // left_page中有多少页有效？
 
     int left_buffer_page_iter_; // 指示当前在查找哪个 缓冲池中的left page
@@ -123,11 +123,11 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
         while(!left_over) {
             while(!right_over) {
                 while(left_buffer_page_iter_ < left_buffer_page_cnt_) {
-                    auto left_page = left_buffer_pages_[left_buffer_page_iter_].first;
-                    left_num_now_inner_ = left_buffer_pages_[left_buffer_page_iter_].second;
+                    auto left_page = left_buffer_pages_[left_buffer_page_iter_];
+                    left_num_now_inner_ = left_num_now_.find(left_page->get_page_id())->second;
                     while(left_buffer_page_inner_iter_ < left_num_now_inner_) {
                         RmRecord rm(len_);
-                        memcpy(rm.data, left_page + left_buffer_page_inner_iter_*left_len_,left_len_);
+                        memcpy(rm.data, left_page->get_data() + left_buffer_page_inner_iter_*left_len_,left_len_);
                         while(right_buffer_page_iter_ < right_num_now_) {
                             memcpy(rm.data+left_len_, right_buffer_page_->get_data() + right_buffer_page_iter_*right_len_,
                                    right_len_);
@@ -165,8 +165,8 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
                     break;
                 }
                 // 创建新的一页
-                auto& left_buffer_page =  left_buffer_pages_.at(left_buffer_new_page_cnt_);
-                left_buffer_page.second = fill_left_page(left_buffer_page.first);
+                auto left_buffer_page = left_buffer_pages_.at(left_buffer_new_page_cnt_);
+                fill_left_page(left_buffer_page);
                 left_buffer_new_page_cnt_++;
             }
             left_buffer_page_cnt_ = left_buffer_new_page_cnt_;
@@ -181,7 +181,7 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
         is_end_ = true;
 
         for(auto left_page:left_buffer_pages_) {
-           delete left_page.first;
+            bpm_->unpin_tmp_page(left_page->get_page_id());
         }
         bpm_->unpin_tmp_page(right_page_id_);
         // 释放资源
@@ -240,29 +240,34 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
             }
 
             // 创建新的一页
-            char* left_buffer_page = new char[PAGE_SIZE];
+            PageId left_page_id{.fd=TMP_FD,.page_no=INVALID_PAGE_ID};
+            auto left_buffer_page = bpm_->new_tmp_page(&left_page_id);
             if(left_buffer_page== nullptr) {
               assert(false);
               throw RunOutMemError();
             }
-            auto cnt = fill_left_page(left_buffer_page);
-            left_buffer_pages_.emplace_back(left_buffer_page,cnt);
+            left_buffer_pages_.emplace_back(left_buffer_page);
+
+            fill_left_page(left_buffer_page);
         }
 
         left_buffer_page_cnt_ = left_buffer_pages_.size();
     }
-    int fill_left_page(char* page) {
+    bool fill_left_page(Page* page) {
         int record_cnt = 0;// 当前页存放的page数
         while(!left_->is_end()&&record_cnt < left_num_per_page_) {
-            memcpy(page+record_cnt*left_len_,left_->Next()->data,left_len_);
+            memcpy(page->get_data()+record_cnt*left_len_,left_->Next()->data,left_len_);
             record_cnt++;
             left_->nextTuple();
         }
-        return record_cnt;
+        left_num_now_[page->get_page_id()] = record_cnt;
+        return left_->is_end();
     }
+
     size_t tupleLen() const override {
         return len_;
     }
+
     const std::vector<ColMeta> &cols() const override {
         return cols_;
     }

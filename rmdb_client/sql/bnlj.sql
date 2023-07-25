@@ -20003,4 +20003,5 @@ insert into d values(1,'');
 
 
 select * from t join d where t.id = d.id and t.id = 1000;
-select * from t,d where t.id  > d.id ;
+select * from t join d where t.id = d.id and t.id < 1000;
+select * from t,d where t.id  = d.id ;

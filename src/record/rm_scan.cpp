@@ -43,8 +43,10 @@ void RmScan::next() {
         {
             rid_.page_no = page_no;
             rid_.slot_no = ret;
+            file_handle_->buffer_pool_manager_->unpin_page(PageId{file_handle_->fd_,page_no}, false);
             return;
         }
+        file_handle_->buffer_pool_manager_->unpin_page(PageId{file_handle_->fd_,page_no}, false);
         //下一轮又是从-1开始
         rid_.slot_no = -1;
     }

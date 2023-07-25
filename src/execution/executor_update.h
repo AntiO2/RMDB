@@ -88,9 +88,10 @@ class UpdateExecutor : public AbstractExecutor {
                         throw std::move(e);
                     }
                 }
-
                 fh_->update_record(rid,new_tuple.data,context_);
-
+                RmRecord update_record(*tuple);
+                auto* writeRecord = new WriteRecord(WType::UPDATE_TUPLE,tab_name_,rid,update_record);
+                context_->txn_->append_write_record(writeRecord);
             }});
         // LOG_DEBUG("Update Complete");
         return nullptr;

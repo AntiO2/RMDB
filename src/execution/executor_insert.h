@@ -24,6 +24,8 @@ class InsertExecutor : public AbstractExecutor {
     Rid rid_;                       // 插入的位置，由于系统默认插入时不指定位置，因此当前rid_在插入后才赋值
     SmManager *sm_manager_;
     std::vector<IxIndexHandle*> index_handlers;
+    int len_;
+    std::vector<ColMeta> cols_;
    public:
     InsertExecutor(SmManager *sm_manager, const std::string &tab_name, std::vector<Value> values, Context *context) {
         sm_manager_ = sm_manager;
@@ -35,7 +37,7 @@ class InsertExecutor : public AbstractExecutor {
         }
         fh_ = sm_manager_->fhs_.at(tab_name).get();
         context_ = context;
-
+        cols_ = tab_.cols;
         for(auto &index:tab_.indexes) {
             auto index_name = sm_manager_->get_ix_manager()->get_index_name(tab_name_,index.cols);
             auto iter = sm_manager_->ihs_.find(index_name);
@@ -44,6 +46,9 @@ class InsertExecutor : public AbstractExecutor {
                 iter = sm_manager_->ihs_.emplace(index_name,std::move(index_handler)).first;
             }
             index_handlers.emplace_back(iter->second.get());
+        }
+        for(auto & col:cols_) {
+          len_+=col.len;
         }
     };
 
@@ -81,13 +86,19 @@ class InsertExecutor : public AbstractExecutor {
                 fh_->delete_record(rid_,context_);
                 throw std::move(e);
             }
-
         }
-
-
-        
-
+        WriteRecord* writeRecord = new WriteRecord(WType::INSERT_TUPLE,tab_name_,rid_);
+        context_->txn_->append_write_record(writeRecord);
         return nullptr;
+    }
+    size_t tupleLen() const override {
+      return len_;
+    }
+    const std::vector<ColMeta> &cols() const override {
+      return cols_;
+    }
+    bool is_end() const override {
+      true;
     }
     Rid &rid() override { return rid_; }
 };

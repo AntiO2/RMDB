@@ -25,6 +25,7 @@ See the Mulan PSL v2 for more details. */
 #include "execution/executor_delete.h"
 #include "execution/execution_sort.h"
 #include "execution/executor_block_nestedloop_join.h"
+#include "execution/executor_stupid_block_nestedloop_join.h"
 #include "common/common.h"
 
 typedef enum portalTag{
@@ -199,6 +200,10 @@ class Portal
                                 std::move(left),
                                 std::move(right), std::move(x->conds_),
                                 sm_manager_->get_bpm());
+//            std::unique_ptr<AbstractExecutor> join = std::make_unique<StupidBlockNestedLoopJoinExecutor>(
+//                                std::move(left),
+//                                std::move(right), std::move(x->conds_),
+//                                sm_manager_->get_bpm());
             return join;
         } else if(auto x = std::dynamic_pointer_cast<SortPlan>(plan)) {
             return std::make_unique<SortExecutor>(convert_plan_executor(x->subplan_, context), 

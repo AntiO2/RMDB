@@ -67,9 +67,8 @@ class SeqScanExecutor : public AbstractExecutor {
 
     void beginTuple() override {
         // 首先初始化。
+        is_end_ = false;
         scan_ = std::make_unique<RmScan>(fh_); // 首先通过RmScan 获取对表的扫描
-
-
         while(!scan_->is_end()) {
             rid_ = scan_->rid();
             // LOG_DEBUG("%s", fmt::format("rid page_no {} slot_no{}",rid_.page_no,rid_.slot_no).c_str());

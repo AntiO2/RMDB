@@ -129,4 +129,7 @@ public:
     {
         return prev_->cols();
     };
+    size_t tupleLen() const override {
+      return prev_->tupleLen();
+    }
 };

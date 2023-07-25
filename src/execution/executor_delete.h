@@ -60,7 +60,11 @@ class DeleteExecutor : public AbstractExecutor {
                 for(size_t i = 0; i < index_size;i++) {
                     index_handlers.at(i)->delete_entry(tuple->key_from_rec(tab_.indexes.at(i).cols)->data, context_->txn_);
                 }
-            }});
+                RmRecord delete_record(*tuple);
+                WriteRecord* writeRecord = new WriteRecord(WType::DELETE_TUPLE,tab_name_,rid,delete_record);
+                context_->txn_->append_write_record(writeRecord);
+            }
+      });
         LOG_DEBUG("Delete Complete");
         return nullptr;
     }

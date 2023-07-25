@@ -117,7 +117,11 @@ struct std::hash<LockDataId> {
 };
 
 /* 事务回滚原因 */
-enum class AbortReason { LOCK_ON_SHIRINKING = 0, UPGRADE_CONFLICT, DEADLOCK_PREVENTION };
+// 拼写错误？
+enum class AbortReason { LOCK_ON_SHRINKING = 0, UPGRADE_CONFLICT, DEADLOCK_PREVENTION,
+                         ATTEMPTED_UNLOCK_BUT_NO_LOCK_HELD,
+                         TABLE_UNLOCKED_BEFORE_UNLOCKING_ROWS,TABLE_LOCK_NOT_PRESENT,
+                         ATTEMPTED_INTENTION_LOCK_ON_ROW,LOCK_SHARED_ON_READ_UNCOMMITTED};
 
 /* 事务回滚异常，在rmdb.cpp中进行处理 */
 class TransactionAbortException : public std::exception {
@@ -132,7 +136,7 @@ class TransactionAbortException : public std::exception {
     AbortReason GetAbortReason() { return abort_reason_; }
     std::string GetInfo() {
         switch (abort_reason_) {
-            case AbortReason::LOCK_ON_SHIRINKING: {
+            case AbortReason::LOCK_ON_SHRINKING: {
                 return "Transaction " + std::to_string(txn_id_) +
                        " aborted because it cannot request locks on SHRINKING phase\n";
             } break;
@@ -146,9 +150,19 @@ class TransactionAbortException : public std::exception {
                 return "Transaction " + std::to_string(txn_id_) + " aborted for deadlock prevention\n";
             } break;
 
-            default: {
-                return "Transaction aborted\n";
-            } break;
-        }
+            case AbortReason::ATTEMPTED_UNLOCK_BUT_NO_LOCK_HELD:
+              return "Transaction " + std::to_string(txn_id_) + " aborted for attempt to unlock but no lock held\n";
+              break;
+            case AbortReason::TABLE_UNLOCKED_BEFORE_UNLOCKING_ROWS:
+              return "Transaction " + std::to_string(txn_id_) + " aborted for unlock table before unlocking rows\n";
+              break;
+            case AbortReason::TABLE_LOCK_NOT_PRESENT:
+              return "Transaction " + std::to_string(txn_id_) + " aborted for table lock not present\n";
+              break;
+
+              //            default: {
+              //                return "Transaction aborted\n";
+              //            } break;
+            }
     }
 };

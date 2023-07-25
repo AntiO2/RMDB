@@ -39,6 +39,18 @@ struct Rid {
     }
 
     friend bool operator!=(const Rid &x, const Rid &y) { return !(x == y); }
+
+//    auto operator==(const Rid&other) const ->bool {
+//      return page_no==other.page_no&&slot_no==other.slot_no;
+//    }
+};
+
+struct RidHash {
+  std::size_t operator()(const Rid& rid) const {
+    std::size_t h1 = std::hash<int>{}(rid.page_no);
+    std::size_t h2 = std::hash<int>{}(rid.slot_no);
+    return h1 ^ (h2 << 1); // 组合哈希值
+  }
 };
 /**
  *

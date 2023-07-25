@@ -247,6 +247,15 @@ void Analyze::fix_setClause(SetClause &setClause, const std::vector<std::string>
                 setClause.rhs = value;
             }
         }
+        //datetime转string liamY
+        else if(lhs_type == TYPE_STRING) {
+            //将datetime型数据转为string
+            if (setClause.rhs.type == TYPE_DATETIME) {
+                Value value;
+                value.set_str(datenum2datetime(std::to_string(setClause.rhs.datetime_val)));
+                setClause.rhs = value;
+            }
+        }
     }
 }
 
@@ -345,7 +354,6 @@ void Analyze::get_clause(const std::vector<std::shared_ptr<ast::BinaryExpr>> &sv
                         cond.rhs_val = value;
                     }
                 }
-
             }
         }
 

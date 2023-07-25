@@ -63,7 +63,7 @@ class Transaction {
     inline std::shared_ptr<std::unordered_set<LockDataId>> get_lock_set() { return lock_set_; }
 
    private:
-    bool txn_mode_;                   // 用于标识当前事务为显式事务还是单条SQL语句的隐式事务
+    bool txn_mode_;                   // 用于标识当前事务为显式事务还是单条SQL语句的隐式事务 [如果是true,表示显示事务]
     TransactionState state_;          // 事务状态
     IsolationLevel isolation_level_;  // 事务的隔离级别，默认隔离级别为可串行化
     std::thread::id thread_id_;       // 当前事务对应的线程id

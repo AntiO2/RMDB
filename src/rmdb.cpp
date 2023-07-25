@@ -55,7 +55,7 @@ auto sm_manager = std::make_unique<SmManager>(disk_manager.get(), buffer_pool_ma
                 longjmp(jmpbuf, 1);
             }
 
-// 判断当前正在执行的是显式事务还是单条SQL语句的事务，并更新事务ID
+              // 判断当前正在执行的是显式事务还是单条SQL语句的事务，并更新事务ID
             void SetTransaction(txn_id_t *txn_id, Context *context) {
                 context->txn_ = txn_manager->get_transaction(*txn_id);
                 if(context->txn_ == nullptr || context->txn_->get_state() == TransactionState::COMMITTED ||
@@ -117,12 +117,7 @@ auto sm_manager = std::make_unique<SmManager>(disk_manager.get(), buffer_pool_ma
                     // 开启事务，初始化系统所需的上下文信息（包括事务对象指针、锁管理器指针、日志管理器指针、存放结果的buffer、记录结果长度的变量）
                     Transaction transaction(txn_id);
                     Context *context = new Context(lock_manager.get(), log_manager.get(), &transaction, data_send, &offset);
-                    if(txn_id!=INVALID_TXN_ID) {
-                        // CHECK(AntiO2) 判断DDL?
-                        SetTransaction(&txn_id, context);
-                    }
-
-
+                    SetTransaction(&txn_id, context);
                     // 用于判断是否已经调用了yy_delete_buffer来删除buf
                     bool finish_analyze = false;
                     pthread_mutex_lock(buffer_mutex);
@@ -184,7 +179,6 @@ auto sm_manager = std::make_unique<SmManager>(disk_manager.get(), buffer_pool_ma
             break;
         }
         // 如果是单条语句，需要按照一个完整的事务来执行，所以执行完当前语句后，自动提交事务
-        // CHECK 可能不需要事务
         if(txn_id!=INVALID_TXN_ID&&context->txn_->get_txn_mode() == false)
         {
             txn_manager->commit(context->txn_, context->log_mgr_);

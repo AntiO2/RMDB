@@ -20,7 +20,7 @@ See the Mulan PSL v2 for more details. */
 
 /* 系统采用的并发控制算法，当前题目中要求两阶段封锁并发控制算法 */
 enum class ConcurrencyMode { TWO_PHASE_LOCKING = 0, BASIC_TO };
-
+//事务的提交回滚是由这个transactionManager来提供方法
 class TransactionManager{
 public:
     explicit TransactionManager(LockManager *lock_manager, SmManager *sm_manager,

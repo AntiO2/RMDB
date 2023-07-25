@@ -63,6 +63,7 @@ void TransactionManager::commit(Transaction* txn, LogManager* log_manager) {
 
     // 5. 更新事务状态
     txn->set_state(TransactionState::COMMITTED);
+    //CHECK(liamY) 这里next_txn_id_应该在事务commit后指向一个新的事务ID（并发下10题）
 }
 
 /**
@@ -76,7 +77,10 @@ void TransactionManager::abort(Transaction * txn, LogManager *log_manager) {
     }
     // 1. 回滚所有写操作
     auto write_set = txn->get_write_set();
-    for(auto&write:*write_set) {
+    for(auto r_write_iter = write_set->rbegin();r_write_iter!=write_set->rend();++r_write_iter){//改成倒着读取record内容
+        auto write = *r_write_iter;
+//    }
+//    for(auto&write:*write_set) {
       auto context = new Context(lock_manager_, log_manager, txn);
       auto tab_name = write->GetTableName();
       auto &table =  sm_manager_->fhs_.at(tab_name);

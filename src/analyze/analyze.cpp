@@ -83,7 +83,15 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
 
         // 处理insert 的values值
         for(int i = 0;i < x->vals.size();i++){
-            Value value = convert_sv_value(x->vals[i]);
+            Value value;
+            //先检查是不是向string中插入datetime,如果是直接收录
+            auto str_lit = std::dynamic_pointer_cast<ast::DateTimeLit>(x->vals[i]);
+            if(str_lit != nullptr && all_cols[i].type == TYPE_STRING)
+            {
+                value.set_str(str_lit->val);
+            }else{
+                value = convert_sv_value(x->vals[i]);
+            }
             //如果是bigint类型插入int,报错
             //CHECK(liamY)bigint应该只能插入bigint的话，可以改为assert(value.type != TYPE_BIGINT || all_cols[i].type == TYPE_BIGINT);
             if(value.type == TYPE_BIGINT && all_cols[i].type != TYPE_BIGINT) {
@@ -329,6 +337,15 @@ void Analyze::get_clause(const std::vector<std::shared_ptr<ast::BinaryExpr>> &sv
                         cond.rhs_val = value;
                     }
                 }
+                else if(lhs_type == TYPE_STRING){
+                    //将datetime型数据转为string
+                    if(cond.rhs_val.type == TYPE_DATETIME){
+                        Value value;
+                        value.set_str(datenum2datetime(std::to_string(cond.rhs_val.datetime_val)));
+                        cond.rhs_val = value;
+                    }
+                }
+
             }
         }
 

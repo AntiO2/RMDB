@@ -366,7 +366,7 @@ IxIndexHandle::find_leaf_page(const char *key, Operation operation, Transaction 
  */
 bool IxIndexHandle::get_value(const char *key, std::vector<Rid> *result, Transaction *transaction) {
     // 1. 获取目标key值所在的叶子结点
-    root_latch_.read_lock();
+  //  root_latch_.read_lock();
     auto leaf_page_hdr = find_leaf_page(key, Operation::FIND, transaction, file_hdr_->col_num_).first;
     // 2. 在叶子节点中查找目标key值的位置，并读取key对应的rid
     Rid* rid;
@@ -378,7 +378,6 @@ bool IxIndexHandle::get_value(const char *key, std::vector<Rid> *result, Transac
         result->push_back(*rid);
     }
     // 提示：使用完buffer_pool提供的page之后，记得unpin page；记得处理并发的上锁
-    root_latch_.read_unlock();
     return found;
 }
 
@@ -492,8 +491,7 @@ void IxIndexHandle::insert_into_parent(IxNodeHandle *old_node, const char *key, 
  */
 page_id_t IxIndexHandle::insert_entry(const char *key, const Rid &value, Transaction *transaction) {
     // 1. 查找key值应该插入到哪个叶子节点
-    root_latch_.write_lock();
-
+   // root_latch_.write_lock();
     transaction->append_index_latch_page_set(nullptr);
     if(is_empty()) {
         auto root_node = create_node();
@@ -543,7 +541,6 @@ page_id_t IxIndexHandle::insert_entry(const char *key, const Rid &value, Transac
         }
 
         buffer_pool_manager_->unpin_page(root_node->get_page_id(),true);
-        root_latch_.write_unlock();
         return true;
     }
 
@@ -556,7 +553,6 @@ page_id_t IxIndexHandle::insert_entry(const char *key, const Rid &value, Transac
         release_ancestors(transaction);   // 释放所有祖先page latch
         // leaf_page->page->WUnlock();
         buffer_pool_manager_->unpin_page(leaf_page->get_page_id(), false);
-        root_latch_.write_unlock();
         throw IndexEntryDuplicateError();
         return IX_NO_PAGE;
     }
@@ -566,7 +562,6 @@ page_id_t IxIndexHandle::insert_entry(const char *key, const Rid &value, Transac
         // leaf_page->page->WUnlock();
         auto page_id = leaf_page->get_page_id();
         buffer_pool_manager_->unpin_page(page_id , true);
-        root_latch_.write_unlock();
         return page_id.page_no;
     }
     // 3. 如果结点已满，分裂结点，并把新结点的相关信息插入父节点
@@ -579,7 +574,6 @@ page_id_t IxIndexHandle::insert_entry(const char *key, const Rid &value, Transac
     buffer_pool_manager_->unpin_page(new_node->get_page_id(), true);
     // leaf_page->page->WUnlock();
     buffer_pool_manager_->unpin_page(leaf_page->get_page_id(), true);
-    root_latch_.write_unlock();
     return new_node->get_page_no();
 }
 
@@ -590,11 +584,10 @@ page_id_t IxIndexHandle::insert_entry(const char *key, const Rid &value, Transac
  */
 bool IxIndexHandle::delete_entry(const char *key, Transaction *transaction) {
     // 1. 获取该键值对所在的叶子结点
-    root_latch_.write_lock();
+    // root_latch_.write_lock();
     transaction->append_index_latch_page_set(nullptr);
     if(is_empty()) {
         release_ancestors(transaction);
-        root_latch_.write_unlock();
         return true;
     }
     auto leaf_node = find_leaf_page(key, Operation::DELETE, transaction, file_hdr_->col_num_, false, FIND_TYPE::COMMON).first;
@@ -604,7 +597,6 @@ bool IxIndexHandle::delete_entry(const char *key, Transaction *transaction) {
         release_ancestors(transaction);   // 释放所有祖先page latch
         // leaf_node->page->WUnlock();
         buffer_pool_manager_->unpin_page(leaf_node->get_page_id(), false);
-        root_latch_.write_unlock();
         return false;
     } else {
         bool root_is_latched; // check(AntiO2) 好像没有用这个
@@ -620,7 +612,6 @@ bool IxIndexHandle::delete_entry(const char *key, Transaction *transaction) {
             buffer_pool_manager_->delete_page(page->get_page_id());
         }
         transaction->get_index_deleted_page_set()->clear();
-        root_latch_.write_unlock();
         return true;
     }
 

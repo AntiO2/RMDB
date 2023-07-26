@@ -17,12 +17,23 @@ t2b select * from concurrency_test;
 t2c select * from concurrency_test where id = 3;
 t2d commit;
 
-permutation 8
+txn3 5
+t3a begin;
+t3b select * from concurrency_test;
+t3c select * from concurrency_test where id = 4;
+t3d abort;
+t3e commit;
+
+permutation 12
 t1a
 t2a
+t3a
 t1b
 t2b
+t3b
 t2c
+t3c
 t1c
+t3d
 t1d
 t2d

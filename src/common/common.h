@@ -207,6 +207,11 @@ inline int value_compare(const char *a, const char *b, ColType type, int col_len
         }
         case TYPE_STRING:
         {
+            if(strlen(a)> strlen(b))
+                return 1;
+            if(strlen(a)< strlen(b))
+                return -1;
+
             auto res = memcmp(a, b, col_len);
             // LOG_DEBUG("String compare %d",res);
             return res > 0? 1: (res<0 ? -1: 0);

@@ -71,4 +71,9 @@ private:
     std::mutex latch_;  // 用于txn_map的并发
     SmManager *sm_manager_;
     LockManager *lock_manager_;
+    /**
+     * @description 辅助函数，用于释放锁
+     * @param txn
+     */
+    auto ReleaseLocks(Transaction* txn) -> void;
 };

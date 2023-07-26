@@ -21,7 +21,20 @@ See the Mulan PSL v2 for more details. */
  */
 bool LockManager::lock_shared_on_record(Transaction* txn, const Rid& rid, int tab_fd) {
 
-  assert(false); // 只用表锁
+  std::unique_lock<std::mutex> lock(latch_);
+  if(txn->get_state()==TransactionState::SHRINKING) {
+    txn->set_state(TransactionState::ABORTED);
+    // 如果在收缩阶段加锁，抛出异常
+    throw TransactionAbortException(txn->get_transaction_id(),AbortReason::LOCK_ON_SHRINKING);
+  }
+  LockDataId lock_data = LockDataId(tab_fd, rid, LockDataType::RECORD); // 获取要加锁的item
+  auto lock_request_queue_iter = lock_table_.find(lock_data); // 检查在该lock item上是否已经有队列
+  if(lock_request_queue_iter==lock_table_.end()) {
+    lock_request_queue_iter = lock_table_.emplace(lock_data,std::make_shared<LockRequestQueue>()).first;
+  }
+  auto lock_request_queue = lock_request_queue_iter->second;
+
+  return HandleLockRequest(txn,tab_fd,lock_request_queue,LockMode::SHARED, LockObject::ROW,&rid);
 
 }
 
@@ -33,14 +46,21 @@ bool LockManager::lock_shared_on_record(Transaction* txn, const Rid& rid, int ta
  * @param {int} tab_fd 记录所在的表的fd
  */
 bool LockManager::lock_exclusive_on_record(Transaction* txn, const Rid& rid, int tab_fd) {
-  assert(false);
+  // assert(false);
   std::unique_lock<std::mutex> lock(latch_);
   if(txn->get_state()==TransactionState::SHRINKING) {
     txn->set_state(TransactionState::ABORTED);
     // 如果在收缩阶段加锁，抛出异常
     throw TransactionAbortException(txn->get_transaction_id(),AbortReason::LOCK_ON_SHRINKING);
   }
-  return true;
+  LockDataId lock_data = LockDataId(tab_fd, rid, LockDataType::RECORD); // 获取要加锁的item
+  auto lock_request_queue_iter = lock_table_.find(lock_data); // 检查在该lock item上是否已经有队列
+  if(lock_request_queue_iter==lock_table_.end()) {
+    lock_request_queue_iter = lock_table_.emplace(lock_data,std::make_shared<LockRequestQueue>()).first;
+  }
+  auto lock_request_queue = lock_request_queue_iter->second;
+
+  return HandleLockRequest(txn,tab_fd,lock_request_queue,LockMode::EXCLUSIVE,LockObject::ROW,&rid);
 }
 
 /**
@@ -143,8 +163,15 @@ bool LockManager::lock_IX_on_table(Transaction* txn, int tab_fd) {
  * @param {LockDataId} lock_data_id 要释放的锁ID
  */
 bool LockManager::unlock(Transaction* txn, LockDataId lock_data_id) {
-  std::unique_lock<std::mutex> lock(latch_);
-    return true;
+    std::unique_lock<std::mutex> lock(latch_);
+    auto lock_request_queue_it = lock_table_.find(lock_data_id);
+    if (lock_request_queue_it == lock_table_.end()) {
+      txn->set_state(TransactionState::ABORTED);
+      throw TransactionAbortException(txn->get_transaction_id(), AbortReason::ATTEMPTED_UNLOCK_BUT_NO_LOCK_HELD);
+    }
+
+    return HandleUnlockRequest(txn, lock_data_id.fd_, lock_request_queue_it->second, lock_data_id.type_==LockDataType::TABLE?LockObject::TABLE:LockObject::ROW,
+                               &lock_data_id.rid_);
 }
 auto LockManager::HandleLockRequest(
     Transaction *txn, int tab_fd,
@@ -153,8 +180,24 @@ auto LockManager::HandleLockRequest(
     const Rid *rid) -> bool {
   auto txn_id = txn->get_transaction_id();
   lock_request_queue->latch_.lock();
+  txn->set_state(TransactionState::GROWING);
   for (auto &request : lock_request_queue->request_queue_) {
+    if(request->granted_) {
+//      if(request->txn_id_ < txn_id &&!CheckCompatible(request->lock_mode_,lock_mode)) {
+//        // 采用wait-die策略
+//        txn->set_state(TransactionState::ABORTED);
+//        lock_request_queue->latch_.unlock();
+//        throw TransactionAbortException(txn->get_transaction_id(),AbortReason::DEADLOCK_PREVENTION);
+//      }
+        if(request->txn_id_ != txn_id &&!CheckCompatible(request->lock_mode_,lock_mode)) {
+          // 采用no-wait策略
+          txn->set_state(TransactionState::ABORTED);
+          lock_request_queue->latch_.unlock();
+          throw TransactionAbortException(txn->get_transaction_id(),AbortReason::DEADLOCK_PREVENTION);
+        }
+    }
     if (request->txn_id_ == txn_id) {
+      // 找到了之前该事务的请求 已加锁或是升级
       if (request->lock_mode_ == lock_mode) {
         // 说明之前已经有了该锁
         lock_request_queue->latch_.unlock();
@@ -218,6 +261,27 @@ auto LockManager::HandleLockRequest(
       return true;
     }
   }
+  // 循环完队列， 未找到相同事务id
+  std::unique_lock<std::mutex> lock(lock_request_queue->latch_, std::adopt_lock);
+  auto new_request = std::make_shared<LockRequest>(txn_id, lock_mode);  // 创建新
+
+  lock_request_queue->request_queue_.push_back(new_request);
+  while (!CheckGrant(new_request, lock_request_queue)) {
+    lock_request_queue->cv_.wait(lock);
+    if (txn->get_state() == TransactionState::ABORTED) {
+      lock_request_queue->request_queue_.remove(new_request);
+      lock_request_queue->cv_.notify_all();
+      return false;
+    }
+  }
+  // 获取锁
+  new_request->granted_ = true;
+  ModifyLockSet(txn, tab_fd, lock_mode, lock_object, ModifyMode::ADD, rid);
+  if (lock_mode != LockMode::EXCLUSIVE) {
+    lock_request_queue->cv_
+        .notify_all();  // 这里的if是个小优化，因为对于X锁，通知了其他线程也没有用，它们是无法满足得到锁的条件的。
+  }
+  return true;
 }
 auto LockManager::HandleUnlockRequest(
         Transaction * txn, int tab_fd,
@@ -255,7 +319,7 @@ auto LockManager::HandleUnlockRequest(
           }
           if ((*it)->lock_mode_ == LockMode::SHARED) {
             txn->set_state(TransactionState::ABORTED);
-            assert(false); // uncommitted 不会加s锁
+            // assert(false); // uncommitted 不会加s锁
           }
           break;
         }
@@ -514,4 +578,37 @@ auto LockManager::ModifyRowLockSet(
     break;
   }
 
+}
+auto LockManager::CheckCompatible(LockManager::LockMode old_lock,
+                                  LockManager::LockMode new_lock) -> bool {
+  switch (old_lock) {
+  case LockMode::SHARED:
+    if (new_lock == LockMode::INTENTION_SHARED ||
+        new_lock == LockMode::SHARED) {
+      return true;
+    } else {
+      return false;
+    }
+  case LockMode::EXCLUSIVE:
+    return false;
+  case LockMode::INTENTION_SHARED:
+    if (new_lock == LockMode::EXCLUSIVE) {
+      return false;
+    } else {
+      return true;
+    }
+  case LockMode::INTENTION_EXCLUSIVE:
+    if (new_lock == LockMode::INTENTION_SHARED ||
+        new_lock == LockMode::INTENTION_EXCLUSIVE) {
+      return true;
+    } else {
+      return false;
+    }
+  case LockMode::S_IX:
+    if (new_lock == LockMode::INTENTION_SHARED) {
+      return true;
+    } else {
+      return false;
+    }
+  }
 }

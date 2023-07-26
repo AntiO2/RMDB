@@ -330,11 +330,12 @@ auto LockManager::HandleUnlockRequest(
       lock_request_queue->cv_.notify_all();
       return true;
     }
+
+  }
     // 未找到对应的锁
     txn->set_state(TransactionState::ABORTED);
     throw TransactionAbortException(
-        txn_id, AbortReason::ATTEMPTED_UNLOCK_BUT_NO_LOCK_HELD);
-  }
+            txn_id, AbortReason::ATTEMPTED_UNLOCK_BUT_NO_LOCK_HELD);
 }
 auto LockManager::CheckLock(Transaction *txn, LockManager::LockMode lock_mode,
                             LockManager::LockObject lock_object) -> void {

@@ -46,7 +46,6 @@ bool LockManager::lock_shared_on_record(Transaction* txn, const Rid& rid, int ta
  * @param {int} tab_fd 记录所在的表的fd
  */
 bool LockManager::lock_exclusive_on_record(Transaction* txn, const Rid& rid, int tab_fd) {
-  // assert(false);
   std::unique_lock<std::mutex> lock(latch_);
   if(txn->get_state()==TransactionState::SHRINKING) {
     txn->set_state(TransactionState::ABORTED);
@@ -319,7 +318,6 @@ auto LockManager::HandleUnlockRequest(
           }
           if ((*it)->lock_mode_ == LockMode::SHARED) {
             txn->set_state(TransactionState::ABORTED);
-            // assert(false); // uncommitted 不会加s锁
           }
           break;
         }

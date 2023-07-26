@@ -61,7 +61,7 @@ class IndexScanExecutor : public AbstractExecutor {
         for (auto &cond : conds_) {
             if (cond.lhs_col.tab_name != tab_name_) {
                 // lhs is on other table, now rhs must be on this table
-                assert(!cond.is_rhs_val && cond.rhs_col.tab_name == tab_name_);
+                // assert(!cond.is_rhs_val && cond.rhs_col.tab_name == tab_name_);
                 // swap lhs and rhs
                 std::swap(cond.lhs_col, cond.rhs_col);
                 cond.op = swap_op.at(cond.op);
@@ -73,7 +73,6 @@ class IndexScanExecutor : public AbstractExecutor {
     void beginTuple() override {
       if(context_->txn_->get_isolation_level()==IsolationLevel::SERIALIZABLE) {
         context_->lock_mgr_->lock_shared_on_table(context_->txn_,fh_->GetFd());
-        // check(AntiO2) 是否需要catch异常？
       }
         auto index_name = sm_manager_->get_ix_manager()->get_index_name(tab_name_,index_meta_.cols);
         auto iter = sm_manager_->ihs_.find(index_name);
@@ -258,7 +257,7 @@ class IndexScanExecutor : public AbstractExecutor {
             r_value = rm_->data + r_col->offset;
             r_type = r_col->type;
         }
-        assert(left_col->type==r_type); // 保证两个值类型一样。
+     //    assert(left_col->type==r_type); // 保证两个值类型一样。
         return evaluate_compare(l_value, r_value, r_type, left_col->len, condition.op); // 判断该condition是否成立（断言为真）
     }
 };

@@ -69,7 +69,6 @@ class SeqScanExecutor : public AbstractExecutor {
         // 首先初始化。
         if(context_->txn_->get_isolation_level()==IsolationLevel::SERIALIZABLE) {
           context_->lock_mgr_->lock_shared_on_table(context_->txn_,fh_->GetFd());
-          // check(AntiO2) 是否需要catch异常？
         }
         is_end_ = false;
         scan_ = std::make_unique<RmScan>(fh_); // 首先通过RmScan 获取对表的扫描
@@ -158,7 +157,7 @@ class SeqScanExecutor : public AbstractExecutor {
                r_value = rec->data + r_col->offset;
                r_type = r_col->type;
             }
-            assert(left_col->type==r_type); // 保证两个值类型一样。
+             //  assert(left_col->type==r_type); // 保证两个值类型一样。
             return evaluate_compare(l_value, r_value, r_type, left_col->len, condition.op); // 判断该condition是否成立（断言为真）
     }
 

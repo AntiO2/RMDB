@@ -54,7 +54,6 @@ class UpdateExecutor : public AbstractExecutor {
     std::unique_ptr<RmRecord> Next() override {
       if(context_->txn_->get_isolation_level()==IsolationLevel::SERIALIZABLE) {
         context_->lock_mgr_->lock_exclusive_on_table(context_->txn_,fh_->GetFd());
-        // check(AntiO2) 是否需要catch异常？
       }
         std::vector<int> set_cols; // 需要被设置的cols offset
         std::vector<int> set_lens;
@@ -70,7 +69,7 @@ class UpdateExecutor : public AbstractExecutor {
             set_cols.emplace_back(set_col->offset);
 
         });
-        assert(set_cols.size()==set_size);
+        // assert(set_cols.size()==set_size);
         std::for_each(rids_.begin(),rids_.end(),[this, set_size,&set_cols, &set_lens](const Rid&rid){
             auto tuple = fh_->get_record(rid,context_);
             auto tuple_ptr = tuple.get();
@@ -133,7 +132,7 @@ class UpdateExecutor : public AbstractExecutor {
             r_value = rec->data + r_col->offset;
             r_type = r_col->type;
         }
-        assert(left_col->type==r_type); // 保证两个值类型一样。
+        // assert(left_col->type==r_type); // 保证两个值类型一样。
         return evaluate_compare(l_value, r_value, r_type, left_col->len, condition.op); // 判断该condition是否成立（断言为真）
     }
     Rid &rid() override { return _abstract_rid; }

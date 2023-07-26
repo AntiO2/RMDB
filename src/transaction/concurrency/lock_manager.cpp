@@ -163,12 +163,18 @@ auto LockManager::HandleLockRequest(
   txn->set_state(TransactionState::GROWING);
   for (auto &request : lock_request_queue->request_queue_) {
     if(request->granted_) {
-      if(request->txn_id_ < txn_id &&!CheckCompatible(request->lock_mode_,lock_mode)) {
-        // 采用wait-die策略
-        txn->set_state(TransactionState::ABORTED);
-        lock_request_queue->latch_.unlock();
-        throw TransactionAbortException(txn->get_transaction_id(),AbortReason::DEADLOCK_PREVENTION);
-      }
+//      if(request->txn_id_ < txn_id &&!CheckCompatible(request->lock_mode_,lock_mode)) {
+//        // 采用wait-die策略
+//        txn->set_state(TransactionState::ABORTED);
+//        lock_request_queue->latch_.unlock();
+//        throw TransactionAbortException(txn->get_transaction_id(),AbortReason::DEADLOCK_PREVENTION);
+//      }
+        if(request->txn_id_ != txn_id &&!CheckCompatible(request->lock_mode_,lock_mode)) {
+          // 采用no-wait策略
+          txn->set_state(TransactionState::ABORTED);
+          lock_request_queue->latch_.unlock();
+          throw TransactionAbortException(txn->get_transaction_id(),AbortReason::DEADLOCK_PREVENTION);
+        }
     }
     if (request->txn_id_ == txn_id) {
       // 找到了之前该事务的请求 已加锁或是升级
@@ -255,8 +261,6 @@ auto LockManager::HandleLockRequest(
     lock_request_queue->cv_
         .notify_all();  // 这里的if是个小优化，因为对于X锁，通知了其他线程也没有用，它们是无法满足得到锁的条件的。
   }
-  // LOG_DEBUG("Txn: %d Get Lock %s On %d", txn->GetTransactionId(), LockString(lock_mode, lock_object).c_str(), oid);
-
   return true;
 }
 auto LockManager::HandleUnlockRequest(

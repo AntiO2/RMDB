@@ -1,7 +1,7 @@
 include(GoogleTest)
 include_directories(${PROJECT_SOURCE_DIR}/src)
 include_directories(${PROJECT_SOURCE_DIR}/deps/fmt/include)
-
+add_subdirectory(concurrency_test)
 #set(test_dependency
 #        gtest_main
 #        )

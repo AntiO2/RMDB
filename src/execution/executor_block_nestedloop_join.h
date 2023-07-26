@@ -36,17 +36,17 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
     BufferPoolManager* bpm_;
 
     std::vector<Page*> right_buffer_pages_; // inner_page的页。
-    int right_buffer_page_cnt_{0}; // left_page中有多少页有效？
+    int right_buffer_page_cnt_{0}; // right_page中有多少页有效？
     std::vector<Page*> left_buffer_pages_; // outer_page的页。
     int left_buffer_page_cnt_{0}; // left_page中有多少页有效？
 
     int left_buffer_page_iter_; // 指示当前在查找哪个 缓冲池中的left page
     int left_buffer_page_inner_iter_; // 指示当前在查找 缓冲池中的left page中的slot编号
-    int right_buffer_page_iter_; // 指示当前在查找哪个 缓冲池中的left page
+    int right_buffer_page_iter_; // 指示当前在查找哪个 缓冲池中的right page
     int right_buffer_page_inner_iter_;
 
-    int left_num_per_page_; // // 每页最多可以存放多少个左侧记录。
-    int right_num_per_page_; // // 每页最多可以存放多少个右侧记录。
+    int left_num_per_page_; // 每页最多可以存放多少个左侧记录。
+    int right_num_per_page_; // 每页最多可以存放多少个右侧记录。
 
 
     std::unordered_map<PageId, int> left_num_now_; // buffer中，page含有的left_num数量
@@ -56,7 +56,7 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
     bool left_over{false}; // 左侧记录是否已经全部进入过buffer_pool_size
     bool right_over{false}; // 右侧记录是否已经遍历完？ 注意，right_over不一定等于right_.is_end_!
 
-    std::unique_ptr<RmRecord> emit_record_;
+    RmRecord join_record;
 
    public:
     BlockNestedLoopJoinExecutor(std::unique_ptr<AbstractExecutor> left, std::unique_ptr<AbstractExecutor> right,
@@ -72,7 +72,7 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
         right_num_per_page_ = PAGE_SIZE/right_len_;
 
         len_ = left_len_ + right_len_;
-
+        join_record = RmRecord(len_);
         cols_ = left_->cols();
         auto right_cols = right_->cols();
         for (auto &col : right_cols) {
@@ -118,17 +118,15 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
                     auto left_page = left_buffer_pages_[left_buffer_page_iter_];
                     left_num_now_inner_ = left_num_now_.find(left_page->get_page_id())->second;
                     while(left_buffer_page_inner_iter_ < left_num_now_inner_) {
-                        RmRecord rm(len_);
-                        memcpy(rm.data, left_page->get_data() + left_buffer_page_inner_iter_*left_len_,left_len_);
+                        memcpy(join_record.data, left_page->get_data() + left_buffer_page_inner_iter_*left_len_,left_len_);
                         while(right_buffer_page_iter_ < right_buffer_page_cnt_) {
                           auto right_page = right_buffer_pages_[right_buffer_page_iter_];
                           right_num_now_inner_ = right_num_now_.find(right_page->get_page_id())->second;
                           while(right_buffer_page_inner_iter_ < right_num_now_inner_) {
-                            memcpy(rm.data+left_len_, right_page->get_data() + right_buffer_page_inner_iter_*right_len_,
+                            memcpy(join_record.data+left_len_, right_page->get_data() + right_buffer_page_inner_iter_*right_len_,
                                    right_len_);
                             right_buffer_page_inner_iter_++;
-                            if(CheckConditions(rm.data)) {
-                              emit_record_ = std::make_unique<RmRecord>(rm);
+                            if(CheckConditions(join_record.data)) {
                               return;
                             }
                             }
@@ -222,7 +220,7 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
         if(is_end_) {
             return nullptr;
         }
-        return std::move(emit_record_);
+        return std::make_unique<RmRecord>(join_record);
     }
 
     Rid &rid() override { return _abstract_rid; }

@@ -21,7 +21,20 @@ See the Mulan PSL v2 for more details. */
  */
 bool LockManager::lock_shared_on_record(Transaction* txn, const Rid& rid, int tab_fd) {
 
-  assert(false); // 只用表锁
+  std::unique_lock<std::mutex> lock(latch_);
+  if(txn->get_state()==TransactionState::SHRINKING) {
+    txn->set_state(TransactionState::ABORTED);
+    // 如果在收缩阶段加锁，抛出异常
+    throw TransactionAbortException(txn->get_transaction_id(),AbortReason::LOCK_ON_SHRINKING);
+  }
+  LockDataId lock_data = LockDataId(tab_fd, rid, LockDataType::RECORD); // 获取要加锁的item
+  auto lock_request_queue_iter = lock_table_.find(lock_data); // 检查在该lock item上是否已经有队列
+  if(lock_request_queue_iter==lock_table_.end()) {
+    lock_request_queue_iter = lock_table_.emplace(lock_data,std::make_shared<LockRequestQueue>()).first;
+  }
+  auto lock_request_queue = lock_request_queue_iter->second;
+
+  return HandleLockRequest(txn,tab_fd,lock_request_queue,LockMode::SHARED, LockObject::ROW,&rid);
 
 }
 
@@ -33,14 +46,21 @@ bool LockManager::lock_shared_on_record(Transaction* txn, const Rid& rid, int ta
  * @param {int} tab_fd 记录所在的表的fd
  */
 bool LockManager::lock_exclusive_on_record(Transaction* txn, const Rid& rid, int tab_fd) {
-  assert(false);
+  // assert(false);
   std::unique_lock<std::mutex> lock(latch_);
   if(txn->get_state()==TransactionState::SHRINKING) {
     txn->set_state(TransactionState::ABORTED);
     // 如果在收缩阶段加锁，抛出异常
     throw TransactionAbortException(txn->get_transaction_id(),AbortReason::LOCK_ON_SHRINKING);
   }
-  return true;
+  LockDataId lock_data = LockDataId(tab_fd, rid, LockDataType::RECORD); // 获取要加锁的item
+  auto lock_request_queue_iter = lock_table_.find(lock_data); // 检查在该lock item上是否已经有队列
+  if(lock_request_queue_iter==lock_table_.end()) {
+    lock_request_queue_iter = lock_table_.emplace(lock_data,std::make_shared<LockRequestQueue>()).first;
+  }
+  auto lock_request_queue = lock_request_queue_iter->second;
+
+  return HandleLockRequest(txn,tab_fd,lock_request_queue,LockMode::EXCLUSIVE,LockObject::ROW,&rid);
 }
 
 /**
@@ -299,7 +319,7 @@ auto LockManager::HandleUnlockRequest(
           }
           if ((*it)->lock_mode_ == LockMode::SHARED) {
             txn->set_state(TransactionState::ABORTED);
-            assert(false); // uncommitted 不会加s锁
+            // assert(false); // uncommitted 不会加s锁
           }
           break;
         }

@@ -24,7 +24,7 @@ Transaction * TransactionManager::begin(Transaction* txn, LogManager* log_manage
     // 1. 判断传入事务参数是否为空指针
     // 2. 如果为空指针，创建新事务
     if(txn== nullptr) {
-      txn = new Transaction(next_txn_id_);
+      txn = new Transaction(next_txn_id_++);
     }
     // 3. 把开始事务加入到全局事务表中
     txn_map[txn->get_transaction_id()] = txn;
@@ -49,10 +49,7 @@ void TransactionManager::commit(Transaction* txn, LogManager* log_manager) {
       write_set->pop_front();
     }
     // 2. 释放所有锁
-    auto lock_set = txn->get_lock_set();
-    for(auto&lock: *lock_set) {
-      lock_manager_->unlock(txn,lock);
-    }
+    ReleaseLocks(txn);
     // 3. 释放事务相关资源，eg.锁集
     for(auto& write:*txn->get_write_set()) {
       delete write;
@@ -127,15 +124,25 @@ void TransactionManager::abort(Transaction * txn, LogManager *log_manager) {
     }
     write_set->clear();
     // 2. 释放所有锁
-    auto lock_set = txn->get_lock_set();
-    for(auto&lock: *lock_set) {
-      lock_manager_->unlock(txn,lock);
-    }
-    lock_set->clear();
+    ReleaseLocks(txn);
     // 3. 清空事务相关资源，eg.锁集
     txn->get_index_latch_page_set()->clear();
     txn->get_index_deleted_page_set()->clear();
     // 4. 把事务日志刷入磁盘中
     // 5. 更新事务状态
     txn->set_state(TransactionState::ABORTED);
+}
+auto TransactionManager::ReleaseLocks(Transaction *txn) -> void {
+  auto lock_set = txn->getLockSet();
+//  for(auto lock:*lock_set) {
+//    lock_manager_->unlock(txn,lock); // 这种写法是错的，因为unlock操作会改变lock_set
+//  }
+  std::vector<LockDataId> lock_list;
+    for(auto lock:*lock_set) {
+      lock_list.emplace_back(lock);
+    }
+    for(auto lock:lock_list) {
+      lock_manager_->unlock(txn,lock);
+    }
+    lock_set->clear();
 }

@@ -52,9 +52,9 @@ class UpdateExecutor : public AbstractExecutor {
 
 
     std::unique_ptr<RmRecord> Next() override {
-      if(context_->txn_->get_isolation_level()==IsolationLevel::SERIALIZABLE) {
-        context_->lock_mgr_->lock_exclusive_on_table(context_->txn_,fh_->GetFd());
-      }
+//      if(context_->txn_->get_isolation_level()==IsolationLevel::SERIALIZABLE) {
+//        context_->lock_mgr_->lock_exclusive_on_table(context_->txn_,fh_->GetFd());
+//      }
         std::vector<int> set_cols; // 需要被设置的cols offset
         std::vector<int> set_lens;
         auto set_size = set_clauses_.size();

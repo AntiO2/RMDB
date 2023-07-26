@@ -51,9 +51,9 @@ void TransactionManager::commit(Transaction* txn, LogManager* log_manager) {
     // 2. 释放所有锁
     ReleaseLocks(txn);
     // 3. 释放事务相关资源，eg.锁集
-    for(auto& write:*txn->get_write_set()) {
-      delete write;
-    }
+//    for(auto& write:*txn->get_write_set()) {
+//      delete write;
+//    }
     txn->get_write_set()->clear();
     txn->get_lock_set()->clear();
     // 4. 把事务日志刷入磁盘中

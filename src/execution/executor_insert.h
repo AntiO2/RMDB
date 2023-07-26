@@ -53,6 +53,10 @@ class InsertExecutor : public AbstractExecutor {
     };
 
     std::unique_ptr<RmRecord> Next() override {
+      if(context_->txn_->get_isolation_level()==IsolationLevel::SERIALIZABLE) {
+        context_->lock_mgr_->lock_exclusive_on_table(context_->txn_,fh_->GetFd());
+        // check(AntiO2) 是否需要catch异常？
+      }
         // Make record buffer
         RmRecord rec(fh_->get_file_hdr().record_size);
         for (size_t i = 0; i < values_.size(); i++) {

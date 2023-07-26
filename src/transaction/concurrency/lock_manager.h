@@ -14,6 +14,7 @@ See the Mulan PSL v2 for more details. */
 #include <condition_variable>
 #include "transaction/transaction.h"
 #include "common/rwlatch.h"
+#include "logger.h"
 static const std::string GroupLockModeStr[10] = {"NON_LOCK", "IS", "IX", "S", "X", "SIX"};
 
 class LockManager {
@@ -92,4 +93,12 @@ private:
     auto ModifyRowLockSet(Transaction *txn,
                           const std::shared_ptr<std::unordered_map<int, std::unordered_set<Rid,RidHash>>> &row_lock_set,
                           const int tab_fd, const Rid *rid, ModifyMode modifyMode) -> void;
+
+    /**
+     * 检查兼容性矩阵
+     * @param old_lock
+     * @param new_lock
+     * @return
+     */
+    auto CheckCompatible(LockMode old_lock, LockMode new_lock) -> bool;
 };

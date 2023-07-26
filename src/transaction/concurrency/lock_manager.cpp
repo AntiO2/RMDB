@@ -83,7 +83,6 @@ bool LockManager::lock_shared_on_table(Transaction* txn, int tab_fd) {
     lock_request_queue_iter = lock_table_.emplace(lock_data,std::make_shared<LockRequestQueue>()).first;
   }
   auto lock_request_queue = lock_request_queue_iter->second;
-  // check(AntiO2)
   return HandleLockRequest(txn, tab_fd, lock_request_queue, LockMode::SHARED,LockObject::TABLE);
 }
 
@@ -106,7 +105,6 @@ bool LockManager::lock_exclusive_on_table(Transaction* txn, int tab_fd) {
     lock_request_queue_iter = lock_table_.emplace(lock_data,std::make_shared<LockRequestQueue>()).first;
   }
   auto lock_request_queue = lock_request_queue_iter->second;
-  // check(AntiO2)
   return HandleLockRequest(txn, tab_fd, lock_request_queue, LockMode::EXCLUSIVE,LockObject::TABLE);
 }
 
@@ -251,6 +249,7 @@ auto LockManager::HandleLockRequest(
       }
       // 获得锁
       lock_request_queue->upgrading_ = INVALID_TXN_ID;
+      txn->set_state(TransactionState::GROWING);
       upgrade_request->granted_ = true;
       // 为事务添加锁
       ModifyLockSet(txn, tab_fd, lock_mode, lock_object, ModifyMode::ADD, rid);
@@ -275,6 +274,7 @@ auto LockManager::HandleLockRequest(
     }
   }
   // 获取锁
+  txn->set_state(TransactionState::GROWING);
   new_request->granted_ = true;
   ModifyLockSet(txn, tab_fd, lock_mode, lock_object, ModifyMode::ADD, rid);
   if (lock_mode != LockMode::EXCLUSIVE) {

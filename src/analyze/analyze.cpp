@@ -103,6 +103,38 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
                 num.set_bigint(value.int_val);
                 query->values.push_back(num);
             }
+            else if(value.type != all_cols[i].type){
+                if(all_cols[i].type == TYPE_FLOAT)
+                {
+                    //int转float
+                    if(value.type == TYPE_INT) {
+                        auto num = static_cast<float>(value.int_val);
+                        value.int_val= 0;
+                        value.set_float(num);
+                        query->values.push_back(value);
+                    }
+                    else if(value.type == TYPE_STRING){
+                        float num = std::stof(value.str_val);
+                        value.set_float(num);
+                        query->values.push_back(value);
+                    }
+                }
+                else if(all_cols[i].type == TYPE_INT)
+                {
+                    //float转int
+                    if(value.type == TYPE_FLOAT){
+                        int num = static_cast<int>(value.float_val);
+                        value.float_val = 0;
+                        value.set_int(num);
+                        query->values.push_back(value);
+                    }
+                    else if(value.type == TYPE_STRING){
+                        int num = std::stoi(value.str_val);
+                        value.set_int(num);
+                        query->values.push_back(value);
+                    }
+                }
+            }
             else
                 query->values.push_back(value);
         }

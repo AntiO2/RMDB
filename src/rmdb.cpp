@@ -153,8 +153,10 @@ void *client_handler(void *sock_fd) {
                     outfile.close();
                 }
                 catch (RMDBError &e) {//排除掉IncompatibleTypeError类型
-                    if(dynamic_cast<TableNotFoundError*>(&e) == nullptr && dynamic_cast<RecordNotFoundError*>(&e) == nullptr
-                    &&dynamic_cast<PageNotExistError*>(&e) == nullptr && dynamic_cast<TableExistsError*>(&e) == nullptr
+                    if(dynamic_cast<InvalidValueCountError*>(&e) == nullptr && dynamic_cast<InvalidColLengthError*>(&e) == nullptr
+                        &&dynamic_cast<InvalidRecordSizeError*>(&e) == nullptr && dynamic_cast<InternalError*>(&e) == nullptr
+                        &&dynamic_cast<FileNotClosedError*>(&e) == nullptr && dynamic_cast<FileNotFoundError*>(&e) == nullptr
+                        && dynamic_cast<FileExistsError*>(&e) == nullptr && dynamic_cast<FileNotOpenError*>(&e) == nullptr
                     ) {//测试排除类型匹配错误
                         // 遇到异常，需要打印failure到output.txt文件中，并发异常信息返回给客户端
                         std::cerr << e.what() << std::endl;

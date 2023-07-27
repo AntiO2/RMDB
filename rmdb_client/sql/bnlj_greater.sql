@@ -24690,4 +24690,4 @@ insert into t2 values(4,'');
 insert into t2 values(3,'');
 insert into t2 values(2,'');
 insert into t2 values(1,'');
-select * from t1,t2 where t1.id  = t2.id order by t1.id DESC;
+select * from t1,t2 where t1.id  = t2.id order by t1.id;

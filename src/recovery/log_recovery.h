@@ -25,8 +25,8 @@ public:
 
 class RecoveryManager {
 public:
-    RecoveryManager(DiskManager* disk_manager, BufferPoolManager* buffer_pool_manager, SmManager* sm_manager):
-     disk_manager_(disk_manager), log_manager_(disk_manager){
+    RecoveryManager(DiskManager* disk_manager, BufferPoolManager* buffer_pool_manager, SmManager* sm_manager) {
+        disk_manager_ = disk_manager;
         buffer_pool_manager_ = buffer_pool_manager;
         sm_manager_ = sm_manager;
     }
@@ -35,12 +35,8 @@ public:
     void redo();
     void undo();
 private:
+    LogBuffer buffer_;                                              // 读入日志
     DiskManager* disk_manager_;                                     // 用来读写文件
     BufferPoolManager* buffer_pool_manager_;                        // 对页面进行读写
     SmManager* sm_manager_;                                         // 访问数据库元数据
-    LogManager log_manager_;
-    // 构建脏页表
-    std::unordered_map<PageId , RedoLogsInPage> dirty_page_table;
-    std::unordered_set<txn_id_t> active_txns_;
-    std::unordered_map<txn_id_t,lsn_t> last_lsn_;
 };

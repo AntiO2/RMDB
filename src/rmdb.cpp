@@ -153,23 +153,23 @@ void *client_handler(void *sock_fd) {
                     outfile.close();
                 }
                 catch (RMDBError &e) {//排除掉IncompatibleTypeError类型
-                    if(dynamic_cast<IncompatibleTypeError*>(&e) == nullptr) {//测试排除类型匹配错误
-                        // 遇到异常，需要打印failure到output.txt文件中，并发异常信息返回给客户端
-                        std::cerr << e.what() << std::endl;
-
-                        memcpy(data_send, e.what(), e.get_msg_len());
-                        data_send[e.get_msg_len()] = '\n';
-                        data_send[e.get_msg_len() + 1] = '\0';
-                        offset = e.get_msg_len() + 1;
-
-                        // 将报错信息写入output.txt
-                        std::fstream outfile;
-                        outfile.open("output.txt", std::ios::out | std::ios::app);
-                        outfile << "failure\n";
-                        outfile.close();
-                    }else {
+//                    if(dynamic_cast<IncompatibleTypeError*>(&e) == nullptr) {//测试排除类型匹配错误
+//                        // 遇到异常，需要打印failure到output.txt文件中，并发异常信息返回给客户端
+//                        std::cerr << e.what() << std::endl;
+//
+//                        memcpy(data_send, e.what(), e.get_msg_len());
+//                        data_send[e.get_msg_len()] = '\n';
+//                        data_send[e.get_msg_len() + 1] = '\0';
+//                        offset = e.get_msg_len() + 1;
+//
+//                        // 将报错信息写入output.txt
+//                        std::fstream outfile;
+//                        outfile.open("output.txt", std::ios::out | std::ios::app);
+//                        outfile << "failure\n";
+//                        outfile.close();
+//                    }else {
                         throw e;
-                    }
+//                    }
                 }
             }
         }

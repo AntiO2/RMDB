@@ -94,5 +94,4 @@ private:
     int pin_count_ = 0;
     RWLatch latch_;
 
-    std::vector<>
 };

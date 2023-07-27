@@ -39,4 +39,8 @@ private:
     BufferPoolManager* buffer_pool_manager_;                        // 对页面进行读写
     SmManager* sm_manager_;                                         // 访问数据库元数据
     LogManager log_manager_;
+    // 构建脏页表
+    std::unordered_map<PageId , RedoLogsInPage> dirty_page_table;
+    std::unordered_set<txn_id_t> active_txns_;
+    std::unordered_map<txn_id_t,lsn_t> last_lsn_;
 };

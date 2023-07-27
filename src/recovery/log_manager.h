@@ -24,7 +24,7 @@ enum LogType: int {
     DELETE,
     begin,
     commit,
-    ABORT
+    ABORT,
 };
 static std::string LogTypeStr[] = {
     "UPDATE",
@@ -456,10 +456,18 @@ public:
     
     lsn_t add_log_to_buffer(LogRecord* log_record);
     void flush_log_to_disk();
-
+    bool flush_log_buffer() {
+       auto read_size =  disk_manager_->read_log(log_buffer_.buffer_,LOG_BUFFER_SIZE, current_offset_);
+       if(read_size <= 0 ) {
+           return false;
+       }
+       current_offset_+=read_size;
+       return true;
+       log_buffer_.offset_ = 0;
+    }
     LogBuffer* get_log_buffer() {
-        disk_manager_->read_log();
-        return &log_buffer_; }
+        return &log_buffer_;
+    }
 
 private:    
     std::atomic<lsn_t> global_lsn_{0};  // 全局lsn，递增，用于为每条记录分发lsn
@@ -467,4 +475,5 @@ private:
     LogBuffer log_buffer_;              // 日志缓冲区
     lsn_t persist_lsn_;                 // 记录已经持久化到磁盘中的最后一条日志的日志号
     DiskManager* disk_manager_;
+    int current_offset_; // 当前在log文件中的偏移量
 }; 

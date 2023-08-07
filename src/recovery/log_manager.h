@@ -325,7 +325,7 @@ public:
         prev_lsn_ = INVALID_LSN;
         table_name_ = nullptr;
     }
-    DeleteLogRecord(txn_id_t txn_id, RmRecord& delete_value, Rid& rid, const std::string& table_name, lsn_t prev_lsn)
+    DeleteLogRecord(txn_id_t txn_id, RmRecord& delete_value,const Rid& rid, const std::string& table_name, lsn_t prev_lsn)
 
             : DeleteLogRecord() {
         prev_lsn_ = prev_lsn;
@@ -394,7 +394,7 @@ public:
         prev_lsn_ = INVALID_LSN;
         table_name_ = nullptr;
     }
-    UpdateLogRecord(txn_id_t txn_id, RmRecord& before_update_value, RmRecord& after_update_value, Rid& rid, const std::string& table_name, lsn_t prev_lsn)
+    UpdateLogRecord(txn_id_t txn_id, RmRecord& before_update_value, RmRecord& after_update_value,const Rid& rid, const std::string& table_name, lsn_t prev_lsn)
             : UpdateLogRecord() {
         log_tid_ = txn_id;
         before_update_value_ = before_update_value;
@@ -680,6 +680,7 @@ public:
     void set_global_lsn(lsn_t lsn) {
         global_lsn_ = lsn;
     }
+
 private:    
     std::atomic<lsn_t> global_lsn_{0};  // 全局lsn，递增，用于为每条记录分发lsn
     std::mutex latch_;                  // 用于对log_buffer_的互斥访问
@@ -687,5 +688,7 @@ private:
     lsn_t flushed_lsn_;                 // 记录已经持久化到磁盘中的最后一条日志的日志号
     DiskManager* disk_manager_;
     int current_offset_; // 当前在log文件中的偏移量
-    dirty_page_table_t  dpt_;
+public:
+    dirty_page_table_t dirty_page_table_;
+    active_txn_table_t active_txn_table_;
 };

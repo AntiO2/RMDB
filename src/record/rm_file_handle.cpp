@@ -41,7 +41,7 @@ std::unique_ptr<RmRecord> RmFileHandle::get_record(const Rid& rid, Context* cont
  * @param {Context*} context
  * @return {Rid} 插入的记录的记录号（位置）
  */
-Rid RmFileHandle::insert_record(char* buf, Context* context) {
+Rid RmFileHandle::insert_record(char* buf, Context* context, std::string* table_name) {
     // Todo:
     // 1. 获取当前未满的page handle
     // 2. 在page handle中找到空闲slot位置
@@ -57,6 +57,18 @@ Rid RmFileHandle::insert_record(char* buf, Context* context) {
     Bitmap::set(pageHandle.bitmap,slot_no);
     char* addr_slot = pageHandle.get_slot(slot_no);
 
+    RmRecord insert_value(file_hdr_.record_size, buf);
+
+    auto rid =  Rid{pageHandle.page->get_page_id().page_no, slot_no};
+    InsertLogRecord insertLogRecord(context->txn_->getTxnId(),insert_value,rid,*table_name,context->txn_->getTxnId());
+    auto log_mgr = context->log_mgr_;
+    log_mgr->add_log_to_buffer(&insertLogRecord);
+    context->txn_->set_prev_lsn(insertLogRecord.lsn_);
+    log_mgr->active_txn_table_[context->txn_->getTxnId()] = insertLogRecord.lsn_;
+    auto page_id = PageId{fd_,rid.page_no};
+    if(log_mgr->dirty_page_table_.find(PageId{fd_,rid.page_no})==log_mgr->dirty_page_table_.end()) {
+        log_mgr->dirty_page_table_.emplace(page_id,insertLogRecord.lsn_);
+    }
     // 3. 将buf复制到空闲slot位置
     memcpy(addr_slot,buf,pageHandle.file_hdr->record_size);
 
@@ -68,10 +80,11 @@ Rid RmFileHandle::insert_record(char* buf, Context* context) {
         //next_free_page_no怎么更新? v不更新了，等create_page_handle()自己调
         file_hdr_.first_free_page_no = pageHandle.page_hdr->next_free_page_no;
     }
+    pageHandle.page->set_page_lsn(insertLogRecord.lsn_);
     //该页面结束使用，取消对该页面的固定,并标记为dirty
     buffer_pool_manager_->unpin_page(pageHandle.page->get_page_id(),true);
 
-    return Rid{pageHandle.page->get_page_id().page_no, slot_no};
+    return rid;
 }
 
 /**
@@ -108,7 +121,7 @@ void RmFileHandle::insert_record(const Rid& rid, char* buf, lsn_t lsn) {
  * @param {Rid&} rid 要删除的记录的记录号（位置）
  * @param {Context*} context
  */
-void RmFileHandle::delete_record(const Rid& rid, Context* context) {
+void RmFileHandle::delete_record(const Rid& rid, Context* context, std::string* table_name) {
     // Todo: v
     // 1. 获取指定记录所在的page handle
     // 2. 更新page_handle.page_hdr中的数据结构
@@ -120,14 +133,29 @@ void RmFileHandle::delete_record(const Rid& rid, Context* context) {
     //位图判断及更新
     if(!Bitmap::is_set(pageHandle.bitmap,rid.slot_no))
         throw RecordNotFoundError(rid.page_no,rid.slot_no);
-    Bitmap::reset(pageHandle.bitmap,rid.slot_no);
+    char* addr_slot = pageHandle.get_slot(rid.slot_no);
+    RmRecord delete_value(file_hdr_.record_size, addr_slot);
 
+    auto txn = context->txn_;
+    auto log_mgr = context->log_mgr_;
+    auto page_id = PageId{fd_,rid.page_no};
+    DeleteLogRecord deleteLogRecord(txn->getTxnId(), delete_value, rid, *table_name, txn->getPrevLsn());
+
+    log_mgr->add_log_to_buffer(&deleteLogRecord);
+    txn->set_prev_lsn(deleteLogRecord.lsn_);
+    log_mgr->active_txn_table_[txn->getTxnId()] = deleteLogRecord.lsn_;
+    if(log_mgr->dirty_page_table_.find(PageId{fd_,rid.page_no})==log_mgr->dirty_page_table_.end()) {
+        log_mgr->dirty_page_table_.emplace(page_id,deleteLogRecord.lsn_);
+    }
+
+    Bitmap::reset(pageHandle.bitmap,rid.slot_no);
     // 2. 更新page_handle.page_hdr中的数据结构
     pageHandle.page_hdr->num_records--;
 
     if(pageHandle.page_hdr->num_records == 0) {
         release_page_handle(pageHandle);
     }
+    pageHandle.page->set_page_lsn(deleteLogRecord.lsn_);
     buffer_pool_manager_->unpin_page(PageId{fd_, rid.page_no}, true);
 }
 
@@ -161,7 +189,7 @@ void RmFileHandle::delete_record(const Rid& rid,lsn_t lsn) {
  * @param {char*} buf 新记录的数据
  * @param {Context*} context
  */
-void RmFileHandle::update_record(const Rid& rid, char* buf, Context* context) {
+void RmFileHandle::update_record(const Rid& rid, char* buf, Context* context, std::string* table_name) {
 
     // 1. 获取指定记录所在的page handle
     // 2. 更新记录
@@ -174,10 +202,28 @@ void RmFileHandle::update_record(const Rid& rid, char* buf, Context* context) {
         throw RecordNotFoundError(rid.page_no, rid.slot_no);
     }
     // 2. 更新记录
-    char* addr_slot = pageHandle.get_slot(rid.slot_no);
-    memcpy(addr_slot,buf,pageHandle.file_hdr->record_size);
 
-    // Todo: 是否需要更新txn的lastlsn
+    char* addr_slot = pageHandle.get_slot(rid.slot_no);
+    auto size = pageHandle.file_hdr->record_size;
+    RmRecord before_value(size, addr_slot);
+    RmRecord after_value(size, buf);
+
+    auto tid = context->txn_->getTxnId();
+    UpdateLogRecord updateLogRecord(tid,before_value,after_value,rid, *table_name,context->txn_->getPrevLsn());
+    // context->log_mgr_->active_txn_table_[context->txn_->getTxnId()];
+    auto log_mgr = context->log_mgr_;
+    log_mgr->add_log_to_buffer(&updateLogRecord);
+    context->txn_->set_prev_lsn(updateLogRecord.lsn_);
+    log_mgr->active_txn_table_[tid] = updateLogRecord.lsn_; // 维护att中的last lsn
+    auto page_id = PageId{fd_,rid.page_no};
+    auto table_iter = log_mgr->dirty_page_table_.find(page_id);
+    if(table_iter==log_mgr->dirty_page_table_.end()) {
+        // 维护rec lsn
+        log_mgr->dirty_page_table_.emplace(page_id,updateLogRecord.lsn_);
+    }
+
+    memcpy(addr_slot,buf,size);
+    pageHandle.page->set_page_lsn(updateLogRecord.lsn_);
     buffer_pool_manager_->unpin_page(PageId{fd_,rid.page_no}, true);
 }
 /**

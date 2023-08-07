@@ -58,13 +58,14 @@ class DeleteExecutor : public AbstractExecutor {
             auto tuple_ptr = tuple.get();
             if(CheckConditions(tuple_ptr,conds_)) {
                 // 如果满足条件
-                fh_->delete_record(rid,context_);
+
                 auto index_size = index_handlers.size();
                 for(size_t i = 0; i < index_size;i++) {
                     index_handlers.at(i)->delete_entry(tuple->key_from_rec(tab_.indexes.at(i).cols)->data, context_->txn_);
                 }
+                fh_->delete_record(rid,context_,&tab_name_);
                 RmRecord delete_record(*tuple);
-                WriteRecord* writeRecord = new WriteRecord(WType::DELETE_TUPLE,tab_name_,rid,delete_record);
+                auto* writeRecord = new WriteRecord(WType::DELETE_TUPLE,tab_name_,rid,delete_record);
                 context_->txn_->append_write_record(writeRecord);
             }
       });

@@ -73,13 +73,11 @@ class RmFileHandle {
 
     std::unique_ptr<RmRecord> get_record(const Rid &rid, Context *context) const;
 
-    Rid insert_record(char *buf, Context *context);
-
+    Rid insert_record(char *buf, Context *context, std::string* table_name= nullptr);
     void insert_record(const Rid &rid, char *buf, lsn_t lsn);
-
-    void delete_record(const Rid &rid, Context *context);
+    void delete_record(const Rid &rid, Context *context, std::string* table_name= nullptr);
     void delete_record(const Rid &rid,lsn_t lsn);
-    void update_record(const Rid &rid, char *buf, Context *context);
+    void update_record(const Rid &rid, char *buf, Context *context, std::string* table_name= nullptr);
     void update_record(const Rid &rid, char *buf, lsn_t lsn);
 
     RmPageHandle create_new_page_handle();

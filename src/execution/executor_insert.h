@@ -68,8 +68,6 @@ class InsertExecutor : public AbstractExecutor {
             // 将Value数据存入rec中。
             memcpy(rec.data + col.offset, val.raw->data, col.len);
         }
-        // Insert into record file
-        rid_ = fh_->insert_record(rec.data, context_);
         // Insert into index
         for(size_t i = 0; i < tab_.indexes.size(); ++i) {
             auto& index = tab_.indexes[i];
@@ -86,11 +84,12 @@ class InsertExecutor : public AbstractExecutor {
                 for(int j = 0;j < i;j++) {
                     index_handlers.at(i)->delete_entry(key,context_->txn_);
                 }
-                fh_->delete_record(rid_,context_);
                 throw std::move(e);
             }
         }
-        WriteRecord* writeRecord = new WriteRecord(WType::INSERT_TUPLE,tab_name_,rid_);
+        // Insert into record file
+        rid_ = fh_->insert_record(rec.data, context_,&tab_name_);
+        auto* writeRecord = new WriteRecord(WType::INSERT_TUPLE,tab_name_,rid_);
         context_->txn_->append_write_record(writeRecord);
         return nullptr;
     }

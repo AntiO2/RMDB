@@ -436,7 +436,6 @@ auto LockManager::CheckUpgrade(LockManager::LockMode old_lock,
   return false;
 }
 auto LockManager::CheckGrant(
-    // TODO no-wait检测
     const std::shared_ptr<LockRequest> &checked_request,
     const std::shared_ptr<LockRequestQueue> &request_queue) -> bool {
   const auto &lock_mode = checked_request->lock_mode_;

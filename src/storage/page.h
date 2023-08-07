@@ -12,6 +12,8 @@ See the Mulan PSL v2 for more details. */
 
 #include "common/config.h"
 #include "common/rwlatch.h"
+
+
 /**
  * @description: 存储层每个Page的id的声明
  */
@@ -95,3 +97,15 @@ private:
     RWLatch latch_;
 
 };
+
+/**
+ * dirty_page_table_t 脏页表
+ * @Value PageId
+ * @Key reclsn 第一个修改该页的lsn
+ */
+using dirty_page_table_t = std::unordered_map<PageId, lsn_t>;
+/**
+ *
+ *
+ */
+using active_txn_table_t = std::unordered_map<txn_id_t, lsn_t>;

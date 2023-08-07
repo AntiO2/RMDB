@@ -32,12 +32,15 @@ class SmManager {
     DbMeta db_;             // 当前打开的数据库的元数据
     std::unordered_map<std::string, std::unique_ptr<RmFileHandle>> fhs_;    // file name -> record file handle, 当前数据库中每张表的数据文件
     std::unordered_map<std::string, std::unique_ptr<IxIndexHandle>> ihs_;   // file name -> index file handle, 当前数据库中每个索引的文件
+    lsn_t master_record_begin_;
+    lsn_t master_record_end_; // 最后一个checkpoint end
    private:
     DiskManager* disk_manager_;
     BufferPoolManager* buffer_pool_manager_;
     RmManager* rm_manager_;
     IxManager* ix_manager_;
 
+    int master_record_offset_{INVALID_OFFSET}; // 最后一个Check Begin
    public:
     SmManager(DiskManager* disk_manager, BufferPoolManager* buffer_pool_manager, RmManager* rm_manager,
               IxManager* ix_manager)

@@ -79,7 +79,7 @@ Rid RmFileHandle::insert_record(char* buf, Context* context) {
  * @param {Rid&} rid 要插入记录的位置
  * @param {char*} buf 要插入记录的数据
  */
-void RmFileHandle::insert_record(const Rid& rid, char* buf) {
+void RmFileHandle::insert_record(const Rid& rid, char* buf, lsn_t lsn) {
     //1. 拿到pageHandle
     RmPageHandle pageHandle = fetch_page_handle(rid.page_no);
 
@@ -96,6 +96,9 @@ void RmFileHandle::insert_record(const Rid& rid, char* buf) {
         //next_free_page_no怎么更新? v不更新了，等create_page_handle()自己调
         file_hdr_.first_free_page_no = pageHandle.page_hdr->next_free_page_no;
     }
+
+    pageHandle.page->set_page_lsn(lsn);
+
     //该页面结束使用，取消对该页面的固定,并标记为dirty
     buffer_pool_manager_->unpin_page(pageHandle.page->get_page_id(),true);
 }
@@ -121,10 +124,36 @@ void RmFileHandle::delete_record(const Rid& rid, Context* context) {
 
     // 2. 更新page_handle.page_hdr中的数据结构
     pageHandle.page_hdr->num_records--;
-    if(pageHandle.page_hdr->num_records == 0)
+
+    if(pageHandle.page_hdr->num_records == 0) {
         release_page_handle(pageHandle);
+    }
+    buffer_pool_manager_->unpin_page(PageId{fd_, rid.page_no}, true);
 }
 
+void RmFileHandle::delete_record(const Rid& rid,lsn_t lsn) {
+    // Todo: v
+    // 1. 获取指定记录所在的page handle
+    // 2. 更新page_handle.page_hdr中的数据结构
+    // 注意考虑删除一条记录后页面未满的情况，需要调用release_page_handle()
+
+    // 1. 获取指定记录所在的page handle
+    RmPageHandle pageHandle = fetch_page_handle(rid.page_no);
+
+    //位图判断及更新
+    if(!Bitmap::is_set(pageHandle.bitmap,rid.slot_no))
+        throw RecordNotFoundError(rid.page_no,rid.slot_no);
+    Bitmap::reset(pageHandle.bitmap,rid.slot_no);
+
+    // 2. 更新page_handle.page_hdr中的数据结构
+    pageHandle.page_hdr->num_records--;
+    pageHandle.page->set_page_lsn(lsn);
+    buffer_pool_manager_->unpin_page(PageId{fd_, rid.page_no}, true);
+    if(pageHandle.page_hdr->num_records == 0) {
+        release_page_handle(pageHandle);
+    }
+
+}
 
 /**
  * @description: 更新记录文件中记录号为rid的记录
@@ -133,7 +162,7 @@ void RmFileHandle::delete_record(const Rid& rid, Context* context) {
  * @param {Context*} context
  */
 void RmFileHandle::update_record(const Rid& rid, char* buf, Context* context) {
-    // Todo: v
+
     // 1. 获取指定记录所在的page handle
     // 2. 更新记录
 
@@ -147,8 +176,34 @@ void RmFileHandle::update_record(const Rid& rid, char* buf, Context* context) {
     // 2. 更新记录
     char* addr_slot = pageHandle.get_slot(rid.slot_no);
     memcpy(addr_slot,buf,pageHandle.file_hdr->record_size);
-}
 
+    // Todo: 是否需要更新txn的lastlsn
+    buffer_pool_manager_->unpin_page(PageId{fd_,rid.page_no}, true);
+}
+/**
+ * @description: 更新记录文件中记录号为rid的记录
+ * @param {Rid&} rid 要更新的记录的记录号（位置）
+ * @param {char*} buf 新记录的数据
+ * @param {Context*} context
+ */
+void RmFileHandle::update_record(const Rid& rid, char* buf,lsn_t lsn) {
+
+    // 1. 获取指定记录所在的page handle
+    // 2. 更新记录
+
+    // 1. 获取指定记录所在的page handle
+    RmPageHandle pageHandle = fetch_page_handle(rid.page_no);
+
+    //判断位图
+    if (!Bitmap::is_set(pageHandle.bitmap, rid.slot_no)) {
+        throw RecordNotFoundError(rid.page_no, rid.slot_no);
+    }
+    // 2. 更新记录
+    char* addr_slot = pageHandle.get_slot(rid.slot_no);
+    memcpy(addr_slot,buf,pageHandle.file_hdr->record_size);
+    pageHandle.page->set_page_lsn(lsn);
+    buffer_pool_manager_->unpin_page(PageId{fd_,rid.page_no}, true);
+}
 /**
  * 以下函数为辅助函数，仅提供参考，可以选择完成如下函数，也可以删除如下函数，在单元测试中不涉及如下函数接口的直接调用
 */

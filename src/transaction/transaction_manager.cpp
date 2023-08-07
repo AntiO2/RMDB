@@ -28,6 +28,9 @@ Transaction * TransactionManager::begin(Transaction* txn, LogManager* log_manage
     }
     // 3. 把开始事务加入到全局事务表中
     txn_map[txn->get_transaction_id()] = txn;
+    BeginLogRecord record(txn->get_transaction_id());
+    log_manager->add_log_to_buffer(&record);
+    txn->set_prev_lsn(record.prev_lsn_);
     // 4. 返回当前事务指针
     return txn;
 }
@@ -42,6 +45,7 @@ void TransactionManager::commit(Transaction* txn, LogManager* log_manager) {
       return;
     }
     // 1. 如果存在未提交的写操作，提交所有的写操作
+    auto context = new Context(lock_manager_, log_manager, txn);
     auto write_set = txn->get_write_set();
     while(!write_set->empty()) {
       // todo
@@ -57,10 +61,13 @@ void TransactionManager::commit(Transaction* txn, LogManager* log_manager) {
     txn->get_write_set()->clear();
     txn->get_lock_set()->clear();
     // 4. 把事务日志刷入磁盘中
-
+    auto record = CommitLogRecord(txn->get_transaction_id());
+    record.prev_lsn_ = txn->getPrevLsn();
+    log_manager->add_log_to_buffer(&record);
+    log_manager->flush_log_to_disk();
+    txn->set_prev_lsn(record.lsn_);
     // 5. 更新事务状态
     txn->set_state(TransactionState::COMMITTED);
-    //CHECK(liamY) 这里next_txn_id_应该在事务commit后指向一个新的事务ID（并发下10题）
 }
 
 /**
@@ -122,6 +129,9 @@ void TransactionManager::abort(Transaction * txn, LogManager *log_manager) {
       }
       delete write;
     }
+    AbortLogRecord record(txn->get_transaction_id(),txn->get_transaction_id());
+    log_manager->add_log_to_buffer(&record);
+    txn->set_prev_lsn(record.lsn_);
     write_set->clear();
     // 2. 释放所有锁
     ReleaseLocks(txn);
@@ -129,6 +139,7 @@ void TransactionManager::abort(Transaction * txn, LogManager *log_manager) {
     txn->get_index_latch_page_set()->clear();
     txn->get_index_deleted_page_set()->clear();
     // 4. 把事务日志刷入磁盘中
+    log_manager->flush_log_to_disk()
     // 5. 更新事务状态
     txn->set_state(TransactionState::ABORTED);
 }

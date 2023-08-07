@@ -18,7 +18,6 @@ See the Mulan PSL v2 for more details. */
  *
  */
 bool BufferPoolManager::find_victim_page(frame_id_t* frame_id) {
-    // CHECK(AntiO2) 并行测试
     // 1 使用BufferPoolManager::free_list_判断缓冲池是否已满需要淘汰页面
     // 1.1 未满获得frame
     // 1.2 已满使用lru_replacer中的方法选择淘汰页面
@@ -64,7 +63,9 @@ void BufferPoolManager::update_page(Page *page, PageId new_page_id, frame_id_t n
  * @return {Page*} 若获得了需要的页则将其返回，否则返回nullptr
  * @param {PageId} page_id 需要获取的页的PageId
  */
-Page* BufferPoolManager::fetch_page(PageId page_id) {
+Page* BufferPoolManager::
+\
+fetch_page(PageId page_id) {
     // 1.     从page_table_中搜寻目标页
     // 1.1    若目标页有被page_table_记录，则将其所在frame固定(pin)，并返回目标页。
     // 1.2    否则，尝试调用find_victim_page获得一个可用的frame，若失败则返回nullptr

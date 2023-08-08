@@ -79,7 +79,10 @@ class Page {
     void WLock() {latch_.write_lock();}
     void WUnlock() {latch_.write_unlock();}
 private:
-    void reset_memory() { memset(data_, OFFSET_PAGE_START, PAGE_SIZE); }  // 将data_的PAGE_SIZE个字节填充为0
+    void reset_memory() {
+        memset(data_, OFFSET_PAGE_START, PAGE_SIZE);
+        set_page_lsn(INVALID_PAGE_ID);
+    }  // 将data_的PAGE_SIZE个字节填充为0
 
     /** page的唯一标识符 */
     PageId id_;

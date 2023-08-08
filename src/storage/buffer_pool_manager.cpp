@@ -46,12 +46,18 @@ void BufferPoolManager::update_page(Page *page, PageId new_page_id, frame_id_t n
 
     // 首先检查该页上是否是有页面。
     if(page->is_dirty()&&page->get_page_id().fd!=TMP_FD){
+        // 根据WAL规则，刷盘前必须先写入LOG
+        if(page->get_page_lsn() > log_manager_->flushed_lsn_) {
+            log_manager_->flush_log_to_disk();
+        }
         page->is_dirty_ = false;
         disk_manager_->write_page(page->get_page_id().fd, page->get_page_id().page_no, page->get_data(), PAGE_SIZE);
+        log_manager_->dirty_page_table_.erase(page->get_page_id());
     }
     page_table_.erase(page->get_page_id()); //update page table
-    if(new_page_id.page_no != INVALID_PAGE_ID)
+    if(new_page_id.page_no != INVALID_PAGE_ID) {
         page_table_.insert(std::make_pair(new_page_id, new_frame_id));
+    }
     page->reset_memory();
     page->id_ = new_page_id;
 }
@@ -82,7 +88,7 @@ fetch_page(PageId page_id) {
           assert(false);
             return nullptr;
         }
-        auto p   = &pages_[frame_id];
+        auto p  = &pages_[frame_id];
         update_page(p,page_id,frame_id); // 调用update_page将page写回到磁盘
         disk_manager_->read_page(page_id.fd,page_id.page_no,p->get_data(),PAGE_SIZE); // 调用disk_manager_的read_page读取目标页到frame
         p->pin_count_ = 1;
@@ -147,6 +153,7 @@ bool BufferPoolManager::flush_page(PageId page_id) {
     }
     // 2. 无论P是否为脏都将其写回磁盘。
     auto page = &pages_[it->second];
+    log_manager_->dirty_page_table_.erase(page_id);
     disk_manager_->write_page(page->get_page_id().fd, page->get_page_id().page_no, page->get_data(), PAGE_SIZE);
     // 3. 更新P的is_dirty_
     page->is_dirty_ = false;
@@ -214,6 +221,7 @@ void BufferPoolManager::flush_all_pages(int fd) {
     for (size_t i = 0; i < pool_size_; i++) {
         Page *page = &pages_[i];
         if (page->get_page_id().fd == fd && page->get_page_id().page_no != INVALID_PAGE_ID) {
+            log_manager_->dirty_page_table_.erase(page->get_page_id());
             disk_manager_->write_page(page->get_page_id().fd, page->get_page_id().page_no, page->get_data(), PAGE_SIZE);
             page->is_dirty_ = false;
         }

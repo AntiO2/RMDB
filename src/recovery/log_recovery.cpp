@@ -99,7 +99,7 @@ void RecoveryManager::analyze() {
                 break;
             }
             case CLR_DELETE: {
-                auto delete_record = dynamic_cast<CLR_DELETE_RECORD *>(log_record->get());
+                auto delete_record = dynamic_cast<CLR_Delete_Record *>(log_record->get());
                 std::string table_name(delete_record->table_name_, delete_record->table_name_size_);
                 auto table = sm_manager_->fhs_[table_name].get();
                 auto page_id = PageId{.fd=table->GetFd(), .page_no=delete_record->rid_.page_no};
@@ -231,7 +231,7 @@ void RecoveryManager::redo() {
                 break;
             }
             case CLR_DELETE:  {
-                auto delete_log = dynamic_cast<CLR_DELETE_RECORD*>(log);
+                auto delete_log = dynamic_cast<CLR_Delete_Record*>(log);
                 std::string table_name(delete_log->table_name_, delete_log->table_name_size_);
                 auto table = sm_manager_->fhs_[table_name].get();
                 auto page_id = PageId{.fd = table->GetFd(), .page_no = delete_log->rid_.page_no};
@@ -320,7 +320,7 @@ void RecoveryManager::undo() {
                     auto insert_log = dynamic_cast<InsertLogRecord *>(log);
                     std::string table_name(insert_log->table_name_, insert_log->table_name_size_);
                     auto table = sm_manager_->fhs_[table_name].get();
-                    CLR_DELETE_RECORD clr_record(insert_log->log_tid_, insert_log->insert_value_,
+                    CLR_Delete_Record clr_record(insert_log->log_tid_,
                                                  insert_log->rid_,table_name,insert_log->lsn_,insert_log->prev_lsn_); // 注意这里CLR补偿记录after和before value顺序 redo和undo是反的
                     log_manager_.add_log_to_buffer(&clr_record);
                     auto fh = sm_manager_->fhs_.at(table_name).get();
@@ -348,7 +348,7 @@ void RecoveryManager::undo() {
                 }
 
                 case CLR_DELETE: {
-                    auto clr_log = dynamic_cast<CLR_DELETE_RECORD*>(log);
+                    auto clr_log = dynamic_cast<CLR_Delete_Record*>(log);
                     undo_lsn = clr_log->undo_next_;
                     break;
                 }

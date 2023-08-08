@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include "bitmap.h"
 #include "common/context.h"
 #include "rm_defs.h"
+#include "storage/buffer_pool_manager.h"
 
 class RmManager;
 
@@ -73,11 +74,14 @@ class RmFileHandle {
 
     std::unique_ptr<RmRecord> get_record(const Rid &rid, Context *context) const;
 
-    Rid insert_record(char *buf, Context *context, std::string* table_name= nullptr);
+    Rid insert_record(char *buf, Context *context, std::string* table_name= nullptr,
+                      LogOperation log_op = LogOperation::REDO, lsn_t undo_next = INVALID_LSN);
     void insert_record(const Rid &rid, char *buf, lsn_t lsn);
-    void delete_record(const Rid &rid, Context *context, std::string* table_name= nullptr);
+    void delete_record(const Rid &rid, Context *context, std::string* table_name= nullptr,
+                       LogOperation log_op = LogOperation::REDO, lsn_t undo_next = INVALID_LSN);
     void delete_record(const Rid &rid,lsn_t lsn);
-    void update_record(const Rid &rid, char *buf, Context *context, std::string* table_name= nullptr);
+    void update_record(const Rid &rid, char *buf, Context *context, std::string* table_name= nullptr,
+                       LogOperation log_op = LogOperation::REDO, lsn_t undo_next = INVALID_LSN);
     void update_record(const Rid &rid, char *buf, lsn_t lsn);
 
     RmPageHandle create_new_page_handle();

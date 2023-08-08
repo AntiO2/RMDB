@@ -23,7 +23,7 @@ See the Mulan PSL v2 for more details. */
 #include "storage/page.h"
 #include "replacer/lru_replacer.h"
 #include "replacer/replacer.h"
-
+#include "recovery/log_manager.h"
 class BufferPoolManager {
    private:
     size_t pool_size_;      // buffer_pool中可容纳页面的个数，即帧的个数
@@ -36,8 +36,8 @@ class BufferPoolManager {
     std::vector<bool> is_used_; // 如果该frame上有page，标记为true
     // page_id_t tmp_id_{0}; // 下一个tmp_page的id
    public:
-    BufferPoolManager(size_t pool_size, DiskManager *disk_manager)
-        : pool_size_(pool_size), disk_manager_(disk_manager) {
+    BufferPoolManager(size_t pool_size, DiskManager *disk_manager, LogManager *log_manager)
+        : pool_size_(pool_size), disk_manager_(disk_manager), log_manager_(log_manager) {
         // 为buffer pool分配一块连续的内存空间
         pages_ = new Page[pool_size_];
         // 可以被Replacer改变
@@ -108,4 +108,6 @@ class BufferPoolManager {
     bool find_victim_page(frame_id_t* frame_id);
 
     void update_page(Page* page, PageId new_page_id, frame_id_t new_frame_id);
+
+    LogManager* log_manager_;
 };

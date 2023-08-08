@@ -13,9 +13,11 @@ See the Mulan PSL v2 for more details. */
 #include <mutex>
 #include <vector>
 #include <iostream>
+#include <list>
 #include "log_defs.h"
 #include "common/config.h"
 #include "record/rm_defs.h"
+#include "storage/page.h"
 
 /* 日志记录对应操作的类型 */
 enum LogType: int {
@@ -44,7 +46,10 @@ static std::string LogTypeStr[] = {
     "CKPT_BEGIN",
     "CKPT_END"
 };
-
+enum LogOperation {
+    REDO,
+    UNDO,
+};
 class LogRecord {
 public:
     LogType log_type_;         /* 日志对应操作的类型 */
@@ -468,7 +473,7 @@ public:
         undo_next_ = INVALID_LSN;
     }
 
-    CLR_UPDATE_RECORD(txn_id_t txn_id, RmRecord& before_update_value, RmRecord& after_update_value, Rid& rid, const std::string& table_name, lsn_t prev_lsn, lsn_t undo_next)
+    CLR_UPDATE_RECORD(txn_id_t txn_id, RmRecord& before_update_value, RmRecord& after_update_value,const Rid& rid, const std::string& table_name, lsn_t prev_lsn, lsn_t undo_next)
             : UpdateLogRecord(txn_id, before_update_value, after_update_value, rid, table_name, prev_lsn) {
         undo_next_ = undo_next;
         log_tot_len_+= sizeof(undo_next_);
@@ -496,41 +501,71 @@ public:
         printf("undo_next: %lld\n", undo_next_);
     }
 };
-class CLR_DELETE_RECORD : public DeleteLogRecord {
+class CLR_Delete_Record : public LogRecord {
 public:
+    Rid rid_;                   // 记录被删除的位置
+    char* table_name_;          // 删除记录的表名称
+    size_t table_name_size_;    // 表名称的大小
     lsn_t undo_next_;  // LSN of the next undo record
-
-    CLR_DELETE_RECORD() : DeleteLogRecord() {
-        undo_next_ = INVALID_LSN;
+public:
+    CLR_Delete_Record() {
+        log_type_ = LogType::CLR_DELETE;
+        lsn_ = INVALID_LSN;
+        log_tot_len_ = LOG_HEADER_SIZE;
+        log_tid_ = INVALID_TXN_ID;
+        prev_lsn_ = INVALID_LSN;
+        table_name_ = nullptr;
     }
-    // TODO(AntiO2) 此处delete_value应该是无用的
-    CLR_DELETE_RECORD(txn_id_t txn_id, RmRecord& delete_value, Rid& rid, const std::string& table_name, lsn_t prev_lsn, lsn_t undo_next)
-            : DeleteLogRecord(txn_id, delete_value, rid, table_name, prev_lsn) {
+    CLR_Delete_Record(txn_id_t txn_id,const Rid& rid, const std::string& table_name, lsn_t prev_lsn, lsn_t undo_next)
+    : LogRecord() {
+        prev_lsn_ = prev_lsn;
+        log_tid_ = txn_id;
+        rid_ = rid;
+        log_tot_len_ += sizeof(Rid);
+        table_name_size_ = table_name.length();
+        table_name_ = new char[table_name_size_];
+        memcpy(table_name_, table_name.c_str(), table_name_size_);
+        log_tot_len_ += sizeof(size_t) + table_name_size_;
+
+        log_tot_len_ += sizeof(lsn_t);
         undo_next_ = undo_next;
-        log_tot_len_+= sizeof(undo_next_);
     }
 
-    CLR_DELETE_RECORD(char* src) : DeleteLogRecord(src) {
+    // 把delete日志记录序列化到dest中
+    void serialize(char* dest) const override {
+        LogRecord::serialize(dest);
+        int offset = OFFSET_LOG_DATA;
+        memcpy(dest + offset, &rid_, sizeof(Rid));
+        offset += sizeof(Rid);
+        memcpy(dest + offset, &table_name_size_, sizeof(size_t));
+        offset += sizeof(size_t);
+        memcpy(dest + offset, table_name_, table_name_size_);
+        offset+=table_name_size_;
+        memcpy(dest+offset, &undo_next_, sizeof(lsn_t));
+    }
+    // 从src中反序列化出一条Delete日志记录
+    CLR_Delete_Record(char *src) {
         deserialize(src);
     }
-
-    void serialize(char* dest) const override {
-        DeleteLogRecord::serialize(dest);
-        int offset = log_tot_len_-sizeof(lsn_t);
-        memcpy(dest + offset, &undo_next_, sizeof(lsn_t));
-    }
-
     void deserialize(const char* src) override {
-        DeleteLogRecord::deserialize(src);
-        int offset = log_tot_len_-sizeof(lsn_t);
-        undo_next_ = *reinterpret_cast<const lsn_t*>(src + offset);
+        LogRecord::deserialize(src);
+        int offset = OFFSET_LOG_DATA;
+        rid_ = *reinterpret_cast<const Rid*>(src + offset);
+        offset += sizeof(Rid);
+        table_name_size_ = *reinterpret_cast<const size_t*>(src + offset);
+        offset += sizeof(size_t);
+        table_name_ = new char[table_name_size_];
+        memcpy(table_name_, src + offset, table_name_size_);
+        offset+=table_name_size_;
+        undo_next_ = *reinterpret_cast<const lsn_t*>(src+offset);
+    }
+    void format_print() override {
+        printf("clr delete record\n");
+        LogRecord::format_print();
+        printf("delete rid: %d, %d\n", rid_.page_no, rid_.slot_no);
+        printf("table name: %s\n", table_name_);
     }
 
-    void format_print() override {
-        printf("CLR update record\n");
-        DeleteLogRecord::format_print();
-        printf("undo_next: %d\n", undo_next_);
-    }
 };
 class CLR_Insert_Record : public InsertLogRecord {
 public:
@@ -672,9 +707,7 @@ public:
        return true;
        log_buffer_.offset_ = 0;
     }
-    LogBuffer*
-
-    get_log_buffer() {
+    LogBuffer* get_log_buffer() {
         return &log_buffer_;
     }
     void set_global_lsn(lsn_t lsn) {
@@ -685,10 +718,10 @@ private:
     std::atomic<lsn_t> global_lsn_{0};  // 全局lsn，递增，用于为每条记录分发lsn
     std::mutex latch_;                  // 用于对log_buffer_的互斥访问
     LogBuffer log_buffer_;              // 日志缓冲区
-    lsn_t flushed_lsn_;                 // 记录已经持久化到磁盘中的最后一条日志的日志号
     DiskManager* disk_manager_;
     int current_offset_; // 当前在log文件中的偏移量
 public:
     dirty_page_table_t dirty_page_table_;
     active_txn_table_t active_txn_table_;
+    lsn_t flushed_lsn_;                 // 记录已经持久化到磁盘中的最后一条日志的日志号
 };

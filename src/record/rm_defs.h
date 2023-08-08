@@ -12,7 +12,6 @@ See the Mulan PSL v2 for more details. */
 
 #include "defs.h"
 #include "system/sm_meta.h"
-#include "storage/buffer_pool_manager.h"
 
 constexpr int RM_NO_PAGE = -1;
 constexpr int RM_FILE_HDR_PAGE = 0;

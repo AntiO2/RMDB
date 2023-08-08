@@ -48,11 +48,11 @@ void TransactionManager::commit(Transaction* txn, LogManager* log_manager) {
     auto context = new Context(lock_manager_, log_manager, txn);
     auto write_set = txn->get_write_set();
     while(!write_set->empty()) {
-      // todo
       // log_manager->add_log_to_buffer(new log_record);
       write_set->pop_front();
     }
     // 2. 释放所有锁
+
     ReleaseLocks(txn);
     // 3. 释放事务相关资源，eg.锁集
 //    for(auto& write:*txn->get_write_set()) {
@@ -61,11 +61,11 @@ void TransactionManager::commit(Transaction* txn, LogManager* log_manager) {
     txn->get_write_set()->clear();
     txn->get_lock_set()->clear();
     // 4. 把事务日志刷入磁盘中
-    auto record = CommitLogRecord(txn->get_transaction_id());
-    record.prev_lsn_ = txn->getPrevLsn();
+    auto record = CommitLogRecord(txn->get_transaction_id(),txn->getPrevLsn());
     log_manager->add_log_to_buffer(&record);
-    log_manager->flush_log_to_disk();
     txn->set_prev_lsn(record.lsn_);
+    log_manager->active_txn_table_[txn->get_transaction_id()] = record.lsn_;
+    log_manager->flush_log_to_disk();
     // 5. 更新事务状态
     txn->set_state(TransactionState::COMMITTED);
 }
@@ -96,7 +96,7 @@ void TransactionManager::abort(Transaction * txn, LogManager *log_manager) {
           auto &index_handler = sm_manager_->ihs_.at(index_name);
           index_handler->delete_entry(rec->key_from_rec(index.cols)->data,txn); // check 这里是否能将之前的txn传入
         }
-        table->delete_record(write->GetRid(),context);
+        table->delete_record(write->GetRid(),context,&tab_name,LogOperation::UNDO);
         break;
       }
       case WType::DELETE_TUPLE: {
@@ -109,7 +109,6 @@ void TransactionManager::abort(Transaction * txn, LogManager *log_manager) {
         }
         break;
       }
-
       case WType::UPDATE_TUPLE:
         auto old_rec = write->GetRecord();
         auto new_rec = table->get_record(write->GetRid(),context);

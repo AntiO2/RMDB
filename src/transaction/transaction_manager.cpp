@@ -128,7 +128,7 @@ void TransactionManager::abort(Transaction * txn, LogManager *log_manager) {
       }
       delete write;
     }
-    AbortLogRecord record(txn->get_transaction_id(),txn->get_transaction_id());
+    AbortLogRecord record(txn->get_transaction_id(),txn->get_prev_lsn());
     log_manager->add_log_to_buffer(&record);
     txn->set_prev_lsn(record.lsn_);
     write_set->clear();

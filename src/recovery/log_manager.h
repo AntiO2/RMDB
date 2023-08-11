@@ -422,6 +422,7 @@ public:
         table_name_ = new char[table_name_size_];
         memcpy(table_name_, table_name.c_str(), table_name_size_);
         log_tot_len_ += sizeof(size_t) + table_name_size_;
+        prev_lsn_ = prev_lsn;
     }
     UpdateLogRecord(char *src) {
         deserialize(src);
@@ -648,6 +649,7 @@ public:
                 case UPDATE:
                 {
                     UpdateLogRecord record(buffer_+current_offset);
+                    record.format_print();
                     records.emplace_back(std::make_unique<UpdateLogRecord>(record));
                     current_offset += record.log_tot_len_;
                     break;

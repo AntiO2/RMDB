@@ -6,10 +6,11 @@ add_subdirectory(my_concurrency_test)
 #        gtest_main
 #        )
 file(GLOB_RECURSE RMDB_TEST_SOURCES "${PROJECT_SOURCE_DIR}/test/*test.cpp")
+message("start build gtest targets")
 foreach(RMDB_TEST_SOURCE ${RMDB_TEST_SOURCES})
     get_filename_component(rmdb_test_filename ${RMDB_TEST_SOURCE} NAME)
     string(REPLACE ".cpp" "" rmdb_test_name ${rmdb_test_filename})
-        message("detect cpp: ${rmdb_test_name}")
+    message("detect test: ${rmdb_test_name}")
     # Add the test target separately and as part of "make check-tests".
     add_executable(${rmdb_test_name} EXCLUDE_FROM_ALL ${RMDB_TEST_SOURCE})
     gtest_discover_tests(${rmdb_test_name}

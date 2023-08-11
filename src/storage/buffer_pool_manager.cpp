@@ -181,8 +181,10 @@ Page* BufferPoolManager::new_page(PageId* page_id) {
     // 4.   固定frame，更新pin_count_
     page->pin_count_++;
     replacer_->pin(frame_id);
+    // 需写回
+    disk_manager_->write_page(page_id->fd, page_id->page_no, page->data_, PAGE_SIZE);
     // 5.   返回获得的page
-   return page;
+    return page;
 }
 
 /**

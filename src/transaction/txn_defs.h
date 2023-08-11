@@ -11,6 +11,7 @@ See the Mulan PSL v2 for more details. */
 #pragma once
 
 #include <atomic>
+#include <cassert>
 
 #include "common/config.h"
 #include "defs.h"
@@ -41,12 +42,12 @@ class WriteRecord {
     WriteRecord() = default;
 
     // constructor for insert operation
-    WriteRecord(WType wtype, const std::string &tab_name, const Rid &rid)
-        : wtype_(wtype), tab_name_(tab_name), rid_(rid) {}
+    WriteRecord(WType wtype, const std::string &tab_name, const Rid &rid, lsn_t undo_next)
+        : wtype_(wtype), tab_name_(tab_name), rid_(rid), undo_next_(undo_next) {}
 
     // constructor for delete & update operation
-    WriteRecord(WType wtype, const std::string &tab_name, const Rid &rid, const RmRecord &record)
-        : wtype_(wtype), tab_name_(tab_name), rid_(rid), record_(record) {}
+    WriteRecord(WType wtype, const std::string &tab_name, const Rid &rid, const RmRecord &record, lsn_t undo_next)
+        : wtype_(wtype), tab_name_(tab_name), rid_(rid), record_(record), undo_next_(undo_next) {}
 
     ~WriteRecord() = default;
 
@@ -58,11 +59,20 @@ class WriteRecord {
 
     inline std::string &GetTableName() { return tab_name_; }
 
-   private:
+    lsn_t getUndoNext() const {
+        return undo_next_;
+    }
+
+    void setRid(const Rid &rid) {
+        rid_ = rid;
+    }
+
+private:
     WType wtype_;
     std::string tab_name_;
     Rid rid_;
     RmRecord record_;
+    lsn_t undo_next_;
 };
 
 /* 多粒度锁，加锁对象的类型，包括记录和表 */

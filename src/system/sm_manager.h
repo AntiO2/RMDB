@@ -9,7 +9,7 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
 #pragma once
-
+#include "common/config.h"
 #include "index/ix.h"
 #include "record/rm_file_handle.h"
 #include "record/rm_scan.h"
@@ -17,7 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include "sm_meta.h"
 
 #include "common/context.h"
-
+#include "common/config.h"
 class Context;
 
 struct ColDef {
@@ -32,8 +32,8 @@ class SmManager {
     DbMeta db_;             // 当前打开的数据库的元数据
     std::unordered_map<std::string, std::unique_ptr<RmFileHandle>> fhs_;    // file name -> record file handle, 当前数据库中每张表的数据文件
     std::unordered_map<std::string, std::unique_ptr<IxIndexHandle>> ihs_;   // file name -> index file handle, 当前数据库中每个索引的文件
-    lsn_t master_record_begin_;
-    lsn_t master_record_end_; // 最后一个checkpoint end
+    lsn_t master_record_begin_{INVALID_LSN};
+    lsn_t master_record_end_{INVALID_LSN}; // 最后一个checkpoint end
    private:
     DiskManager* disk_manager_;
     BufferPoolManager* buffer_pool_manager_;

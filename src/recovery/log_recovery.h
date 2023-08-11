@@ -25,11 +25,11 @@ public:
 
 class RecoveryManager {
 public:
-    RecoveryManager(DiskManager* disk_manager, BufferPoolManager* buffer_pool_manager, SmManager* sm_manager):
-     disk_manager_(disk_manager), log_manager_(disk_manager) {
+    RecoveryManager(DiskManager* disk_manager, BufferPoolManager* buffer_pool_manager, SmManager* sm_manager, LogManager* logManager):
+     disk_manager_(disk_manager) {
         buffer_pool_manager_ = buffer_pool_manager;
         sm_manager_ = sm_manager;
-        auto context = new Context(lock_manager_, log_manager_, txn);
+        log_manager_ = logManager;
     }
 
     void analyze();
@@ -46,8 +46,7 @@ private:
     DiskManager* disk_manager_;                                     // 用来读写文件
     BufferPoolManager* buffer_pool_manager_;                        // 对页面进行读写
     SmManager* sm_manager_;                                         // 访问数据库元数据
-    LogManager log_manager_;
-    LockManager lock_manager_;
+    LogManager* log_manager_;
     // 构建脏页表
     dirty_page_table_t dirty_page_table_;
     active_txn_table_t active_txn_table_;

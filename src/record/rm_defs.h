@@ -10,6 +10,7 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
+#include <memory>
 #include "defs.h"
 #include "system/sm_meta.h"
 

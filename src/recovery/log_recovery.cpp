@@ -8,14 +8,15 @@ EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
+#include <queue>
 #include "log_recovery.h"
 #include "logger.h"
 /**
  * @description: analyze阶段，需要获得脏页表（DPT）和未完成的事务列表（ATT）
  */
 void RecoveryManager::analyze() {
-    while(log_manager_.flush_log_buffer()) {
-        auto buffer = log_manager_.get_log_buffer();
+    while(log_manager_->flush_log_buffer()) {
+        auto buffer = log_manager_->get_log_buffer();
         auto records = buffer->GetRecords();
         for(auto &record:records) {
             logs_.emplace_back(std::move(record));
@@ -129,7 +130,7 @@ void RecoveryManager::analyze() {
             }
         }
     }
-    log_manager_.set_global_lsn(idx-log_offset_); // 设置global lsn
+    log_manager_->set_global_lsn(idx-log_offset_); // 设置global lsn
 }
 
 /**
@@ -284,23 +285,32 @@ void RecoveryManager::redo() {
         }
         redo_lsn++;
     }
-
+    log_manager_->set_global_lsn(redo_lsn);
 }
 
 /**
  * @description: 回滚未完成的事务
  */
 void RecoveryManager::undo() {
+    auto undo_cmp=[](const std::pair<txn_id_t, lsn_t>&at1, const std::pair<txn_id_t, lsn_t>&at2) {
+        return at1.second < at2.second;
+    };
+    std::priority_queue<std::pair<txn_id_t, lsn_t>, std::vector<std::pair<txn_id_t, lsn_t>>,
+    decltype(undo_cmp)> undo_list(undo_cmp);
     for(auto txn:active_txn_table_) {
-        auto undo_lsn = txn.second;
-        auto tid = txn.first;
-        if(undo_lsn==INVALID_LSN) {
+        undo_list.emplace(txn.first,txn.second);
+    }
+    while(!undo_list.empty()) {
+        auto undo_iter = undo_list.top();
+        auto undo_lsn = undo_iter.second;
+        auto tid = undo_iter.first;
+        auto log = get_log_by_lsn(undo_lsn);
+        if(log== nullptr) {
             LOG_ERROR("undo lsn is invalid");
+            undo_list.pop();
             continue;
         }
-        auto log = get_log_by_lsn(undo_lsn);
-        while(log!= nullptr) {
-            switch (log->log_type_) {
+        switch (log->log_type_) {
                 case UPDATE: {
                     auto update_log = dynamic_cast<UpdateLogRecord *>(log);
                     std::string table_name(update_log->table_name_, update_log->table_name_size_);
@@ -309,23 +319,22 @@ void RecoveryManager::undo() {
                     CLR_UPDATE_RECORD clr_record(update_log->log_tid_,
                                                  update_log->after_update_value_, update_log->before_update_value_,
                                                  update_log->rid_,table_name,update_log->lsn_,update_log->prev_lsn_); // 注意这里CLR补偿记录after和before value顺序 redo和undo是反的
-                    log_manager_.add_log_to_buffer(&clr_record);
+                    log_manager_->add_log_to_buffer(&clr_record);
                     auto fh = sm_manager_->fhs_.at(table_name).get();
                     fh->update_record(update_log->rid_,update_log->before_update_value_.data,clr_record.lsn_);
-                    undo_lsn = log->prev_lsn_;
+                    undo_iter.second = log->prev_lsn_;
                     break;
                 }
-
                 case INSERT: {
                     auto insert_log = dynamic_cast<InsertLogRecord *>(log);
                     std::string table_name(insert_log->table_name_, insert_log->table_name_size_);
                     auto table = sm_manager_->fhs_[table_name].get();
                     CLR_Delete_Record clr_record(insert_log->log_tid_,
                                                  insert_log->rid_,table_name,insert_log->lsn_,insert_log->prev_lsn_); // 注意这里CLR补偿记录after和before value顺序 redo和undo是反的
-                    log_manager_.add_log_to_buffer(&clr_record);
+                    log_manager_->add_log_to_buffer(&clr_record);
                     auto fh = sm_manager_->fhs_.at(table_name).get();
                     fh->delete_record(insert_log->rid_,clr_record.lsn_);
-                    undo_lsn = log->prev_lsn_;
+                    undo_iter.second = log->prev_lsn_;
                     break;
                 }
                 case DELETE: {
@@ -334,48 +343,47 @@ void RecoveryManager::undo() {
                     auto table = sm_manager_->fhs_[table_name].get();
                     CLR_Insert_Record clr_record(delete_log->log_tid_,  delete_log->delete_value_,
                                                  delete_log->rid_,table_name, delete_log->lsn_, delete_log->prev_lsn_); // 注意这里CLR补偿记录after和before value顺序 redo和undo是反的
-                    log_manager_.add_log_to_buffer(&clr_record);
+                    log_manager_->add_log_to_buffer(&clr_record);
                     auto fh = sm_manager_->fhs_.at(table_name).get();
                     fh->insert_record(delete_log->rid_,delete_log->delete_value_.data,clr_record.lsn_);
-                    undo_lsn = log->prev_lsn_;
+                    undo_iter.second = log->prev_lsn_;
                     break;
                 }
 
                 case CLR_INSERT: {
                     auto clr_log = dynamic_cast<CLR_Insert_Record*>(log);
-                    undo_lsn = clr_log->undo_next_;
+                    undo_iter.second = clr_log->undo_next_;
                     break;
                 }
 
                 case CLR_DELETE: {
                     auto clr_log = dynamic_cast<CLR_Delete_Record*>(log);
-                    undo_lsn = clr_log->undo_next_;
+                    undo_iter.second = clr_log->undo_next_;
                     break;
                 }
                 case CLR_UPDATE: {
                     auto clr_log = dynamic_cast<CLR_Insert_Record*>(log);
-                    undo_lsn = clr_log->undo_next_;
+                    undo_iter.second = clr_log->undo_next_;
                     break;
                 }
                 case BEGIN:{
-                    undo_lsn = INVALID_LSN;
+                    undo_list.pop();
                     break;
                 }
                 case COMMIT: {
-                    undo_lsn = log->prev_lsn_;
+                    LOG_ERROR("Rollback Commited Txn");
+                    undo_iter.second = log->prev_lsn_; // check(AntiO2) 已经commit的事务不可能被回滚
                     break;
+
                 }
                 case ABORT: {
-                    undo_lsn = log->prev_lsn_;
+                    undo_iter.second = log->prev_lsn_;
                     break;
                 }
-
                 default: {
                     LOG_ERROR("Error log type while undoing");
                 }
             }
-            log = get_log_by_lsn(undo_lsn);
-        }
     }
 }
 

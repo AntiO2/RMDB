@@ -103,7 +103,10 @@ void SmManager::open_db(const std::string& db_name) {
 
     //将数据库中包含的表 导入到当前fhs
     for(const auto& table : db_.tabs_) {
-        fhs_.insert({table.first,rm_manager_->open_file(table.first)});
+
+        auto file = rm_manager_->open_file(table.first);
+        disk_manager_->set_fd2pageno(file->GetFd(), file->getFileHdr().num_pages );
+        fhs_.emplace(table.first,std::move(file));
         const auto& indices = table.second.indexes;
         for(const auto&index:table.second.indexes) {
             auto index_name = ix_manager_->get_index_name(table.first,index.cols);

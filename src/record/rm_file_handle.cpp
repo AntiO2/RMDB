@@ -101,7 +101,7 @@ void RmFileHandle::insert_record(const Rid& rid, char* buf, lsn_t lsn) {
     RmPageHandle pageHandle = fetch_page_handle(rid.page_no);
 
     //2. 判断并更新位图
-    assert(Bitmap::is_set(pageHandle.bitmap,rid.slot_no));
+    // assert(!Bitmap::is_set(pageHandle.bitmap,rid.slot_no));
     Bitmap::set(pageHandle.bitmap,rid.slot_no);
 
     //3. 复制数据
@@ -316,7 +316,7 @@ RmPageHandle RmFileHandle::create_new_page_handle() {
     // 3.更新file_hdr_
     file_hdr_.num_pages++;
     file_hdr_.first_free_page_no = pageHandle.page->get_page_id().page_no;
-
+    disk_manager_->write_page(fd_, RM_FILE_HDR_PAGE, (char *)&file_hdr_, sizeof(file_hdr_)); // 更新之后，需要立即写回磁盘
     return pageHandle;
 }
 
@@ -354,4 +354,5 @@ void RmFileHandle::release_page_handle(RmPageHandle&page_handle) {
     //链表
     page_handle.page_hdr->next_free_page_no = file_hdr_.first_free_page_no;
     file_hdr_.first_free_page_no = page_handle.page->get_page_id().page_no;
+    disk_manager_->write_page(fd_, RM_FILE_HDR_PAGE, (char *)&file_hdr_, sizeof(file_hdr_)); // 更新之后，需要立即写回磁盘
 }

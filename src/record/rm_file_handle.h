@@ -66,6 +66,18 @@ class RmFileHandle {
     RmFileHdr get_file_hdr() { return file_hdr_; }
     int GetFd() { return fd_; }
 
+    DiskManager *getDiskManager() const {
+        return disk_manager_;
+    }
+
+    BufferPoolManager *getBufferPoolManager() const {
+        return buffer_pool_manager_;
+    }
+
+    const RmFileHdr &getFileHdr() const {
+        return file_hdr_;
+    }
+
     /* 判断指定位置上是否已经存在一条记录，通过Bitmap来判断 */
     bool is_record(const Rid &rid) const {
         RmPageHandle page_handle = fetch_page_handle(rid.page_no);

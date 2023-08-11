@@ -50,7 +50,8 @@ class RmManager {
 
         // 将file header写入磁盘文件（名为file name，文件描述符为fd）中的第0页
         // head page直接写入磁盘，没有经过缓冲区的NewPage，那么也就不需要FlushPage
-        disk_manager_->write_page(fd, RM_FILE_HDR_PAGE, (char *)&file_hdr, sizeof(file_hdr));
+        // Check(AntiO2) 内存泄露
+        disk_manager_->write_page(fd, RM_FILE_HDR_PAGE, (char *)&file_hdr, PAGE_SIZE);
         disk_manager_->close_file(fd);
     }
 

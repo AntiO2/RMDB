@@ -30,7 +30,7 @@ Transaction * TransactionManager::begin(Transaction* txn, LogManager* log_manage
     txn_map[txn->get_transaction_id()] = txn;
     BeginLogRecord record(txn->get_transaction_id());
     log_manager->add_log_to_buffer(&record);
-    txn->set_prev_lsn(record.prev_lsn_);
+    txn->set_prev_lsn(record.lsn_);
     // 4. 返回当前事务指针
     return txn;
 }
@@ -96,12 +96,12 @@ void TransactionManager::abort(Transaction * txn, LogManager *log_manager) {
           auto &index_handler = sm_manager_->ihs_.at(index_name);
           index_handler->delete_entry(rec->key_from_rec(index.cols)->data,txn); // check 这里是否能将之前的txn传入
         }
-        table->delete_record(write->GetRid(),context,&tab_name,LogOperation::UNDO);
+        table->delete_record(write->GetRid(),context,&tab_name,LogOperation::UNDO, write->getUndoNext());
         break;
       }
       case WType::DELETE_TUPLE: {
         auto old_rec = write->GetRecord();
-        auto rid = table->insert_record(old_rec.data,context);
+        auto rid = table->insert_record(old_rec.data,context, &write->GetTableName(),LogOperation::UNDO, write->getUndoNext());
         for(const auto& index:sm_manager_->db_.get_table(tab_name).indexes) {
           auto index_name = sm_manager_->get_ix_manager()->get_index_name(tab_name,index.cols);
           auto &index_handler = sm_manager_->ihs_.at(index_name);
@@ -118,7 +118,7 @@ void TransactionManager::abort(Transaction * txn, LogManager *log_manager) {
           index_handler->delete_entry(new_rec->key_from_rec(index.cols)->data,txn);
         }
         auto rid = write->GetRid();
-        table->update_record(rid, old_rec.data, context);
+        table->update_record(rid, old_rec.data, context, &write->GetTableName(),LogOperation::UNDO, write->getUndoNext());
         for(const auto& index:sm_manager_->db_.get_table(tab_name).indexes) {
           auto index_name = sm_manager_->get_ix_manager()->get_index_name(tab_name,index.cols);
           auto &index_handler = sm_manager_->ihs_.at(index_name);
@@ -138,7 +138,7 @@ void TransactionManager::abort(Transaction * txn, LogManager *log_manager) {
     txn->get_index_latch_page_set()->clear();
     txn->get_index_deleted_page_set()->clear();
     // 4. 把事务日志刷入磁盘中
-    log_manager->flush_log_to_disk()
+    log_manager->flush_log_to_disk();
     // 5. 更新事务状态
     txn->set_state(TransactionState::ABORTED);
 }

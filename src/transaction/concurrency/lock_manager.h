@@ -12,6 +12,7 @@ See the Mulan PSL v2 for more details. */
 
 #include <mutex>
 #include <condition_variable>
+#include <list>
 #include "transaction/transaction.h"
 #include "common/rwlatch.h"
 #include "logger.h"

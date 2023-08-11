@@ -10,6 +10,8 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
+#include <cstring>
+
 #include "common/config.h"
 #include "common/rwlatch.h"
 

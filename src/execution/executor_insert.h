@@ -87,9 +87,10 @@ class InsertExecutor : public AbstractExecutor {
                 throw std::move(e);
             }
         }
+        auto* writeRecord = new WriteRecord(WType::INSERT_TUPLE,tab_name_,rid_,context_->txn_->get_prev_lsn());
         // Insert into record file
         rid_ = fh_->insert_record(rec.data, context_,&tab_name_);
-        auto* writeRecord = new WriteRecord(WType::INSERT_TUPLE,tab_name_,rid_);
+        writeRecord->setRid(rid_);
         context_->txn_->append_write_record(writeRecord);
         return nullptr;
     }

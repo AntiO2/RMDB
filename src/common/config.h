@@ -13,6 +13,9 @@ See the Mulan PSL v2 for more details. */
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <unordered_map>
+#include <cassert>
+#include <string>
 
 #define BUFFER_LENGTH 8192
 
@@ -41,6 +44,9 @@ static constexpr int JOIN_POOL_SIZE = 20000;
 static constexpr int LOG_BUFFER_SIZE = (1024 * PAGE_SIZE);                    // size of a log buffer in byte
 static constexpr int BUCKET_SIZE = 50;                                        // size of extendible hash bucket
 static constexpr int TMP_FD = -2; // 临时使用的fd (不知道会不会有冲突)
+static constexpr bool ARIES_DEBUG_MODE = true; // 是否调试ARIES
+
+
 using frame_id_t = int32_t;  // frame id type, 帧页ID, 页在BufferPool中的存储单元称为帧,一帧对应一页
 using page_id_t = int32_t;   // page id type , 页ID
 using txn_id_t = int32_t;    // transaction id type

@@ -32,4 +32,4 @@ foreach(RMDB_TEST_SQL_SOURCE ${RMDB_TEST_SQL_SOURCES})
     message("create test target: ${rmdb_sql_name}")
 endforeach()
 
-message("runtime output dir:-> ${CMAKE_BINARY_DIR}")
+# message("runtime output dir:-> ${CMAKE_BINARY_DIR}")

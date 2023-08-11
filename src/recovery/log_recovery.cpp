@@ -28,7 +28,7 @@ void RecoveryManager::analyze() {
     }
     log_offset_ = -logs_.at(0)->lsn_;
     if(sm_manager_->master_record_end_!=INVALID_LSN) {
-        auto ckpt_end = dynamic_cast<CkptEndLogRecord *>(logs_.at(sm_manager_->master_record_end_).get()); // TODO(AntiO2) 加上offset
+        auto ckpt_end = dynamic_cast<CkptEndLogRecord *>(get_log_by_lsn(sm_manager_->master_record_end_));
         active_txn_table_ = std::move(ckpt_end->att_); // 初始化att
         dirty_page_table_ = std::move(ckpt_end->dpt_); // 初始化dpt
     }
@@ -168,7 +168,7 @@ void RecoveryManager::redo() {
                     // 如果已经被持久化，不需要更新
                     break;
                 }
-                auto fh = sm_manager_->fhs_.at(table_name).get(); // check(AntiO2) 是否会造成崩溃，比如表已经被删除了的情况
+                auto fh = sm_manager_->fhs_.at(table_name).get();
                 fh->update_record(update_log->rid_,update_log->after_update_value_.data,lsn);
                 buffer_pool_manager_->unpin_page(page_id, true);
 
@@ -188,7 +188,7 @@ void RecoveryManager::redo() {
                         // 如果已经被持久化，不需要更新
                         break;
                     }
-                    auto fh = sm_manager_->fhs_.at(table_name).get(); // check(AntiO2) 是否会造成崩溃，比如表已经被删除了的情况
+                    auto fh = sm_manager_->fhs_.at(table_name).get();
                     fh->insert_record(insert_log->rid_, insert_log->insert_value_.data,lsn);
                     buffer_pool_manager_->unpin_page(page_id, true);
                     break;
@@ -207,7 +207,7 @@ void RecoveryManager::redo() {
                     // 如果已经被持久化，不需要更新
                     break;
                 }
-                auto fh = sm_manager_->fhs_.at(table_name).get(); // check(AntiO2) 是否会造成崩溃，比如表已经被删除了的情况
+                auto fh = sm_manager_->fhs_.at(table_name).get();
                 fh->delete_record(delete_log->rid_,lsn);
                 buffer_pool_manager_->unpin_page(page_id, true);
                 break;
@@ -226,7 +226,7 @@ void RecoveryManager::redo() {
                     // 如果已经被持久化，不需要更新
                     break;
                 }
-                auto fh = sm_manager_->fhs_.at(table_name).get(); // check(AntiO2) 是否会造成崩溃，比如表已经被删除了的情况
+                auto fh = sm_manager_->fhs_.at(table_name).get();
                 fh->insert_record(insert_log->rid_, insert_log->insert_value_.data,lsn);
                 buffer_pool_manager_->unpin_page(page_id, true);
                 break;
@@ -245,7 +245,7 @@ void RecoveryManager::redo() {
                     // 如果已经被持久化，不需要更新
                     break;
                 }
-                auto fh = sm_manager_->fhs_.at(table_name).get(); // check(AntiO2) 是否会造成崩溃，比如表已经被删除了的情况
+                auto fh = sm_manager_->fhs_.at(table_name).get();
                 fh->delete_record(delete_log->rid_,lsn);
                 buffer_pool_manager_->unpin_page(page_id, true);
                 break;
@@ -265,7 +265,7 @@ void RecoveryManager::redo() {
                     // 如果已经被持久化，不需要更新
                     break;
                 }
-                auto fh = sm_manager_->fhs_.at(table_name).get(); // check(AntiO2) 是否会造成崩溃，比如表已经被删除了的情况
+                auto fh = sm_manager_->fhs_.at(table_name).get();
                 fh->update_record(update_log->rid_,update_log->after_update_value_.data,lsn);
                 buffer_pool_manager_->unpin_page(page_id, true);
                 break;
@@ -372,7 +372,7 @@ void RecoveryManager::undo() {
                 }
                 case COMMIT: {
                     LOG_ERROR("Rollback Commited Txn");
-                    undo_iter.second = log->prev_lsn_; // check(AntiO2) 已经commit的事务不可能被回滚
+                    undo_iter.second = log->prev_lsn_;
                     break;
 
                 }

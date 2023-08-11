@@ -1,7 +1,0 @@
-<component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="dirty_read_test" type="CMakeRunConfiguration" factoryName="Application" PROGRAM_PARAMS="dirty_read_test.sql output.txt" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="rmdb_client" TARGET_NAME="concurrency_test_main" CONFIG_NAME="Default-远程主机" RUN_TARGET_PROJECT_NAME="rmdb_client" RUN_TARGET_NAME="concurrency_test_main">
-    <method v="2">
-      <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
-    </method>
-  </configuration>
-</component>

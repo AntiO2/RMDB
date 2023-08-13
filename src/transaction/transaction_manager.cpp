@@ -64,7 +64,7 @@ void TransactionManager::commit(Transaction* txn, LogManager* log_manager) {
     auto record = CommitLogRecord(txn->get_transaction_id(),txn->getPrevLsn());
     log_manager->add_log_to_buffer(&record);
     txn->set_prev_lsn(record.lsn_);
-    log_manager->active_txn_table_[txn->get_transaction_id()] = record.lsn_;
+    log_manager->active_txn_table_.erase(txn->get_transaction_id());
     log_manager->flush_log_to_disk();
     // 5. 更新事务状态
     txn->set_state(TransactionState::COMMITTED);
@@ -131,6 +131,8 @@ void TransactionManager::abort(Transaction * txn, LogManager *log_manager) {
     AbortLogRecord record(txn->get_transaction_id(),txn->get_prev_lsn());
     log_manager->add_log_to_buffer(&record);
     txn->set_prev_lsn(record.lsn_);
+    log_manager->active_txn_table_.erase(txn->get_transaction_id());
+
     write_set->clear();
     // 2. 释放所有锁
     ReleaseLocks(txn);
@@ -138,7 +140,7 @@ void TransactionManager::abort(Transaction * txn, LogManager *log_manager) {
     txn->get_index_latch_page_set()->clear();
     txn->get_index_deleted_page_set()->clear();
     // 4. 把事务日志刷入磁盘中
-    log_manager->flush_log_to_disk();
+    log_manager->flush_log_to_disk(); // check(AntiO2) abort日志不需要刷盘
     // 5. 更新事务状态
     txn->set_state(TransactionState::ABORTED);
 }

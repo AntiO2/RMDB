@@ -83,7 +83,8 @@ public:
                                   "log_type_: {}\n"
                                   "lsn: {}\n"
                                   "log_tid: {}\n"
-                                  "prev_lsn: {}",LogTypeStr[log_type_],  lsn_,log_tid_,prev_lsn_).c_str());
+                                  "prev_lsn: {}\n"
+                                  "log_tot_len: {}",LogTypeStr[log_type_],  lsn_,log_tid_,prev_lsn_, log_tot_len_).c_str());
         }
 
     }
@@ -274,13 +275,22 @@ public:
     }
     InsertLogRecord(txn_id_t txn_id, RmRecord& insert_value, Rid& rid, const std::string& table_name,lsn_t prev_lsn)
         : InsertLogRecord() {
-        prev_lsn_ = prev_lsn;
+
         log_tid_ = txn_id;
+
+        // insert value
         insert_value_ = insert_value;
-        rid_ = rid;
-        log_tot_len_ += sizeof(int);
         log_tot_len_ += insert_value_.size;
+        log_tot_len_ +=sizeof(insert_value.size);
+
+        // rid
+        rid_ = rid;
         log_tot_len_ += sizeof(Rid);
+
+        // prev_lsn
+        prev_lsn_ = prev_lsn;
+
+        // table name
         table_name_size_ = table_name.length();
         table_name_ = new char[table_name_size_];
         memcpy(table_name_, table_name.c_str(), table_name_size_);

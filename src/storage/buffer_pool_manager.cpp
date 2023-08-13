@@ -48,6 +48,7 @@ void BufferPoolManager::update_page(Page *page, PageId new_page_id, frame_id_t n
     if(page->is_dirty()&&page->get_page_id().fd!=TMP_FD){
         // 根据WAL规则，刷盘前必须先写入LOG
         if(page->get_page_lsn() > log_manager_->flushed_lsn_) {
+            LOG_DEBUG("Trigger WAL");
             log_manager_->flush_log_to_disk();
         }
         page->is_dirty_ = false;

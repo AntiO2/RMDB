@@ -29,8 +29,8 @@ void RecoveryManager::analyze() {
     log_offset_ = -logs_.at(0)->lsn_;
     if(sm_manager_->master_record_end_!=INVALID_LSN) {
         auto ckpt_end = dynamic_cast<CkptEndLogRecord *>(get_log_by_lsn(sm_manager_->master_record_end_));
-        active_txn_table_ = std::move(ckpt_end->att_); // 初始化att
-        dirty_page_table_ = std::move(ckpt_end->dpt_); // 初始化dpt
+        log_manager_->active_txn_table_ = std::move(ckpt_end->att_); // 初始化att
+        log_manager_->dirty_page_table_ = std::move(ckpt_end->dpt_); // 初始化dpt
     }
     auto idx = sm_manager_->master_record_begin_!=INVALID_LSN?sm_manager_->master_record_begin_+log_offset_:0; // 从最近的ckpt开始寻找,或者从第一条记录开始
     auto length = logs_.size();
@@ -40,16 +40,15 @@ void RecoveryManager::analyze() {
         auto txn_id = log_record->get()->log_tid_;
         auto lsn = log_record->get()->lsn_;
         switch (log_record->get()->log_type_) {
-
             case UPDATE: {
                 auto update_record = dynamic_cast<UpdateLogRecord *>(log_record->get());
                 std::string table_name(update_record->table_name_, update_record->table_name_size_);
                 auto table = sm_manager_->fhs_[table_name].get();
                 auto page_id = PageId{.fd = table->GetFd(), .page_no = update_record->rid_.page_no};
-                if (dirty_page_table_.find(page_id) == dirty_page_table_.end()) {
-                    dirty_page_table_[page_id] = lsn; // 记录第一个使该页面变脏的log (reclsn)
+                if ( log_manager_->dirty_page_table_.find(page_id) ==  log_manager_->dirty_page_table_.end()) {
+                     log_manager_->dirty_page_table_[page_id] = lsn; // 记录第一个使该页面变脏的log (reclsn)
                 }
-                active_txn_table_[txn_id] = lsn;  // 更新该事务的last lsn
+                log_manager_->active_txn_table_[txn_id] = lsn;  // 更新该事务的last lsn
                 break;
             }
 
@@ -58,34 +57,33 @@ void RecoveryManager::analyze() {
                 std::string table_name(insert_record->table_name_, insert_record->table_name_size_);
                 auto table = sm_manager_->fhs_[table_name].get();
                 auto page_id = PageId{.fd=table->GetFd(), .page_no=insert_record->rid_.page_no};
-                if (dirty_page_table_.find(page_id) == dirty_page_table_.end()) {
-                    dirty_page_table_[page_id] = lsn; // 记录第一个使该页面变脏的log (reclsn)
+                if ( log_manager_->dirty_page_table_.find(page_id) ==  log_manager_->dirty_page_table_.end()) {
+                     log_manager_->dirty_page_table_[page_id] = lsn; // 记录第一个使该页面变脏的log (reclsn)
                 }
-                active_txn_table_[txn_id] = lsn;  // 更新该事务的last lsn
+                log_manager_->active_txn_table_[txn_id] = lsn;  // 更新该事务的last lsn
                 break;
             }
-
             case DELETE: {
                 auto delete_record = dynamic_cast<DeleteLogRecord *>(log_record->get());
                 std::string table_name(delete_record->table_name_, delete_record->table_name_size_);
                 auto table = sm_manager_->fhs_[table_name].get();
                 auto page_id = PageId{.fd=table->GetFd(), .page_no=delete_record->rid_.page_no};
-                if (dirty_page_table_.find(page_id) == dirty_page_table_.end()) {
-                    dirty_page_table_[page_id] = lsn; // 记录第一个使该页面变脏的log (reclsn)
+                if ( log_manager_->dirty_page_table_.find(page_id) ==  log_manager_->dirty_page_table_.end()) {
+                     log_manager_->dirty_page_table_[page_id] = lsn; // 记录第一个使该页面变脏的log (reclsn)
                 }
-                active_txn_table_[txn_id] = lsn;  // 更新该事务的last lsn
+                log_manager_->active_txn_table_[txn_id] = lsn;  // 更新该事务的last lsn
                 break;
             }
             case BEGIN: {
-                active_txn_table_[txn_id] = lsn;  // 更新该事务的last lsn
+                log_manager_->active_txn_table_[txn_id] = lsn;  // 更新该事务的last lsn
                 break;
             }
             case COMMIT: {
-                active_txn_table_.erase(txn_id);
+                log_manager_->active_txn_table_.erase(txn_id);
                 break;
             }
             case ABORT: {
-                active_txn_table_.erase(txn_id);
+                log_manager_->active_txn_table_.erase(txn_id);
                 break;
             }
             case CLR_INSERT: {
@@ -93,10 +91,10 @@ void RecoveryManager::analyze() {
                 std::string table_name(insert_record->table_name_, insert_record->table_name_size_);
                 auto table = sm_manager_->fhs_[table_name].get();
                 auto page_id = PageId{.fd=table->GetFd(), .page_no=insert_record->rid_.page_no};
-                if (dirty_page_table_.find(page_id) == dirty_page_table_.end()) {
-                    dirty_page_table_[page_id] = lsn; // 记录第一个使该页面变脏的log (reclsn)
+                if ( log_manager_->dirty_page_table_.find(page_id) ==  log_manager_->dirty_page_table_.end()) {
+                     log_manager_->dirty_page_table_[page_id] = lsn; // 记录第一个使该页面变脏的log (reclsn)
                 }
-                active_txn_table_[txn_id] = lsn;  // 更新该事务的last lsn
+                log_manager_->active_txn_table_[txn_id] = lsn;  // 更新该事务的last lsn
                 break;
             }
             case CLR_DELETE: {
@@ -104,10 +102,10 @@ void RecoveryManager::analyze() {
                 std::string table_name(delete_record->table_name_, delete_record->table_name_size_);
                 auto table = sm_manager_->fhs_[table_name].get();
                 auto page_id = PageId{.fd=table->GetFd(), .page_no=delete_record->rid_.page_no};
-                if (dirty_page_table_.find(page_id) == dirty_page_table_.end()) {
-                    dirty_page_table_[page_id] = lsn; // 记录第一个使该页面变脏的log (reclsn)
+                if ( log_manager_->dirty_page_table_.find(page_id) ==  log_manager_->dirty_page_table_.end()) {
+                     log_manager_->dirty_page_table_[page_id] = lsn; // 记录第一个使该页面变脏的log (reclsn)
                 }
-                active_txn_table_[txn_id] = lsn;  // 更新该事务的last lsn
+                log_manager_->active_txn_table_[txn_id] = lsn;  // 更新该事务的last lsn
                 break;
             }
             case CLR_UPDATE: {
@@ -115,10 +113,10 @@ void RecoveryManager::analyze() {
                 std::string table_name(update_record->table_name_, update_record->table_name_size_);
                 auto table = sm_manager_->fhs_[table_name].get();
                 auto page_id = PageId{.fd = table->GetFd(), .page_no = update_record->rid_.page_no};
-                if (dirty_page_table_.find(page_id) == dirty_page_table_.end()) {
-                    dirty_page_table_[page_id] = lsn; // 记录第一个使该页面变脏的log (reclsn)
+                if ( log_manager_->dirty_page_table_.find(page_id) ==  log_manager_->dirty_page_table_.end()) {
+                     log_manager_->dirty_page_table_[page_id] = lsn; // 记录第一个使该页面变脏的log (reclsn)
                 }
-                active_txn_table_[txn_id] = lsn;  // 更新该事务的last lsn
+                log_manager_->active_txn_table_[txn_id] = lsn;  // 更新该事务的last lsn
                 break;
             }
             case CKPT_BEGIN: {
@@ -138,14 +136,14 @@ void RecoveryManager::analyze() {
 @description: 重做所有未落盘的操作
 */
 void RecoveryManager::redo() {
-    if(dirty_page_table_.empty()) {
+    if(log_manager_->dirty_page_table_.empty()) {
         return;
     }
-    auto dpt_iter = dirty_page_table_.begin();
+    auto dpt_iter =  log_manager_->dirty_page_table_.begin();
     lsn_t redo_lsn = dpt_iter->second;
     dpt_iter++;
-    while (dpt_iter!=dirty_page_table_.end()) {
-        // 找到redo的起点
+    while (dpt_iter!= log_manager_->dirty_page_table_.end()) {
+        // 找到redo的起点(最小的rec_lsn)
         redo_lsn = std::min(redo_lsn,dpt_iter->second);
         dpt_iter++;
     }
@@ -153,13 +151,12 @@ void RecoveryManager::redo() {
     while((log = get_log_by_lsn(redo_lsn))!= nullptr) {
         auto lsn = log->lsn_;
         switch (log->log_type_) {
-
             case UPDATE: {
                 auto update_log = dynamic_cast<UpdateLogRecord*>(log);
                 std::string table_name(update_log->table_name_, update_log->table_name_size_);
                 auto table = sm_manager_->fhs_[table_name].get();
                 auto page_id = PageId{.fd = table->GetFd(), .page_no = update_log->rid_.page_no};
-                if (dirty_page_table_.find(page_id) == dirty_page_table_.end()) {
+                if ( log_manager_->dirty_page_table_.find(page_id) ==  log_manager_->dirty_page_table_.end()) {
                     // 如果不在脏页表中，不需要重做
                     break;
                 }
@@ -171,7 +168,6 @@ void RecoveryManager::redo() {
                 auto fh = sm_manager_->fhs_.at(table_name).get();
                 fh->update_record(update_log->rid_,update_log->after_update_value_.data,lsn);
                 buffer_pool_manager_->unpin_page(page_id, true);
-
                 break;
             }
             case INSERT: {
@@ -179,7 +175,7 @@ void RecoveryManager::redo() {
                     std::string table_name(insert_log->table_name_, insert_log->table_name_size_);
                     auto table = sm_manager_->fhs_[table_name].get();
                     auto page_id = PageId{.fd = table->GetFd(), .page_no = insert_log->rid_.page_no};
-                    if (dirty_page_table_.find(page_id) == dirty_page_table_.end()) {
+                    if ( log_manager_->dirty_page_table_.find(page_id) ==  log_manager_->dirty_page_table_.end()) {
                         // 如果不在脏页表中，不需要重做
                         break;
                     }
@@ -198,7 +194,7 @@ void RecoveryManager::redo() {
                 std::string table_name(delete_log->table_name_, delete_log->table_name_size_);
                 auto table = sm_manager_->fhs_[table_name].get();
                 auto page_id = PageId{.fd = table->GetFd(), .page_no = delete_log->rid_.page_no};
-                if (dirty_page_table_.find(page_id) == dirty_page_table_.end()) {
+                if ( log_manager_->dirty_page_table_.find(page_id) ==  log_manager_->dirty_page_table_.end()) {
                     // 如果不在脏页表中，不需要重做
                     break;
                 }
@@ -217,7 +213,7 @@ void RecoveryManager::redo() {
                 std::string table_name(insert_log->table_name_, insert_log->table_name_size_);
                 auto table = sm_manager_->fhs_[table_name].get();
                 auto page_id = PageId{.fd = table->GetFd(), .page_no = insert_log->rid_.page_no};
-                if (dirty_page_table_.find(page_id) == dirty_page_table_.end()) {
+                if ( log_manager_->dirty_page_table_.find(page_id) ==  log_manager_->dirty_page_table_.end()) {
                     // 如果不在脏页表中，不需要重做
                     break;
                 }
@@ -236,7 +232,7 @@ void RecoveryManager::redo() {
                 std::string table_name(delete_log->table_name_, delete_log->table_name_size_);
                 auto table = sm_manager_->fhs_[table_name].get();
                 auto page_id = PageId{.fd = table->GetFd(), .page_no = delete_log->rid_.page_no};
-                if (dirty_page_table_.find(page_id) == dirty_page_table_.end()) {
+                if ( log_manager_->dirty_page_table_.find(page_id) ==  log_manager_->dirty_page_table_.end()) {
                     // 如果不在脏页表中，不需要重做
                     break;
                 }
@@ -256,7 +252,7 @@ void RecoveryManager::redo() {
                 std::string table_name(update_log->table_name_, update_log->table_name_size_);
                 auto table = sm_manager_->fhs_[table_name].get();
                 auto page_id = PageId{.fd = table->GetFd(), .page_no = update_log->rid_.page_no};
-                if (dirty_page_table_.find(page_id) == dirty_page_table_.end()) {
+                if ( log_manager_->dirty_page_table_.find(page_id) ==  log_manager_->dirty_page_table_.end()) {
                     // 如果不在脏页表中，不需要重做
                     break;
                 }
@@ -297,7 +293,7 @@ void RecoveryManager::undo() {
     };
     std::priority_queue<std::pair<txn_id_t, lsn_t>, std::vector<std::pair<txn_id_t, lsn_t>>,
     decltype(undo_cmp)> undo_list(undo_cmp);
-    for(auto txn:active_txn_table_) {
+    for(auto txn:log_manager_->active_txn_table_) {
         undo_list.emplace(txn.first,txn.second);
     }
     while(!undo_list.empty()) {

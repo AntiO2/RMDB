@@ -80,6 +80,7 @@ class InsertExecutor : public AbstractExecutor {
             try {
                 index_handlers.at(i)->insert_entry(key, rid_, context_->txn_);
             } catch(IndexEntryDuplicateError &e) {
+                // 第i个索引发生重复key
                 // 需要将前i - 1个index回滚
                 for(int j = 0;j < i;j++) {
                     index_handlers.at(i)->delete_entry(key,context_->txn_);

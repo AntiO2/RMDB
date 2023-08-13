@@ -42,7 +42,6 @@ std::unique_ptr<RmRecord> RmFileHandle::get_record(const Rid& rid, Context* cont
  * @return {Rid} 插入的记录的记录号（位置）
  */
 Rid RmFileHandle::insert_record(char* buf, Context* context, std::string* table_name,  LogOperation log_op, lsn_t undo_next) {
-    // Todo:
     // 1. 获取当前未满的page handle
     // 2. 在page handle中找到空闲slot位置
     // 3. 将buf复制到空闲slot位置

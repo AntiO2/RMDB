@@ -24,6 +24,7 @@ lsn_t LogManager::add_log_to_buffer(LogRecord* log_record) {
     log_record->lsn_ = lsn;
     // 如果日志缓冲区已满，则将其刷新到磁盘中
     if (log_buffer_.is_full(log_record->log_tot_len_)) {
+        LOG_DEBUG("Log Buffer is full, begin flush");
         latch_.unlock();
         flush_log_to_disk();
         latch_.lock();

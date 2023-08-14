@@ -15,17 +15,19 @@ See the Mulan PSL v2 for more details. */
  * @description: analyze阶段，需要获得脏页表（DPT）和未完成的事务列表（ATT）
  */
 void RecoveryManager::analyze() {
-    while(log_manager_->flush_log_buffer()) {
-        auto buffer = log_manager_->get_log_buffer();
-        auto records = buffer->GetRecords();
-        for(auto &record:records) {
-            logs_.emplace_back(std::move(record));
-        }
-    }
-    if(logs_.empty()) {
+    auto records = log_manager_->get_records();
+
+    auto log_num = records.size();
+    if(!log_num) {
         LOG_DEBUG("Log File is Empty");
         return;
     }
+    logs_.reserve(log_num);
+    while(!records.empty()) {
+        logs_.emplace_back(std::move(records.front()));
+        records.pop_front();
+    }
+    assert(logs_.size()==log_num);
     log_offset_ = -logs_.at(0)->lsn_;
     if(sm_manager_->master_record_end_!=INVALID_LSN) {
         auto ckpt_end = dynamic_cast<CkptEndLogRecord *>(get_log_by_lsn(sm_manager_->master_record_end_));
@@ -163,6 +165,7 @@ void RecoveryManager::redo() {
                 auto page = buffer_pool_manager_->fetch_page(page_id);
                 if(page->get_page_lsn() >= lsn) {
                     // 如果已经被持久化，不需要更新
+                    buffer_pool_manager_->unpin_page(page_id, false);
                     break;
                 }
                 auto fh = sm_manager_->fhs_.at(table_name).get();
@@ -182,6 +185,7 @@ void RecoveryManager::redo() {
                     auto page = buffer_pool_manager_->fetch_page(page_id);
                     if(page->get_page_lsn() >= lsn) {
                         // 如果已经被持久化，不需要更新
+                        buffer_pool_manager_->unpin_page(page_id, false);
                         break;
                     }
                     auto fh = sm_manager_->fhs_.at(table_name).get();
@@ -201,6 +205,7 @@ void RecoveryManager::redo() {
                 auto page = buffer_pool_manager_->fetch_page(page_id);
                 if(page->get_page_lsn() >= lsn) {
                     // 如果已经被持久化，不需要更新
+                    buffer_pool_manager_->unpin_page(page_id, false);
                     break;
                 }
                 auto fh = sm_manager_->fhs_.at(table_name).get();
@@ -220,6 +225,7 @@ void RecoveryManager::redo() {
                 auto page = buffer_pool_manager_->fetch_page(page_id);
                 if(page->get_page_lsn() >= lsn) {
                     // 如果已经被持久化，不需要更新
+                    buffer_pool_manager_->unpin_page(page_id, false);
                     break;
                 }
                 auto fh = sm_manager_->fhs_.at(table_name).get();
@@ -239,6 +245,7 @@ void RecoveryManager::redo() {
                 auto page = buffer_pool_manager_->fetch_page(page_id);
                 if(page->get_page_lsn() >= lsn) {
                     // 如果已经被持久化，不需要更新
+                    buffer_pool_manager_->unpin_page(page_id, false);
                     break;
                 }
                 auto fh = sm_manager_->fhs_.at(table_name).get();
@@ -259,6 +266,7 @@ void RecoveryManager::redo() {
                 auto page = buffer_pool_manager_->fetch_page(page_id);
                 if(page->get_page_lsn() >= lsn) {
                     // 如果已经被持久化，不需要更新
+                    buffer_pool_manager_->unpin_page(page_id, false);
                     break;
                 }
                 auto fh = sm_manager_->fhs_.at(table_name).get();

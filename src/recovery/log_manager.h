@@ -642,108 +642,15 @@ public:
     }
 
     bool is_full(int append_size) {
-        if(offset_ + append_size > LOG_BUFFER_SIZE)
+        if(offset_ + append_size > LOG_BUFFER_SIZE) {
             return true;
+        }
         return false;
     }
 
     char buffer_[LOG_BUFFER_SIZE+1];
     int offset_;    // 写入log的offset
     // 获取日志缓冲区中的所有日志记录
-    std::list<std::unique_ptr<LogRecord>> GetRecords(uint32_t offset = 0) {
-        std::list<std::unique_ptr<LogRecord>> records;
-        int current_offset = 0;
-        while (current_offset < offset_) {
-            auto type = *(LogType*)(buffer_+ current_offset+ OFFSET_LOG_TYPE);
-            switch (type) {
-                case UPDATE:
-                {
-                    UpdateLogRecord record(buffer_+current_offset);
-                    record.format_print();
-                    records.emplace_back(std::make_unique<UpdateLogRecord>(record));
-                    current_offset += record.log_tot_len_;
-                    break;
-                }
-                case INSERT:
-                {
-                    InsertLogRecord record(buffer_+current_offset);
-                    records.emplace_back(std::make_unique<InsertLogRecord>(record));
-                    record.format_print();
-                    current_offset += record.log_tot_len_;
-                    break;
-                }
-                case DELETE:
-                {
-                    DeleteLogRecord record(buffer_+current_offset);
-                    records.emplace_back(std::make_unique< DeleteLogRecord>(record));
-                    record.format_print();
-                    current_offset += record.log_tot_len_;
-                    break;
-                }
-                case BEGIN:
-                {
-                    BeginLogRecord record(buffer_+current_offset);
-                    records.emplace_back(std::make_unique<BeginLogRecord>(record));
-                    record.format_print();
-                    current_offset += record.log_tot_len_;
-                    break;
-                }
-                case COMMIT:
-                {
-                    CommitLogRecord record(buffer_+current_offset);
-                    records.emplace_back(std::make_unique<CommitLogRecord>(record));
-                    record.format_print();
-                    current_offset += record.log_tot_len_;
-                    break;
-                }
-                case ABORT:
-                {
-                    AbortLogRecord record(buffer_+current_offset);
-                    records.emplace_back(std::make_unique<AbortLogRecord>(record));
-                    record.format_print();
-                    current_offset += record.log_tot_len_;
-                    break;
-                }
-                case CLR_INSERT: {
-                    CLR_Insert_Record record(buffer_+current_offset);
-                    record.format_print();
-                    current_offset += record.log_tot_len_;
-                    records.emplace_back(std::make_unique<CLR_Insert_Record>(record));
-                    break;
-                }
-
-                case CLR_DELETE:{
-                    CLR_Delete_Record record(buffer_+current_offset);
-                    record.format_print();
-                    current_offset += record.log_tot_len_;
-                    records.emplace_back(std::make_unique<CLR_Delete_Record>(record));
-                    break;
-                }
-                case CLR_UPDATE:{
-                    CLR_UPDATE_RECORD record(buffer_+current_offset);
-                    record.format_print();
-                    current_offset += record.log_tot_len_;
-                    records.emplace_back(std::make_unique<CLR_UPDATE_RECORD>(record));
-                    break;
-                }
-                case CKPT_BEGIN: {
-                    CkptBeginLogRecord record(buffer_+current_offset);
-                    record.format_print();
-                    current_offset += record.log_tot_len_;
-                    records.emplace_back(std::make_unique<CkptBeginLogRecord>(record));
-                    break;
-                }
-                case CKPT_END:{
-                    CkptEndLogRecord record(buffer_+current_offset);
-                    record.format_print();
-                    current_offset += record.log_tot_len_;
-                    records.emplace_back(std::make_unique<CkptEndLogRecord>(record));
-                    break;
-                }
-            }
-        }
-        return records;
-    }
 };
 
 /* 日志管理器，负责把日志写入日志缓冲区，以及把日志缓冲区中的内容写入磁盘中 */
@@ -753,28 +660,21 @@ public:
     
     lsn_t add_log_to_buffer(LogRecord* log_record);
     void flush_log_to_disk();
-    bool flush_log_buffer() {
-       auto read_size =  disk_manager_->read_log(log_buffer_.buffer_,LOG_BUFFER_SIZE, current_offset_);
-       if(read_size <= 0 ) {
-           return false;
-       }
-       log_buffer_.offset_ = read_size;
-       current_offset_+=read_size;
-       return true;
-    }
+    bool flush_log_buffer();
     LogBuffer* get_log_buffer() {
         return &log_buffer_;
     }
     void set_global_lsn(lsn_t lsn) {
         global_lsn_ = lsn;
     }
-
+    std::list<std::unique_ptr<LogRecord>> get_records();
 private:    
     std::atomic<lsn_t> global_lsn_{0};  // 全局lsn，递增，用于为每条记录分发lsn
     std::mutex latch_;                  // 用于对log_buffer_的互斥访问
     LogBuffer log_buffer_;              // 日志缓冲区
     DiskManager* disk_manager_;
     int current_offset_; // 当前在log文件中的偏移量
+    int prev_offset_; // 在flush之前的偏移量
 public:
     dirty_page_table_t dirty_page_table_;
     active_txn_table_t active_txn_table_;

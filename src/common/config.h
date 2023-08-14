@@ -28,6 +28,8 @@ extern std::atomic<bool> enable_logging;
 /** If ENABLE_LOGGING is true, the log should be flushed to disk every LOG_TIMEOUT. */
 extern std::chrono::duration<int64_t> log_timeout;
 
+static constexpr bool ARIES_DEBUG_MODE = false; // 是否调试ARIES
+
 static constexpr int INVALID_FRAME_ID = -1;                                   // invalid frame id
 static constexpr int INVALID_PAGE_ID = -1;                                    // invalid page id
 static constexpr int INVALID_TXN_ID = -1;                                     // invalid transaction id
@@ -36,17 +38,17 @@ static constexpr int INVALID_LSN = -1;                                        //
 static constexpr int INVALID_OFFSET = -1;
 static constexpr int HEADER_PAGE_ID = 0;                                      // the header page id
 static constexpr int PAGE_SIZE = 4096;                                        // size of a data page in byte  4KB
-static constexpr int BUFFER_POOL_SIZE = 4;                                      // size of buffer pool 16KB
+// static constexpr int BUFFER_POOL_SIZE = 4;                                      // size of buffer pool 16KB
 // static constexpr int BUFFER_POOL_SIZE = 65536;                                // size of buffer pool 256MB
 // static constexpr int BUFFER_POOL_SIZE = 131072;                                // size of buffer pool 512MB
 // static constexpr int BUFFER_POOL_SIZE = 262144;                                // size of buffer pool 1GB
-// static constexpr int BUFFER_POOL_SIZE =  262144;
+static constexpr int BUFFER_POOL_SIZE =  262144;
 static constexpr int JOIN_POOL_SIZE = 20000;
-static constexpr int LOG_BUFFER_SIZE = (1 * PAGE_SIZE);                    // 测试性质的小buffer
-// static constexpr int LOG_BUFFER_SIZE = (1024 * PAGE_SIZE);                    // size of a log buffer in byte
+static constexpr int LOG_BUFFER_SIZE = (1024 * PAGE_SIZE);                    // size of a log buffer in byte
+// static constexpr int LOG_BUFFER_SIZE = (1 * PAGE_SIZE);                    // 测试性质的小buffer
 static constexpr int BUCKET_SIZE = 50;                                        // size of extendible hash bucket
 static constexpr int TMP_FD = -2; // 临时使用的fd (不知道会不会有冲突)
-static constexpr bool ARIES_DEBUG_MODE = true; // 是否调试ARIES
+
 
 
 using frame_id_t = int32_t;  // frame id type, 帧页ID, 页在BufferPool中的存储单元称为帧,一帧对应一页

@@ -28,7 +28,7 @@ extern std::atomic<bool> enable_logging;
 /** If ENABLE_LOGGING is true, the log should be flushed to disk every LOG_TIMEOUT. */
 extern std::chrono::duration<int64_t> log_timeout;
 
-static constexpr bool ARIES_DEBUG_MODE = false; // 是否调试ARIES
+static constexpr bool ARIES_DEBUG_MODE = true; // 是否调试ARIES
 
 static constexpr int INVALID_FRAME_ID = -1;                                   // invalid frame id
 static constexpr int INVALID_PAGE_ID = -1;                                    // invalid page id
@@ -43,7 +43,7 @@ static constexpr int PAGE_SIZE = 4096;                                        //
 // static constexpr int BUFFER_POOL_SIZE = 131072;                                // size of buffer pool 512MB
 // static constexpr int BUFFER_POOL_SIZE = 262144;                                // size of buffer pool 1GB
 static constexpr int BUFFER_POOL_SIZE =  262144;
-static constexpr int JOIN_POOL_SIZE = 20000;
+static constexpr int JOIN_POOL_SIZE = BUFFER_POOL_SIZE/2;
 static constexpr int LOG_BUFFER_SIZE = (1024 * PAGE_SIZE);                    // size of a log buffer in byte
 // static constexpr int LOG_BUFFER_SIZE = (1 * PAGE_SIZE);                    // 测试性质的小buffer
 static constexpr int BUCKET_SIZE = 50;                                        // size of extendible hash bucket

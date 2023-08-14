@@ -83,6 +83,7 @@ Rid RmFileHandle::insert_record(char* buf, Context* context, std::string* table_
     {
         //next_free_page_no怎么更新? v不更新了，等create_page_handle()自己调
         file_hdr_.first_free_page_no = pageHandle.page_hdr->next_free_page_no;
+        disk_manager_->write_page(fd_, RM_FILE_HDR_PAGE, (char *)&file_hdr_, sizeof(file_hdr_)); // 更新之后，需要立即写回磁盘
     }
     pageHandle.page->set_page_lsn(log_record->lsn_);
     //该页面结束使用，取消对该页面的固定,并标记为dirty
@@ -111,6 +112,7 @@ void RmFileHandle::insert_record(const Rid& rid, char* buf, lsn_t lsn) {
     {
         //next_free_page_no怎么更新? v不更新了，等create_page_handle()自己调
         file_hdr_.first_free_page_no = pageHandle.page_hdr->next_free_page_no;
+        disk_manager_->write_page(fd_, RM_FILE_HDR_PAGE, (char *)&file_hdr_, sizeof(file_hdr_)); // 更新之后，需要立即写回磁盘
     }
 
     pageHandle.page->set_page_lsn(lsn);

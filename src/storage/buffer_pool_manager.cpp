@@ -43,14 +43,13 @@ void BufferPoolManager::update_page(Page *page, PageId new_page_id, frame_id_t n
     // 1 如果是脏页，写回磁盘，并且把dirty置为false
     // 2 更新page table
     // 3 重置page的data，更新page id
-
+    // 根据WAL规则，刷盘前必须先写入LOG
+    if(page->get_page_lsn() > log_manager_->flushed_lsn_) {
+        LOG_DEBUG("Trigger WAL");
+        log_manager_->flush_log_to_disk();
+    }
     // 首先检查该页上是否是有页面。
     if(page->is_dirty()&&page->get_page_id().fd!=TMP_FD){
-        // 根据WAL规则，刷盘前必须先写入LOG
-        if(page->get_page_lsn() > log_manager_->flushed_lsn_) {
-            LOG_DEBUG("Trigger WAL");
-            log_manager_->flush_log_to_disk();
-        }
         page->is_dirty_ = false;
         disk_manager_->write_page(page->get_page_id().fd, page->get_page_id().page_no, page->get_data(), PAGE_SIZE);
         log_manager_->dirty_page_table_.erase(page->get_page_id());

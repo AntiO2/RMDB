@@ -87,6 +87,13 @@ class InsertExecutor : public AbstractExecutor {
                 // 第i个索引发生重复key
                 // 需要将前i - 1个index回滚
                 for(int j = 0;j < i;j++) {
+                    index = tab_.indexes[j];
+                    key = new char[index.col_tot_len];
+                    offset = 0;
+                    for(size_t k = 0; k < index.col_num; ++k) {
+                        memcpy(key + offset, rec.data + index.cols[k].offset, index.cols[k].len);
+                        offset += index.cols[k].len;
+                    }
                     index_handlers.at(j)->delete_entry(key,context_->txn_);
                 }
                 // check(AntiO2) 这里是否需要是undo类型回滚

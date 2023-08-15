@@ -77,10 +77,7 @@ class Portal
             switch(x->tag) {
                 case T_select:
                 {
-                    if(context->txn_->get_isolation_level()==IsolationLevel::SERIALIZABLE) {
-                        auto fd = sm_manager_->fhs_.at(x->tab_name_).get()->GetFd();
-                        context->lock_mgr_->lock_shared_on_table(context->txn_,fd);
-                    }
+
                     std::shared_ptr<ProjectionPlan> p = std::dynamic_pointer_cast<ProjectionPlan>(x->subplan_);
                     // root表示取出数据的执行器
                     std::unique_ptr<AbstractExecutor> root= convert_plan_executor(p, context);
@@ -99,7 +96,7 @@ class Portal
                         auto fd = sm_manager_->fhs_.at(x->tab_name_).get()->GetFd();
                         context->lock_mgr_->lock_exclusive_on_table(context->txn_,fd);
                     }
-                    std::unique_ptr<AbstractExecutor> scan= convert_plan_executor(x->subplan_, context);
+                    std::unique_ptr<AbstractExecutor> scan= convert_plan_executor(x->subplan_, context, true);
                     std::vector<Rid> rids;
                     for (scan->beginTuple(); !scan->is_end(); scan->nextTuple()) {
                         rids.push_back(scan->rid());
@@ -114,7 +111,7 @@ class Portal
                         auto fd = sm_manager_->fhs_.at(x->tab_name_).get()->GetFd();
                         context->lock_mgr_->lock_exclusive_on_table(context->txn_,fd);
                     }
-                    std::unique_ptr<AbstractExecutor> scan= convert_plan_executor(x->subplan_, context);
+                    std::unique_ptr<AbstractExecutor> scan= convert_plan_executor(x->subplan_, context, true);
                     std::vector<Rid> rids;
                     for (scan->beginTuple(); !scan->is_end(); scan->nextTuple()) {
                         rids.push_back(scan->rid());
@@ -189,12 +186,17 @@ class Portal
     void drop(){}
 
 
-    std::unique_ptr<AbstractExecutor> convert_plan_executor(std::shared_ptr<Plan> plan, Context *context)
+    std::unique_ptr<AbstractExecutor> convert_plan_executor(std::shared_ptr<Plan> plan, Context *context, bool dml_mode = false)
     {
+
         if(auto x = std::dynamic_pointer_cast<ProjectionPlan>(plan)){
             return std::make_unique<ProjectionExecutor>(convert_plan_executor(x->subplan_, context), 
                                                         x->sel_cols_);
         } else if(auto x = std::dynamic_pointer_cast<ScanPlan>(plan)) {
+            if(context->txn_->get_isolation_level()==IsolationLevel::SERIALIZABLE&&!dml_mode) {
+                auto fd = sm_manager_->fhs_.at(x->tab_name_).get()->GetFd();
+                context->lock_mgr_->lock_shared_on_table(context->txn_,fd);
+            }
             if(x->tag == T_SeqScan) {
 //                if(x->op_){//liamY 如果有聚合函数的操作
 //                    return std::make_unique<SeqScanExecutor>(sm_manager_, x->tab_name_, x->conds_, context,x->col_as_name_,x->op_);

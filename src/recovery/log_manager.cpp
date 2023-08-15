@@ -24,7 +24,7 @@ lsn_t LogManager::add_log_to_buffer(LogRecord* log_record) {
     //                              global_lsn_+1,log_buffer_.offset_,log_record->log_tot_len_,log_buffer_.offset_+log_record->log_tot_len_).c_str());
     //    }
     if (log_buffer_.is_full(log_record->log_tot_len_)) {
-        LOG_DEBUG("Log Buffer is full, begin flush");
+        LOG_DEBUG("Log Buffer is full, begin flussh");
         latch_.unlock();
         flush_log_to_disk();
         latch_.lock();

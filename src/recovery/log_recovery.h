@@ -35,7 +35,6 @@ public:
     void analyze();
     void redo();
     void undo();
-    void rebuild();
     /**
      * 通过lsn获得log （加上偏移量）
      * @param lsn

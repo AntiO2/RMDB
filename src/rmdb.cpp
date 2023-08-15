@@ -47,82 +47,82 @@ auto analyze = std::make_unique<Analyze>(sm_manager.get());
 pthread_mutex_t *buffer_mutex;
 pthread_mutex_t *sockfd_mutex;
 
-        static jmp_buf jmpbuf;
-        void sigint_handler(int signo) {
-            should_exit = true;
-            log_manager->flush_log_to_disk();
-            std::cout << "The Server receive Crtl+C, will been closed\n";
-            longjmp(jmpbuf, 1);
-        }
+static jmp_buf jmpbuf;
+void sigint_handler(int signo) {
+    should_exit = true;
+    log_manager->flush_log_to_disk();
+    std::cout << "The Server receive Crtl+C, will been closed\n";
+    longjmp(jmpbuf, 1);
+}
 
-          // 判断当前正在执行的是显式事务还是单条SQL语句的事务，并更新事务ID
-        void SetTransaction(txn_id_t *txn_id, Context *context) {
-            context->txn_ = txn_manager->get_transaction(*txn_id);//这里得到上一次的事务处理情况
-            if(context->txn_ == nullptr || context->txn_->get_state() == TransactionState::COMMITTED ||
-               context->txn_->get_state() == TransactionState::ABORTED) {//如果上一次结束了事务，就应该重新产生一个事务，否则就沿用上一次的事务
-                context->txn_ = txn_manager->begin(nullptr, context->log_mgr_);
-                *txn_id = context->txn_->get_transaction_id();
-                context->txn_->set_txn_mode(false);//设置为false为单条语句sql语句的事务
-                context->txn_->set_isolation_level(IsolationLevel::READ_UNCOMMITTED);
-            }
-        }
+// 判断当前正在执行的是显式事务还是单条SQL语句的事务，并更新事务ID
+void SetTransaction(txn_id_t *txn_id, Context *context) {
+    context->txn_ = txn_manager->get_transaction(*txn_id);
+    if(context->txn_ == nullptr || context->txn_->get_state() == TransactionState::COMMITTED ||
+       context->txn_->get_state() == TransactionState::ABORTED) {
+        context->txn_ = txn_manager->begin(nullptr, context->log_mgr_);
+        *txn_id = context->txn_->get_transaction_id();
+        context->txn_->set_txn_mode(false);
+    }
+}
 
-        void *client_handler(void *sock_fd) {
-            int fd = *((int *)sock_fd);
-            pthread_mutex_unlock(sockfd_mutex);
+            void *client_handler(void *sock_fd) {
+                int fd = *((int *)sock_fd);
+                pthread_mutex_unlock(sockfd_mutex);
 
-            int i_recvBytes;
-            // 接收客户端发送的请求
-            char data_recv[BUFFER_LENGTH];
-            // 需要返回给客户端的结果
-            char *data_send = new char[BUFFER_LENGTH];
-            // 需要返回给客户端的结果的长度
-            int offset = 0;
-            // 记录客户端当前正在执行的事务ID
-            txn_id_t txn_id = INVALID_TXN_ID;
+                int i_recvBytes;
+                // 接收客户端发送的请求
+                char data_recv[BUFFER_LENGTH];
+                // 需要返回给客户端的结果
+                char *data_send = new char[BUFFER_LENGTH];
+                // 需要返回给客户端的结果的长度
+                int offset = 0;
+                // 记录客户端当前正在执行的事务ID
+                txn_id_t txn_id = INVALID_TXN_ID;
 
-            std::string output = "establish client connection, sockfd: " + std::to_string(fd) + "\n";
-            std::cout << output;
+                std::string output = "establish client connection, sockfd: " + std::to_string(fd) + "\n";
+                std::cout << output;
 
-            while (true) {
-                std::cout << "Waiting for request..." << std::endl;
-                memset(data_recv, 0, BUFFER_LENGTH);
+                while (true) {
+                    std::cout << "Waiting for request..." << std::endl;
+                    memset(data_recv, 0, BUFFER_LENGTH);
 
-                i_recvBytes = read(fd, data_recv, BUFFER_LENGTH);
+                    i_recvBytes = read(fd, data_recv, BUFFER_LENGTH);
 
-                if (i_recvBytes == 0) {
-                    std::cout << "Maybe the client has closed" << std::endl;
-                    break;
-                }
-                if (i_recvBytes == -1) {
-                    std::cout << "Client read error!" << std::endl;
-                    break;
-                }
+                    if (i_recvBytes == 0) {
+                        std::cout << "Maybe the client has closed" << std::endl;
+                        break;
+                    }
+                    if (i_recvBytes == -1) {
+                        std::cout << "Client read error!" << std::endl;
+                        break;
+                    }
 
-                printf("i_recvBytes: %d \n ", i_recvBytes);
+                    printf("i_recvBytes: %d \n ", i_recvBytes);
 
-                if (strcmp(data_recv, "exit") == 0) {
-                    std::cout << "Client exit." << std::endl;
-                    break;
-                }
-                if (strcmp(data_recv, "crash") == 0) {
-                    std::cout << "Server crash" << std::endl;
-                    exit(1);
-                }
+                    if (strcmp(data_recv, "exit") == 0) {
+                        std::cout << "Client exit." << std::endl;
+                        break;
+                    }
+                    if (strcmp(data_recv, "crash") == 0) {
+                        std::cout << "Server crash" << std::endl;
+                        exit(1);
+                    }
 
-                std::cout << "Read from client " << fd << ": " << data_recv << std::endl;
+                    std::cout << "Read from client " << fd << ": " << data_recv << std::endl;
 
-                memset(data_send, '\0', BUFFER_LENGTH);
-                offset = 0;
+                    memset(data_send, '\0', BUFFER_LENGTH);
+                    offset = 0;
 
-                // 开启事务，初始化系统所需的上下文信息（包括事务对象指针、锁管理器指针、日志管理器指针、存放结果的buffer、记录结果长度的变量）
-                auto *context = new Context(lock_manager.get(), log_manager.get(), nullptr, data_send, &offset);//这里传入的transaction每次都会把state_置为DEFAULT
-                SetTransaction(&txn_id, context);
-                // 用于判断是否已经调用了yy_delete_buffer来删除buf
-                bool finish_analyze = false;
-                pthread_mutex_lock(buffer_mutex);
-                YY_BUFFER_STATE buf = yy_scan_string(data_recv);
-                if (yyparse() == 0) {
+                    // 开启事务，初始化系统所需的上下文信息（包括事务对象指针、锁管理器指针、日志管理器指针、存放结果的buffer、记录结果长度的变量）
+                    Transaction transaction(txn_id);
+                    auto *context = new Context(lock_manager.get(), log_manager.get(), &transaction, data_send, &offset);//这里传入的transaction每次都会把state_置为DEFAULT
+                    SetTransaction(&txn_id, context);
+                    // 用于判断是否已经调用了yy_delete_buffer来删除buf
+                    bool finish_analyze = false;
+                    pthread_mutex_lock(buffer_mutex);
+                    YY_BUFFER_STATE buf = yy_scan_string(data_recv);
+                    if (yyparse() == 0) {
             if (ast::parse_tree != nullptr) {
                 try {
                     // analyze and rewrite
@@ -268,6 +268,7 @@ int main(int argc, char **argv) {
         std::cerr << "Usage: " << argv[0] << " <database>" << std::endl;
         exit(1);
     }
+
     signal(SIGINT, sigint_handler);
     try {
         std::cout << "\n"
@@ -294,7 +295,7 @@ int main(int argc, char **argv) {
         recovery->analyze();
         recovery->redo();
         recovery->undo();
-        recovery->rebuild();
+
         // 开启服务端，开始接受客户端连接
         start_server();
     } catch (RMDBError &e) {

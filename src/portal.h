@@ -88,34 +88,26 @@ class Portal
                     return std::make_shared<PortalStmt>(PORTAL_ONE_SELECT, std::move(p->sel_cols_),
                                                         std::move(root), plan);
                 }
+                    
                 case T_Update:
                 {
+                    std::unique_ptr<AbstractExecutor> scan= convert_plan_executor(x->subplan_, context);
                     std::vector<Rid> rids;
-                    if(context->txn_->get_isolation_level()==IsolationLevel::SERIALIZABLE) {
-                        context->txn_->set_isolation_level(IsolationLevel::READ_UNCOMMITTED);
-                        std::unique_ptr<AbstractExecutor> scan= convert_plan_executor(x->subplan_, context);
-                        for (scan->beginTuple(); !scan->is_end(); scan->nextTuple()) {
-                            rids.push_back(scan->rid());
-                        }
-                        context->txn_->set_isolation_level(IsolationLevel::SERIALIZABLE);
+                    for (scan->beginTuple(); !scan->is_end(); scan->nextTuple()) {
+                        rids.push_back(scan->rid());
                     }
-
                     std::unique_ptr<AbstractExecutor> root =std::make_unique<UpdateExecutor>(sm_manager_, 
                                                             x->tab_name_, x->set_clauses_, x->conds_, rids, context);
                     return std::make_shared<PortalStmt>(PORTAL_DML_WITHOUT_SELECT, std::vector<TabCol>(), std::move(root), plan);
                 }
                 case T_Delete:
                 {
+                    std::unique_ptr<AbstractExecutor> scan= convert_plan_executor(x->subplan_, context);
                     std::vector<Rid> rids;
-                    if(context->txn_->get_isolation_level()==IsolationLevel::SERIALIZABLE) {
-                        context->txn_->set_isolation_level(IsolationLevel::READ_UNCOMMITTED);
-                        std::unique_ptr<AbstractExecutor> scan= convert_plan_executor(x->subplan_, context);
-
-                        for (scan->beginTuple(); !scan->is_end(); scan->nextTuple()) {
-                            rids.push_back(scan->rid());
-                        }
-                        context->txn_->set_isolation_level(IsolationLevel::SERIALIZABLE);
+                    for (scan->beginTuple(); !scan->is_end(); scan->nextTuple()) {
+                        rids.push_back(scan->rid());
                     }
+
                     std::unique_ptr<AbstractExecutor> root =
                         std::make_unique<DeleteExecutor>(sm_manager_, x->tab_name_, x->conds_, rids, context);
 

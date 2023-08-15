@@ -108,14 +108,11 @@ void SmManager::open_db(const std::string& db_name) {
         disk_manager_->set_fd2pageno(file->GetFd(), file->getFileHdr().num_pages );
         fhs_.emplace(table.first,std::move(file));
         const auto& indices = table.second.indexes;
-        if(!INDEX_REBUILD_MODE) {
-            for(const auto&index:table.second.indexes) {
-                auto index_name = ix_manager_->get_index_name(table.first,index.cols);
-                ihs_.emplace(index_name,
-                             ix_manager_->open_index(index_name));
-            }
+        for(const auto&index:table.second.indexes) {
+            auto index_name = ix_manager_->get_index_name(table.first,index.cols);
+            ihs_.emplace(index_name,
+                         ix_manager_->open_index(index_name));
         }
-
     }
 
 }
@@ -315,7 +312,7 @@ void SmManager::create_index(const std::string& tab_name, const std::vector<std:
 
     auto table_file_handle = fhs_.find(tab_name)->second.get();
     RmScan rm_scan(table_file_handle);
-    Transaction transaction(INVALID_TXN_ID); // TODO (AntiO2) 事务
+    Transaction transaction(0); // TODO (AntiO2) 事务
     while (!rm_scan.is_end()) {
         auto rid = rm_scan.rid();
         auto origin_key = table_file_handle->get_record(rid,context);
@@ -341,6 +338,7 @@ void SmManager::drop_index(const std::string& tab_name, const std::vector<std::s
     if(ihs_iter==ihs_.end()) {
         throw IndexNotFoundError(tab_name, col_names);
     }
+
     buffer_pool_manager_->delete_all_pages(ihs_iter->second->getFd());
     ix_manager_->close_index(ihs_iter->second.get());
     ix_manager_->destroy_index(ix_name); // 删除索引文件
@@ -363,97 +361,4 @@ void SmManager::drop_index(const std::string& tab_name, const std::vector<ColMet
         col_name.emplace_back(col.name);
     }
     drop_index(tab_name,col_name,context);
-}
-
-void SmManager::rebuild_index(const std::string &tab_name, const IndexMeta&index_meta, Context *context) {
-    const auto&index_cols = index_meta.cols;
-    std::vector<std::string> col_names;
-    for(auto&col:index_meta.cols) {
-        col_names.emplace_back(col.name);
-    }
-    auto ix_name = IxManager::get_index_name(tab_name, col_names);
-    disk_manager_->reset_file(ix_name);
-    int fd = disk_manager_->open_file(ix_name);
-    int col_tot_len = 0;
-    int col_num = index_cols.size();
-    for(auto& col: index_cols) {
-        col_tot_len += col.len;
-    }
-    if (col_tot_len > IX_MAX_COL_LEN) {
-        throw InvalidColLengthError(col_tot_len);
-    }
-    // 根据 |page_hdr| + (|attr| + |rid|) * (n + 1) <= PAGE_SIZE 求得n的最大值btree_order
-    // 即 n <= btree_order，那么btree_order就是每个结点最多可插入的键值对数量（实际还多留了一个空位，但其不可插入）
-    // Key: index cols
-    // Value: RID
-    int btree_order = static_cast<int>((PAGE_SIZE - sizeof(IxPageHdr)) / (col_tot_len + sizeof(Rid)) - 1);
-    assert(btree_order > 2);
-
-    // Create file header and write to file
-    IxFileHdr* fhdr = new IxFileHdr(IX_NO_PAGE, IX_INIT_NUM_PAGES, IX_INIT_ROOT_PAGE,
-                                    col_num, col_tot_len, btree_order, (btree_order + 1) * col_tot_len, // 在这里初始化最大值
-                                    IX_INIT_ROOT_PAGE, IX_INIT_ROOT_PAGE);
-    for(int i = 0; i < col_num; ++i) {
-        fhdr->col_types_.push_back(index_cols[i].type);
-        fhdr->col_lens_.push_back(index_cols[i].len);
-    }
-    fhdr->update_tot_len();
-
-    char* data = new char[fhdr->tot_len_];
-    fhdr->serialize(data); // 将fhdr的数据结构化，存储到data中
-
-    disk_manager_->write_page(fd, IX_FILE_HDR_PAGE, data, fhdr->tot_len_); // 将索引数据写到索引文件的第0页中（header page）
-
-    char page_buf[PAGE_SIZE];  // 在内存中初始化page_buf中的内容，然后将其写入磁盘
-    memset(page_buf, 0, PAGE_SIZE);
-    // 注意leaf header页号为1，也标记为叶子结点，其前一个/后一个叶子均指向root node
-    // Create leaf list header page and write to file
-    {
-        memset(page_buf, 0, PAGE_SIZE);
-        auto phdr = reinterpret_cast<IxPageHdr *>(page_buf);
-        *phdr = {
-                .next_free_page_no = IX_NO_PAGE,
-                .parent = IX_NO_PAGE,
-                .num_key = 0,
-                .is_leaf = true,
-                .prev_leaf = IX_INIT_ROOT_PAGE,
-                .next_leaf = IX_INIT_ROOT_PAGE,
-        };
-        disk_manager_->write_page(fd, IX_LEAF_HEADER_PAGE, page_buf, PAGE_SIZE);
-    }
-    // 注意root node页号为2，也标记为叶子结点，其前一个/后一个叶子均指向leaf header
-    // Create root node and write to file
-    {
-        memset(page_buf, 0, PAGE_SIZE);
-        auto phdr = reinterpret_cast<IxPageHdr *>(page_buf);
-        *phdr = {
-                .next_free_page_no = IX_NO_PAGE,
-                .parent = IX_NO_PAGE,
-                .num_key = 0,
-                .is_leaf = true,
-                .prev_leaf = IX_LEAF_HEADER_PAGE,
-                .next_leaf = IX_LEAF_HEADER_PAGE,
-        };
-        // Must write PAGE_SIZE here in case of future fetch_node()
-        disk_manager_->write_page(fd, IX_INIT_ROOT_PAGE, page_buf, PAGE_SIZE);
-    }
-
-    disk_manager_->set_fd2pageno(fd, IX_INIT_NUM_PAGES - 1);  // DEBUG
-
-//    // Close index file
-//    disk_manager_->close_file(fd);
-    const auto&index_name = ix_name;
-    assert(ihs_.count(index_name)==0); // 确保之前没有创建过该index
-    ihs_.emplace(index_name,ix_manager_->open_index(tab_name, index_cols));
-    auto index_handler = ihs_.find(index_name)->second.get();
-    auto table_file_handle = fhs_.find(tab_name)->second.get();
-    RmScan rm_scan(table_file_handle);
-    Transaction transaction(INVALID_TXN_ID);
-    while (!rm_scan.is_end()) {
-        auto rid = rm_scan.rid();
-        auto origin_key = table_file_handle->get_record(rid,context);
-        auto key = origin_key->key_from_rec(index_cols);
-        index_handler->insert_entry(key->data,rid, &transaction);
-        rm_scan.next();
-    }
 }

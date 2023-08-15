@@ -67,7 +67,9 @@ page_id_t DiskManager::allocate_page(int fd) {
     return fd2pageno_[fd]++;
 }
 
-void DiskManager::deallocate_page(__attribute__((unused)) page_id_t page_id) {}
+void DiskManager::deallocate_page(__attribute__((unused)) page_id_t page_id) {
+    // fd2pageno_[page_id];
+}
 
 bool DiskManager::is_dir(const std::string& path) {
     struct stat st;
@@ -267,4 +269,12 @@ void DiskManager::write_log(char *log_data, int size) {
     if (bytes_write != size) {
         throw UnixError();
     }
+}
+
+int DiskManager::reset_file(const std::string &path) {
+    int fd = open(path.c_str(), O_RDWR|O_TRUNC);// 打开并清空之前的数据
+    if(fd < 0) {
+        throw FileNotFoundError(path);
+    }
+    close(fd);
 }

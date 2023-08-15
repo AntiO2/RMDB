@@ -402,3 +402,19 @@ LogRecord *RecoveryManager::get_log_by_lsn(lsn_t lsn) {
     }
     return logs_.at(idx).get();
 }
+
+void RecoveryManager::rebuild() {
+    if(!INDEX_REBUILD_MODE) {
+        return;
+    }
+    auto txn = std::make_unique<Transaction>(INVALID_TXN_ID);
+    auto lock_mgr = std::make_unique<LockManager>();
+    auto context = new Context(lock_mgr.get(),log_manager_, txn.get());
+    for(auto &table_iter:sm_manager_->fhs_) {
+        auto tab = sm_manager_->db_.get_table(table_iter.first);
+        for(auto &index:tab.indexes) {
+            sm_manager_->rebuild_index(table_iter.first, index,context);
+        }
+    }
+    delete context;
+}

@@ -87,7 +87,7 @@ class InsertExecutor : public AbstractExecutor {
                 // 第i个索引发生重复key
                 // 需要将前i - 1个index回滚
                 for(int j = 0;j < i;j++) {
-                    index_handlers.at(i)->delete_entry(key,context_->txn_);
+                    index_handlers.at(j)->delete_entry(key,context_->txn_);
                 }
                 // check(AntiO2) 这里是否需要是undo类型回滚
                 fh_->delete_record(rid_,context_, &tab_name_);

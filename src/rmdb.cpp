@@ -59,11 +59,11 @@ pthread_mutex_t *sockfd_mutex;
         void SetTransaction(txn_id_t *txn_id, Context *context) {
             context->txn_ = txn_manager->get_transaction(*txn_id);//这里得到上一次的事务处理情况
             if(context->txn_ == nullptr || context->txn_->get_state() == TransactionState::COMMITTED ||
-               context->txn_->get_state() == TransactionState::ABORTED) {//如果上一次结束了事务，就应该重新产生一个事务，否则就沿用上一次的事务
+               context->txn_->get_state() == TransactionState::ABORTED) { //如果上一次结束了事务，就应该重新产生一个事务，否则就沿用上一次的事务
                 context->txn_ = txn_manager->begin(nullptr, context->log_mgr_);
                 *txn_id = context->txn_->get_transaction_id();
                 context->txn_->set_txn_mode(false);//设置为false为单条语句sql语句的事务
-                context->txn_->set_isolation_level(IsolationLevel::READ_UNCOMMITTED);
+                context->txn_->set_isolation_level(IsolationLevel::SERIALIZABLE);
             }
         }
 

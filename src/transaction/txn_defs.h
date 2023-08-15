@@ -127,7 +127,6 @@ struct std::hash<LockDataId> {
 };
 
 /* 事务回滚原因 */
-// 拼写错误？
 enum class AbortReason { LOCK_ON_SHRINKING = 0, UPGRADE_CONFLICT, DEADLOCK_PREVENTION,
                          ATTEMPTED_UNLOCK_BUT_NO_LOCK_HELD,
                          TABLE_UNLOCKED_BEFORE_UNLOCKING_ROWS,TABLE_LOCK_NOT_PRESENT,

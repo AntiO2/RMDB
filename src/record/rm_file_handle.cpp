@@ -330,7 +330,7 @@ RmPageHandle RmFileHandle::create_new_page_handle() {
     // 2.更新page handle中的相关信息
     RmPageHandle pageHandle = RmPageHandle(&file_hdr_,page);
     pageHandle.page_hdr->num_records = 0;
-    pageHandle.page_hdr->next_free_page_no = file_hdr_.first_free_page_no;
+    pageHandle.page_hdr->next_free_page_no = RM_NO_PAGE;
     Bitmap::init(pageHandle.bitmap,pageHandle.file_hdr->bitmap_size);
 
     // 3.更新file_hdr_

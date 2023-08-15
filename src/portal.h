@@ -80,7 +80,7 @@ class Portal
 
                     std::shared_ptr<ProjectionPlan> p = std::dynamic_pointer_cast<ProjectionPlan>(x->subplan_);
                     // root表示取出数据的执行器
-                    std::unique_ptr<AbstractExecutor> root= convert_plan_executor(p, context);
+                    std::unique_ptr<AbstractExecutor> root= convert_plan_executor(p, context, false);
                     if(auto x = std::dynamic_pointer_cast<ScanPlan>(p->subplan_)){//liamY 鉴定是否为聚合函数，更换为PORTAL_ONE_SELECT_AGGREGATE tag返回
                         if(x->op_==AG_OP_MIN || x->op_ == AG_OP_MAX || x->op_==AG_OP_COUNT||x->op_==AG_OP_SUM){
                             return std::make_shared<PortalStmt>(PORTAL_ONE_SELECT_AGGREGATE, std::move(p->sel_cols_), std::move(root), plan,x->col_as_name_,x->op_);
@@ -186,11 +186,11 @@ class Portal
     void drop(){}
 
 
-    std::unique_ptr<AbstractExecutor> convert_plan_executor(std::shared_ptr<Plan> plan, Context *context, bool dml_mode = false)
+    std::unique_ptr<AbstractExecutor> convert_plan_executor(std::shared_ptr<Plan> plan, Context *context, bool dml_mode)
     {
 
         if(auto x = std::dynamic_pointer_cast<ProjectionPlan>(plan)){
-            return std::make_unique<ProjectionExecutor>(convert_plan_executor(x->subplan_, context), 
+            return std::make_unique<ProjectionExecutor>(convert_plan_executor(x->subplan_, context, dml_mode),
                                                         x->sel_cols_);
         } else if(auto x = std::dynamic_pointer_cast<ScanPlan>(plan)) {
             if(context->txn_->get_isolation_level()==IsolationLevel::SERIALIZABLE&&!dml_mode) {
@@ -208,8 +208,8 @@ class Portal
                 return std::make_unique<IndexScanExecutor>(sm_manager_, x->tab_name_, x->conds_, x->index_col_names_,x->index_meta_, x->index_match_length_, context);
             } 
         } else if(auto x = std::dynamic_pointer_cast<JoinPlan>(plan)) {
-            std::unique_ptr<AbstractExecutor> left = convert_plan_executor(x->left_, context);
-            std::unique_ptr<AbstractExecutor> right = convert_plan_executor(x->right_, context);
+            std::unique_ptr<AbstractExecutor> left = convert_plan_executor(x->left_, context, dml_mode);
+            std::unique_ptr<AbstractExecutor> right = convert_plan_executor(x->right_, context, dml_mode);
 //            std::unique_ptr<AbstractExecutor> join = std::make_unique<NestedLoopJoinExecutor>(
 //                                std::move(left),
 //                                std::move(right), std::move(x->conds_));
@@ -223,7 +223,7 @@ class Portal
 //                                sm_manager_->get_bpm());
             return join;
         } else if(auto x = std::dynamic_pointer_cast<SortPlan>(plan)) {
-            return std::make_unique<SortExecutor>(convert_plan_executor(x->subplan_, context), 
+            return std::make_unique<SortExecutor>(convert_plan_executor(x->subplan_, context, dml_mode),
                                             x->order_cols_,x->limit_);
         }
         return nullptr;

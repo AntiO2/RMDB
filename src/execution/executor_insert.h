@@ -68,6 +68,10 @@ class InsertExecutor : public AbstractExecutor {
             // 将Value数据存入rec中。
             memcpy(rec.data + col.offset, val.raw->data, col.len);
         }
+
+        auto undo_next = context_->txn_->get_transaction_id();
+        // Insert into record file
+        rid_ = fh_->insert_record(rec.data, context_,&tab_name_);
         // Insert into index
         for(size_t i = 0; i < tab_.indexes.size(); ++i) {
             auto& index = tab_.indexes[i];
@@ -85,13 +89,12 @@ class InsertExecutor : public AbstractExecutor {
                 for(int j = 0;j < i;j++) {
                     index_handlers.at(i)->delete_entry(key,context_->txn_);
                 }
+                // check(AntiO2) 这里是否需要是undo类型回滚
+                fh_->delete_record(rid_,context_, &tab_name_);
                 throw std::move(e);
             }
         }
-        auto* writeRecord = new WriteRecord(WType::INSERT_TUPLE,tab_name_,rid_,context_->txn_->get_prev_lsn());
-        // Insert into record file
-        rid_ = fh_->insert_record(rec.data, context_,&tab_name_);
-        writeRecord->setRid(rid_);
+        auto* writeRecord = new WriteRecord(WType::INSERT_TUPLE,tab_name_,rid_, undo_next);
         context_->txn_->append_write_record(writeRecord);
         return nullptr;
     }

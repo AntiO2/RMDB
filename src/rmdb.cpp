@@ -152,7 +152,8 @@ void *client_handler(void *sock_fd) {
                     outfile << str;
                     outfile.close();
                 }
-                catch (RMDBError &e) {//排除掉IncompatibleTypeError类型
+                catch (RMDBError &e) {
+                        // 排除掉IncompatibleTypeError类型
                         // 遇到异常，需要打印failure到output.txt文件中，并发异常信息返回给客户端
                         std::cerr << e.what() << std::endl;
 
@@ -166,7 +167,6 @@ void *client_handler(void *sock_fd) {
                         outfile.open("output.txt", std::ios::out | std::ios::app);
                         outfile << "failure\n";
                         outfile.close();
-
                     }
             }
         }

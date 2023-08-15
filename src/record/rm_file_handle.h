@@ -89,7 +89,7 @@ class RmFileHandle {
     Rid insert_record(char *buf, Context *context, std::string* table_name= nullptr,
                       LogOperation log_op = LogOperation::REDO, lsn_t undo_next = INVALID_LSN);
 
-    void delete_record(const Rid &rid, Context *context, std::string* table_name= nullptr,
+    void delete_record(const Rid &rid, Context *context, std::string* table_name,
                        LogOperation log_op = LogOperation::REDO, lsn_t undo_next = INVALID_LSN);
 
     void update_record(const Rid &rid, char *buf, Context *context, std::string* table_name= nullptr,

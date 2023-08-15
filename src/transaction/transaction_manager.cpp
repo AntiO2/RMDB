@@ -105,7 +105,7 @@ void TransactionManager::abort(Transaction * txn, LogManager *log_manager) {
         for(const auto& index:sm_manager_->db_.get_table(tab_name).indexes) {
           auto index_name = sm_manager_->get_ix_manager()->get_index_name(tab_name,index.cols);
           auto &index_handler = sm_manager_->ihs_.at(index_name);
-          index_handler->insert_entry(old_rec.key_from_rec(index.cols)->data,rid,txn); // check 这里是否能将之前的txn传入
+          index_handler->insert_entry(old_rec.key_from_rec(index.cols)->data,rid,txn);
         }
         break;
       }

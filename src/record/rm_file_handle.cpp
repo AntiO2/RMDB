@@ -66,6 +66,16 @@ Rid RmFileHandle::insert_record(char* buf, Context* context, std::string* table_
     auto log_mgr = context->log_mgr_;
     LogRecord* log_record= nullptr;
 
+    if(log_op==LogOperation::REDO) {
+        log_record = new InsertLogRecord(context->txn_->getTxnId(),insert_value,rid,*table_name,context->txn_->get_prev_lsn(), file_hdr_.first_free_page_no, file_hdr_.num_pages);
+    } else {
+        log_record = new CLR_Insert_Record(context->txn_->getTxnId(),insert_value,rid,*table_name,context->txn_->get_prev_lsn(), undo_next, file_hdr_.first_free_page_no, file_hdr_.num_pages);
+    }
+    log_mgr->add_log_to_buffer(log_record);
+    context->txn_->set_prev_lsn(log_record->lsn_);
+    log_mgr->active_txn_table_[context->txn_->getTxnId()] = log_record->lsn_;
+    auto page_id = PageId{fd_,rid.page_no};
+
     // 3. 将buf复制到空闲slot位置
     memcpy(addr_slot,buf,pageHandle.file_hdr->record_size);
 
@@ -81,15 +91,7 @@ Rid RmFileHandle::insert_record(char* buf, Context* context, std::string* table_
         disk_manager_->write_page(fd_, RM_FILE_HDR_PAGE, (char *)&file_hdr_, sizeof(file_hdr_));
     }
 
-    if(log_op==LogOperation::REDO) {
-        log_record = new InsertLogRecord(context->txn_->getTxnId(),insert_value,rid,*table_name,context->txn_->get_prev_lsn(), file_hdr_.first_free_page_no, file_hdr_.num_pages);
-    } else {
-        log_record = new CLR_Insert_Record(context->txn_->getTxnId(),insert_value,rid,*table_name,context->txn_->get_prev_lsn(), undo_next, file_hdr_.first_free_page_no, file_hdr_.num_pages);
-    }
-    log_mgr->add_log_to_buffer(log_record);
-    context->txn_->set_prev_lsn(log_record->lsn_);
-    log_mgr->active_txn_table_[context->txn_->getTxnId()] = log_record->lsn_;
-    auto page_id = PageId{fd_,rid.page_no};
+
     if(log_mgr->dirty_page_table_.find(PageId{fd_,rid.page_no})==log_mgr->dirty_page_table_.end()) {
         log_mgr->dirty_page_table_.emplace(page_id, log_record->lsn_);
     }
@@ -222,6 +224,7 @@ void RmFileHandle::update_record(const Rid& rid, char* buf, Context* context, st
 
     //判断位图
     if (!Bitmap::is_set(pageHandle.bitmap, rid.slot_no)) {
+        assert(false);
         throw RecordNotFoundError(rid.page_no, rid.slot_no);
     }
     // 2. 更新记录

@@ -404,6 +404,9 @@ LogRecord *RecoveryManager::get_log_by_lsn(lsn_t lsn) {
 }
 
 void RecoveryManager::rebuild() {
+    if(!INDEX_REBUILD_MODE) {
+        return;
+    }
     auto txn = std::make_unique<Transaction>(INVALID_TXN_ID);
     auto lock_mgr = std::make_unique<LockManager>();
     auto context = new Context(lock_mgr.get(),log_manager_, txn.get());

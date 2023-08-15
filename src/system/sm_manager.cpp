@@ -108,11 +108,14 @@ void SmManager::open_db(const std::string& db_name) {
         disk_manager_->set_fd2pageno(file->GetFd(), file->getFileHdr().num_pages );
         fhs_.emplace(table.first,std::move(file));
         const auto& indices = table.second.indexes;
-        for(const auto&index:table.second.indexes) {
-            auto index_name = ix_manager_->get_index_name(table.first,index.cols);
-            ihs_.emplace(index_name,
-                         ix_manager_->open_index(index_name));
+        if(!INDEX_REBUILD_MODE) {
+            for(const auto&index:table.second.indexes) {
+                auto index_name = ix_manager_->get_index_name(table.first,index.cols);
+                ihs_.emplace(index_name,
+                             ix_manager_->open_index(index_name));
+            }
         }
+
     }
 
 }
@@ -363,23 +366,16 @@ void SmManager::drop_index(const std::string& tab_name, const std::vector<ColMet
 }
 
 void SmManager::rebuild_index(const std::string &tab_name, const IndexMeta&index_meta, Context *context) {
-
+    const auto&index_cols = index_meta.cols;
     std::vector<std::string> col_names;
     for(auto&col:index_meta.cols) {
         col_names.emplace_back(col.name);
     }
     auto ix_name = IxManager::get_index_name(tab_name, col_names);
-    auto ihs_iter  = ihs_.find(ix_name);
-    auto &index_cols=index_meta.cols;
-    if(ihs_iter==ihs_.end()) {
-        throw IndexNotFoundError(tab_name, col_names);
-    }
-    buffer_pool_manager_->delete_all_pages(ihs_iter->second->getFd());
     disk_manager_->reset_file(ix_name);
-    auto fd = disk_manager_->path2fd_[ix_name];
-
+    int fd = disk_manager_->open_file(ix_name);
     int col_tot_len = 0;
-    auto col_num = index_cols.size();
+    int col_num = index_cols.size();
     for(auto& col: index_cols) {
         col_tot_len += col.len;
     }
@@ -393,6 +389,7 @@ void SmManager::rebuild_index(const std::string &tab_name, const IndexMeta&index
     int btree_order = static_cast<int>((PAGE_SIZE - sizeof(IxPageHdr)) / (col_tot_len + sizeof(Rid)) - 1);
     assert(btree_order > 2);
 
+    // Create file header and write to file
     IxFileHdr* fhdr = new IxFileHdr(IX_NO_PAGE, IX_INIT_NUM_PAGES, IX_INIT_ROOT_PAGE,
                                     col_num, col_tot_len, btree_order, (btree_order + 1) * col_tot_len, // 在这里初始化最大值
                                     IX_INIT_ROOT_PAGE, IX_INIT_ROOT_PAGE);
@@ -443,14 +440,15 @@ void SmManager::rebuild_index(const std::string &tab_name, const IndexMeta&index
 
     disk_manager_->set_fd2pageno(fd, IX_INIT_NUM_PAGES - 1);  // DEBUG
 
-    // Close index file
-    disk_manager_->close_file(fd);
-    ihs_[ix_name]= std::make_unique<IxIndexHandle>(disk_manager_, buffer_pool_manager_, fd);
-
-    auto index_handler = ihs_.find(ix_name)->second.get();
+//    // Close index file
+//    disk_manager_->close_file(fd);
+    const auto&index_name = ix_name;
+    assert(ihs_.count(index_name)==0); // 确保之前没有创建过该index
+    ihs_.emplace(index_name,ix_manager_->open_index(tab_name, index_cols));
+    auto index_handler = ihs_.find(index_name)->second.get();
     auto table_file_handle = fhs_.find(tab_name)->second.get();
     RmScan rm_scan(table_file_handle);
-    Transaction transaction(INVALID_TXN_ID); // TODO (AntiO2) 事务
+    Transaction transaction(INVALID_TXN_ID);
     while (!rm_scan.is_end()) {
         auto rid = rm_scan.rid();
         auto origin_key = table_file_handle->get_record(rid,context);

@@ -272,18 +272,9 @@ void DiskManager::write_log(char *log_data, int size) {
 }
 
 int DiskManager::reset_file(const std::string &path) {
-    std::unordered_map<std::string,int>::iterator iter;
-    iter = path2fd_.find(path);
-    if(iter == path2fd_.end()) {
+    int fd = open(path.c_str(), O_RDWR|O_TRUNC);// 打开并清空之前的数据
+    if(fd < 0) {
         throw FileNotFoundError(path);
     }
-    fd2path_.erase(iter->second);
-    int fd = open(path.c_str(), O_RDWR|O_TRUNC);// 打开并清空之前的数据
-    if(fd==-1)  {
-        throw FileNotFoundError(path); // 打开失败
-    }
-    //更新文件打开列表
-    path2fd_[path] = fd;
-    fd2path_[fd] = path;
-    return fd;
+    close(fd);
 }

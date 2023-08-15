@@ -63,6 +63,7 @@ pthread_mutex_t *sockfd_mutex;
                 context->txn_ = txn_manager->begin(nullptr, context->log_mgr_);
                 *txn_id = context->txn_->get_transaction_id();
                 context->txn_->set_txn_mode(false);//设置为false为单条语句sql语句的事务
+                context->txn_->set_isolation_level(IsolationLevel::READ_UNCOMMITTED);
             }
         }
 
@@ -115,8 +116,7 @@ pthread_mutex_t *sockfd_mutex;
                 offset = 0;
 
                 // 开启事务，初始化系统所需的上下文信息（包括事务对象指针、锁管理器指针、日志管理器指针、存放结果的buffer、记录结果长度的变量）
-                Transaction transaction(txn_id);
-                auto *context = new Context(lock_manager.get(), log_manager.get(), &transaction, data_send, &offset);//这里传入的transaction每次都会把state_置为DEFAULT
+                auto *context = new Context(lock_manager.get(), log_manager.get(), nullptr, data_send, &offset);//这里传入的transaction每次都会把state_置为DEFAULT
                 SetTransaction(&txn_id, context);
                 // 用于判断是否已经调用了yy_delete_buffer来删除buf
                 bool finish_analyze = false;

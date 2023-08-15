@@ -294,7 +294,7 @@ int main(int argc, char **argv) {
         recovery->analyze();
         recovery->redo();
         recovery->undo();
-        recovery->rebuild();
+        // recovery->rebuild();
         // 开启服务端，开始接受客户端连接
         start_server();
     } catch (RMDBError &e) {

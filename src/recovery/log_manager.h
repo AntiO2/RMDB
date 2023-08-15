@@ -273,7 +273,7 @@ public:
     InsertLogRecord(char *src) {
         deserialize(src);
     }
-    InsertLogRecord(txn_id_t txn_id, RmRecord& insert_value, Rid& rid, const std::string& table_name,lsn_t prev_lsn)
+    InsertLogRecord(txn_id_t txn_id, RmRecord& insert_value, Rid& rid, const std::string& table_name,lsn_t prev_lsn, int  first_free_page_no, int num_page)
         : InsertLogRecord() {
 
         log_tid_ = txn_id;
@@ -295,8 +295,12 @@ public:
         table_name_ = new char[table_name_size_];
         memcpy(table_name_, table_name.c_str(), table_name_size_);
         log_tot_len_ += sizeof(size_t) + table_name_size_;
-    }
 
+        first_free_page_no_ = first_free_page_no;
+        log_tot_len_+= sizeof(first_free_page_no);
+        num_pages_ = num_page;
+        log_tot_len_ += sizeof(num_page);
+    }
     // 把insert日志记录序列化到dest中
     void serialize(char* dest) const override {
         LogRecord::serialize(dest);
@@ -310,6 +314,12 @@ public:
         memcpy(dest + offset, &table_name_size_, sizeof(size_t));
         offset += sizeof(size_t);
         memcpy(dest + offset, table_name_, table_name_size_);
+
+        offset+=table_name_size_;
+        memcpy(dest + offset, &first_free_page_no_, sizeof(int));
+        offset += sizeof(int);
+        memcpy(dest + offset, &num_pages_, sizeof(int));
+        offset += sizeof(int);
     }
     // 从src中反序列化出一条Insert日志记录
     void deserialize(const char* src) override {
@@ -322,12 +332,20 @@ public:
         offset += sizeof(size_t);
         table_name_ = new char[table_name_size_];
         memcpy(table_name_, src + offset, table_name_size_);
+
+        offset+=table_name_size_;
+        first_free_page_no_ = *reinterpret_cast<const int*>(src + offset);
+        offset += sizeof(int);
+        num_pages_ =  *reinterpret_cast<const int*>(src + offset);
     }
     void format_print() override {
         if(ARIES_DEBUG_MODE) {
             LogRecord::format_print();
-            LOG_DEBUG("%s", fmt::format("table name: {}", table_name_).c_str());
-            LOG_DEBUG("%s", fmt::format("insert rid: {} {}",rid_.page_no, rid_.slot_no).c_str());
+            LOG_DEBUG("%s", fmt::format("table name: {}\n"
+                                        "insert rid: {} {}\n"
+                                        "first_free_page: {}\n"
+                                        "num_pages:{}", table_name_,rid_.page_no, rid_.slot_no,first_free_page_no_,
+                                        num_pages_).c_str());
         }
     }
 
@@ -335,6 +353,16 @@ public:
     Rid rid_;                   // 记录插入的位置
     char* table_name_;          // 插入记录的表名称
     size_t table_name_size_;    // 表名称的大小
+
+    /**
+     * file_hdr的内容
+     */
+    int first_free_page_no_;
+    int num_pages_;
+    /**
+     * page_hdr的内容
+     */
+     // int next_page
 };
 
 
@@ -348,8 +376,7 @@ public:
         prev_lsn_ = INVALID_LSN;
         table_name_ = nullptr;
     }
-    DeleteLogRecord(txn_id_t txn_id, RmRecord& delete_value,const Rid& rid, const std::string& table_name, lsn_t prev_lsn)
-
+    DeleteLogRecord(txn_id_t txn_id, RmRecord& delete_value,const Rid& rid, const std::string& table_name, lsn_t prev_lsn, int  first_free_page_no, int num_page)
             : DeleteLogRecord() {
         prev_lsn_ = prev_lsn;
         log_tid_ = txn_id;
@@ -362,6 +389,11 @@ public:
         table_name_ = new char[table_name_size_];
         memcpy(table_name_, table_name.c_str(), table_name_size_);
         log_tot_len_ += sizeof(size_t) + table_name_size_;
+
+        first_free_page_no_ = first_free_page_no;
+        log_tot_len_+= sizeof(first_free_page_no);
+        num_pages_ = num_page;
+        log_tot_len_ += sizeof(num_page);
     }
 
     // 把delete日志记录序列化到dest中
@@ -377,6 +409,12 @@ public:
         memcpy(dest + offset, &table_name_size_, sizeof(size_t));
         offset += sizeof(size_t);
         memcpy(dest + offset, table_name_, table_name_size_);
+
+        offset+=table_name_size_;
+        memcpy(dest + offset, &first_free_page_no_, sizeof(int));
+        offset += sizeof(int);
+        memcpy(dest + offset, &num_pages_, sizeof(int));
+        offset += sizeof(int);
     }
     // 从src中反序列化出一条Delete日志记录
     DeleteLogRecord(char *src) {
@@ -392,12 +430,20 @@ public:
         offset += sizeof(size_t);
         table_name_ = new char[table_name_size_];
         memcpy(table_name_, src + offset, table_name_size_);
+
+        offset+=table_name_size_;
+        first_free_page_no_ = *reinterpret_cast<const int*>(src + offset);
+        offset += sizeof(int);
+        num_pages_ =  *reinterpret_cast<const int*>(src + offset);
     }
     void format_print() override {
         if(ARIES_DEBUG_MODE) {
             LogRecord::format_print();
-            LOG_DEBUG("%s", fmt::format("table name: {}", table_name_).c_str());
-            LOG_DEBUG("%s", fmt::format("delete rid: {} {}",rid_.page_no, rid_.slot_no).c_str());
+            LOG_DEBUG("%s", fmt::format("table name: {}\n"
+                                        "delete rid: {} {}\n"
+                                        "first_free_page: {}\n"
+                                        "num_pages:{}", table_name_,rid_.page_no, rid_.slot_no,first_free_page_no_,
+                                        num_pages_).c_str());
         }
     }
 
@@ -405,6 +451,12 @@ public:
     Rid rid_;                   // 记录被删除的位置
     char* table_name_;          // 删除记录的表名称
     size_t table_name_size_;    // 表名称的大小
+
+    /**
+     * file_hdr的内容
+     */
+    int first_free_page_no_;
+    int num_pages_;
 };
 
 class UpdateLogRecord: public LogRecord {
@@ -417,7 +469,7 @@ public:
         prev_lsn_ = INVALID_LSN;
         table_name_ = nullptr;
     }
-    UpdateLogRecord(txn_id_t txn_id, RmRecord& before_update_value, RmRecord& after_update_value,const Rid& rid, const std::string& table_name, lsn_t prev_lsn)
+    UpdateLogRecord(txn_id_t txn_id, RmRecord& before_update_value, RmRecord& after_update_value,const Rid& rid, const std::string& table_name, lsn_t prev_lsn, int  first_free_page_no, int num_page)
             : UpdateLogRecord() {
         log_tid_ = txn_id;
         before_update_value_ = before_update_value;
@@ -433,6 +485,11 @@ public:
         memcpy(table_name_, table_name.c_str(), table_name_size_);
         log_tot_len_ += sizeof(size_t) + table_name_size_;
         prev_lsn_ = prev_lsn;
+
+        first_free_page_no_ = first_free_page_no;
+        log_tot_len_+= sizeof(first_free_page_no);
+        num_pages_ = num_page;
+        log_tot_len_ += sizeof(num_page);
     }
     UpdateLogRecord(char *src) {
         deserialize(src);
@@ -454,6 +511,12 @@ public:
         memcpy(dest + offset, &table_name_size_, sizeof(size_t));
         offset += sizeof(size_t);
         memcpy(dest + offset, table_name_, table_name_size_);
+
+        offset+=table_name_size_;
+        memcpy(dest + offset, &first_free_page_no_, sizeof(int));
+        offset += sizeof(int);
+        memcpy(dest + offset, &num_pages_, sizeof(int));
+        offset += sizeof(int);
     }
     // 从src中反序列化出一条update日志记录
     void deserialize(const char* src) override {
@@ -468,12 +531,20 @@ public:
         offset += sizeof(size_t);
         table_name_ = new char[table_name_size_];
         memcpy(table_name_, src + offset, table_name_size_);
+
+        offset+=table_name_size_;
+        first_free_page_no_ = *reinterpret_cast<const int*>(src + offset);
+        offset += sizeof(int);
+        num_pages_ =  *reinterpret_cast<const int*>(src + offset);
     }
     void format_print() override {
         if(ARIES_DEBUG_MODE) {
             LogRecord::format_print();
-            LOG_DEBUG("%s", fmt::format("table name: {}", table_name_).c_str());
-            LOG_DEBUG("%s", fmt::format("update rid: {} {}",rid_.page_no, rid_.slot_no).c_str());
+            LOG_DEBUG("%s", fmt::format("table name: {}\n"
+                                        "update rid: {} {}\n"
+                                        "first_free_page: {}\n"
+                                        "num_pages:{}", table_name_,rid_.page_no, rid_.slot_no,first_free_page_no_,
+                                        num_pages_).c_str());
         }
     }
 
@@ -482,6 +553,12 @@ public:
     Rid rid_;                       // 记录被更新的位置
     char* table_name_;              // 更新记录的表名称
     size_t table_name_size_;        // 表名称的大小
+
+    /**
+     * file_hdr的内容
+     */
+    int first_free_page_no_;
+    int num_pages_;
 };
 class CLR_UPDATE_RECORD : public UpdateLogRecord {
 public:
@@ -492,8 +569,8 @@ public:
         undo_next_ = INVALID_LSN;
     }
 
-    CLR_UPDATE_RECORD(txn_id_t txn_id, RmRecord& before_update_value, RmRecord& after_update_value,const Rid& rid, const std::string& table_name, lsn_t prev_lsn, lsn_t undo_next)
-            : UpdateLogRecord(txn_id, before_update_value, after_update_value, rid, table_name, prev_lsn) {
+    CLR_UPDATE_RECORD(txn_id_t txn_id, RmRecord& before_update_value, RmRecord& after_update_value,const Rid& rid, const std::string& table_name, lsn_t prev_lsn, lsn_t undo_next,  int  first_free_page_no, int num_page)
+            : UpdateLogRecord(txn_id, before_update_value, after_update_value, rid, table_name, prev_lsn, first_free_page_no, num_page) {
         log_type_ = CLR_UPDATE;
         undo_next_ = undo_next;
         log_tot_len_+= sizeof(undo_next_);
@@ -528,6 +605,12 @@ public:
     char* table_name_;          // 删除记录的表名称
     size_t table_name_size_;    // 表名称的大小
     lsn_t undo_next_;  // LSN of the next undo record
+
+    /**
+     * file_hdr的内容
+     */
+    int first_free_page_no_;
+    int num_pages_;
 public:
     CLR_Delete_Record() {
         log_type_ = LogType::CLR_DELETE;
@@ -537,7 +620,7 @@ public:
         prev_lsn_ = INVALID_LSN;
         table_name_ = nullptr;
     }
-    CLR_Delete_Record(txn_id_t txn_id,const Rid& rid, const std::string& table_name, lsn_t prev_lsn, lsn_t undo_next) {
+    CLR_Delete_Record(txn_id_t txn_id,const Rid& rid, const std::string& table_name, lsn_t prev_lsn, lsn_t undo_next, int  first_free_page_no, int num_page) {
         log_type_ = LogType::CLR_DELETE;
         lsn_=INVALID_LSN;
         log_tot_len_ = LOG_HEADER_SIZE;
@@ -551,8 +634,16 @@ public:
         memcpy(table_name_, table_name.c_str(), table_name_size_);
         log_tot_len_ += sizeof(size_t) + table_name_size_; // table name长度和本体
 
-        log_tot_len_ += sizeof(lsn_t);
+
+
+
+        first_free_page_no_ = first_free_page_no;
+        log_tot_len_+= sizeof(first_free_page_no);
+        num_pages_ = num_page;
+        log_tot_len_ += sizeof(num_page);
+
         undo_next_ = undo_next;
+        log_tot_len_ += sizeof(lsn_t);
     }
 
     // 把delete日志记录序列化到dest中
@@ -565,7 +656,13 @@ public:
         offset += sizeof(size_t);
         memcpy(dest + offset, table_name_, table_name_size_);
         offset+=table_name_size_;
+        memcpy(dest + offset, &first_free_page_no_, sizeof(int));
+        offset += sizeof(int);
+        memcpy(dest + offset, &num_pages_, sizeof(int));
+        offset += sizeof(int);
         memcpy(dest+offset, &undo_next_, sizeof(lsn_t));
+
+
     }
     // 从src中反序列化出一条Delete日志记录
     CLR_Delete_Record(char *src) {
@@ -581,14 +678,23 @@ public:
         table_name_ = new char[table_name_size_];
         memcpy(table_name_, src + offset, table_name_size_);
         offset+=table_name_size_;
+        first_free_page_no_ = *reinterpret_cast<const int*>(src + offset);
+        offset += sizeof(int);
+        num_pages_ =  *reinterpret_cast<const int*>(src + offset);
+        offset += sizeof(int);
         undo_next_ = *reinterpret_cast<const lsn_t*>(src+offset);
+
+
     }
     void format_print() override {
         if(ARIES_DEBUG_MODE) {
             LogRecord::format_print();
-            LOG_DEBUG("%s", fmt::format("table name: {}", table_name_).c_str());
-            LOG_DEBUG("%s", fmt::format("delete rid: {} {}",rid_.page_no, rid_.slot_no).c_str());
-            LOG_DEBUG("%s", fmt::format("Undo next{}",undo_next_).c_str());
+            LOG_DEBUG("%s", fmt::format("table name: {}\n"
+                                        "delete rid: {} {}\n"
+                                        "first_free_page: {}\n"
+                                        "num_pages: {}\n"
+                                        "undo_next: {}", table_name_,rid_.page_no, rid_.slot_no,first_free_page_no_,
+                                        num_pages_,undo_next_).c_str());
         }
     }
 
@@ -602,8 +708,8 @@ public:
         undo_next_ = INVALID_LSN;
     }
 
-    CLR_Insert_Record(txn_id_t txn_id, RmRecord& before_update_value, Rid& rid, const std::string& table_name, lsn_t prev_lsn, lsn_t undo_next)
-            : InsertLogRecord(txn_id, before_update_value, rid, table_name, prev_lsn) {
+    CLR_Insert_Record(txn_id_t txn_id, RmRecord& before_update_value, Rid& rid, const std::string& table_name, lsn_t prev_lsn, lsn_t undo_next,  int  first_free_page_no, int num_page)
+            : InsertLogRecord(txn_id, before_update_value, rid, table_name, prev_lsn, first_free_page_no, num_page) {
         log_type_ = CLR_INSERT;
         undo_next_ = undo_next;
         log_tot_len_+= sizeof(undo_next_);

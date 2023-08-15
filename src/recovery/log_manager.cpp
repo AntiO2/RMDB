@@ -37,6 +37,9 @@ lsn_t LogManager::add_log_to_buffer(LogRecord* log_record) {
     log_record->serialize(log_buffer_.buffer_ + log_buffer_.offset_);
     log_buffer_.offset_ += log_record->log_tot_len_;
     latch_.unlock();
+    if(ARIES_DEBUG_MODE) {
+        flush_log_to_disk();
+    }
     return lsn;
 }
 

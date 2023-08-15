@@ -81,11 +81,11 @@ void TransactionManager::abort(Transaction * txn, LogManager *log_manager) {
     }
     // 1. 回滚所有写操作
     auto write_set = txn->get_write_set();
+    auto context = new Context(lock_manager_, log_manager, txn);
     for(auto r_write_iter = write_set->rbegin();r_write_iter!=write_set->rend();++r_write_iter){//改成倒着读取record内容
         auto write = *r_write_iter;
 //    }
 //    for(auto&write:*write_set) {
-      auto context = new Context(lock_manager_, log_manager, txn);
       auto tab_name = write->GetTableName();
       auto &table =  sm_manager_->fhs_.at(tab_name);
       switch (write->GetWriteType()) {
@@ -128,6 +128,7 @@ void TransactionManager::abort(Transaction * txn, LogManager *log_manager) {
       }
       delete write;
     }
+    delete context;
     AbortLogRecord record(txn->get_transaction_id(),txn->get_prev_lsn());
     log_manager->add_log_to_buffer(&record);
     txn->set_prev_lsn(record.lsn_);

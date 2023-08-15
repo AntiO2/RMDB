@@ -169,7 +169,7 @@ void RecoveryManager::redo() {
                     break;
                 }
                 auto fh = sm_manager_->fhs_.at(table_name).get();
-                fh->update_record(update_log->rid_,update_log->after_update_value_.data,lsn);
+                fh->update_record_recover(update_log->rid_,update_log->after_update_value_.data,lsn,update_log->first_free_page_no_, update_log->num_pages_);
                 buffer_pool_manager_->unpin_page(page_id, true);
                 break;
             }
@@ -189,7 +189,7 @@ void RecoveryManager::redo() {
                         break;
                     }
                     auto fh = sm_manager_->fhs_.at(table_name).get();
-                    fh->insert_record(insert_log->rid_, insert_log->insert_value_.data,lsn);
+                    fh->insert_record_recover(insert_log->rid_, insert_log->insert_value_.data, lsn, insert_log->first_free_page_no_, insert_log->num_pages_);
                     buffer_pool_manager_->unpin_page(page_id, true);
                     break;
             }
@@ -209,7 +209,7 @@ void RecoveryManager::redo() {
                     break;
                 }
                 auto fh = sm_manager_->fhs_.at(table_name).get();
-                fh->delete_record(delete_log->rid_,lsn);
+                fh->delete_record_recover(delete_log->rid_,lsn,delete_log->first_free_page_no_,delete_log->num_pages_);
                 buffer_pool_manager_->unpin_page(page_id, true);
                 break;
             }
@@ -229,7 +229,7 @@ void RecoveryManager::redo() {
                     break;
                 }
                 auto fh = sm_manager_->fhs_.at(table_name).get();
-                fh->insert_record(insert_log->rid_, insert_log->insert_value_.data,lsn);
+                fh->insert_record_recover(insert_log->rid_, insert_log->insert_value_.data,lsn,insert_log->first_free_page_no_, insert_log->num_pages_);
                 buffer_pool_manager_->unpin_page(page_id, true);
                 break;
             }
@@ -249,7 +249,7 @@ void RecoveryManager::redo() {
                     break;
                 }
                 auto fh = sm_manager_->fhs_.at(table_name).get();
-                fh->delete_record(delete_log->rid_,lsn);
+                fh->delete_record_recover(delete_log->rid_,lsn,delete_log->first_free_page_no_,delete_log->num_pages_);
                 buffer_pool_manager_->unpin_page(page_id, true);
                 break;
             }
@@ -270,7 +270,7 @@ void RecoveryManager::redo() {
                     break;
                 }
                 auto fh = sm_manager_->fhs_.at(table_name).get();
-                fh->update_record(update_log->rid_,update_log->after_update_value_.data,lsn);
+                fh->update_record_recover(update_log->rid_,update_log->after_update_value_.data,lsn,update_log->first_free_page_no_, update_log->num_pages_);
                 buffer_pool_manager_->unpin_page(page_id, true);
                 break;
             }
@@ -296,18 +296,23 @@ void RecoveryManager::redo() {
  * @description: 回滚未完成的事务
  */
 void RecoveryManager::undo() {
-    auto undo_cmp=[](const std::pair<txn_id_t, lsn_t>&at1, const std::pair<txn_id_t, lsn_t>&at2) {
-        return at1.second < at2.second;
+    auto undo_cmp=[](const std::pair<lsn_t,Context*>&at1, const std::pair<lsn_t,Context*>&at2) {
+        return at1.first < at2.first;
     };
-    std::priority_queue<std::pair<txn_id_t, lsn_t>, std::vector<std::pair<txn_id_t, lsn_t>>,
+    std::priority_queue< std::pair<lsn_t,Context*> ,
+            std::vector<std::pair<lsn_t,Context*>> ,
     decltype(undo_cmp)> undo_list(undo_cmp);
-    for(auto txn:log_manager_->active_txn_table_) {
-        undo_list.emplace(txn.first,txn.second);
+    auto lock_mgr = std::make_unique<LockManager>();
+    for(auto undo_txn:log_manager_->active_txn_table_) {
+        auto txn = new Transaction(undo_txn.first);
+        txn->set_prev_lsn(undo_txn.second);
+        auto context = new Context(lock_mgr.get(), log_manager_,txn);
+        undo_list.emplace(undo_txn.second, context);
     }
     while(!undo_list.empty()) {
         auto undo_iter = undo_list.top();
-        auto undo_lsn = undo_iter.second;
-        auto tid = undo_iter.first;
+        auto undo_lsn = undo_iter.first;
+        auto context = undo_iter.second;
         auto log = get_log_by_lsn(undo_lsn);
         if(log== nullptr) {
             LOG_ERROR("undo lsn is invalid");
@@ -320,68 +325,66 @@ void RecoveryManager::undo() {
                     std::string table_name(update_log->table_name_, update_log->table_name_size_);
                     auto table = sm_manager_->fhs_[table_name].get();
                     auto page_id = PageId{.fd = table->GetFd(), .page_no = update_log->rid_.page_no};
-                    CLR_UPDATE_RECORD clr_record(update_log->log_tid_,
-                                                 update_log->after_update_value_, update_log->before_update_value_,
-                                                 update_log->rid_,table_name,update_log->lsn_,update_log->prev_lsn_); // 注意这里CLR补偿记录after和before value顺序 redo和undo是反的
-                    log_manager_->add_log_to_buffer(&clr_record);
                     auto fh = sm_manager_->fhs_.at(table_name).get();
-                    fh->update_record(update_log->rid_,update_log->before_update_value_.data,clr_record.lsn_);
-                    undo_iter.second = log->prev_lsn_;
+                    fh->update_record(update_log->rid_,update_log->before_update_value_.data, context,&table_name, LogOperation::UNDO, update_log->prev_lsn_);
+                    undo_list.pop();
+                    undo_list.emplace(log->prev_lsn_,context);
                     break;
                 }
                 case INSERT: {
                     auto insert_log = dynamic_cast<InsertLogRecord *>(log);
                     std::string table_name(insert_log->table_name_, insert_log->table_name_size_);
                     auto table = sm_manager_->fhs_[table_name].get();
-                    CLR_Delete_Record clr_record(insert_log->log_tid_,
-                                                 insert_log->rid_,table_name,insert_log->lsn_,insert_log->prev_lsn_); // 注意这里CLR补偿记录after和before value顺序 redo和undo是反的
-                    log_manager_->add_log_to_buffer(&clr_record);
                     auto fh = sm_manager_->fhs_.at(table_name).get();
-                    fh->delete_record(insert_log->rid_,clr_record.lsn_);
-                    undo_iter.second = log->prev_lsn_;
+                    fh->delete_record(insert_log->rid_,context,&table_name, LogOperation::UNDO,insert_log->prev_lsn_);
+                    undo_list.pop();
+                    undo_list.emplace(log->prev_lsn_,context);
                     break;
                 }
                 case DELETE: {
                     auto delete_log = dynamic_cast<DeleteLogRecord*>(log);
                     std::string table_name(delete_log->table_name_, delete_log->table_name_size_);
                     auto table = sm_manager_->fhs_[table_name].get();
-                    CLR_Insert_Record clr_record(delete_log->log_tid_,  delete_log->delete_value_,
-                                                 delete_log->rid_,table_name, delete_log->lsn_, delete_log->prev_lsn_); // 注意这里CLR补偿记录after和before value顺序 redo和undo是反的
-                    log_manager_->add_log_to_buffer(&clr_record);
                     auto fh = sm_manager_->fhs_.at(table_name).get();
-                    fh->insert_record(delete_log->rid_,delete_log->delete_value_.data,clr_record.lsn_);
-                    undo_iter.second = log->prev_lsn_;
+                    fh->insert_record(delete_log->delete_value_.data, context, &table_name, LogOperation::UNDO, delete_log->prev_lsn_);
+                    undo_list.pop();
+                    undo_list.emplace(log->prev_lsn_,context);
                     break;
                 }
 
                 case CLR_INSERT: {
                     auto clr_log = dynamic_cast<CLR_Insert_Record*>(log);
-                    undo_iter.second = clr_log->undo_next_;
+                    undo_list.pop();
+                    undo_list.emplace( clr_log->undo_next_, context);
                     break;
                 }
 
                 case CLR_DELETE: {
                     auto clr_log = dynamic_cast<CLR_Delete_Record*>(log);
-                    undo_iter.second = clr_log->undo_next_;
+                    undo_list.pop();
+                    undo_list.emplace( clr_log->undo_next_, context);
                     break;
                 }
                 case CLR_UPDATE: {
                     auto clr_log = dynamic_cast<CLR_Insert_Record*>(log);
-                    undo_iter.second = clr_log->undo_next_;
+                    undo_list.pop();
+                    undo_list.emplace( clr_log->undo_next_, context);
                     break;
                 }
                 case BEGIN:{
+                    delete context;
                     undo_list.pop();
                     break;
                 }
                 case COMMIT: {
-                    LOG_ERROR("Rollback Commited Txn");
-                    undo_iter.second = log->prev_lsn_;
+                    LOG_ERROR("Rollback Committed Txn");
+                    undo_iter.first = log->prev_lsn_;
                     break;
 
                 }
                 case ABORT: {
-                    undo_iter.second = log->prev_lsn_;
+                    LOG_ERROR("Rollback Aborted Txn");
+                    undo_iter.first = log->prev_lsn_;
                     break;
                 }
                 default: {
@@ -389,6 +392,7 @@ void RecoveryManager::undo() {
                 }
             }
     }
+    assert(undo_list.empty());
 }
 
 LogRecord *RecoveryManager::get_log_by_lsn(lsn_t lsn) {

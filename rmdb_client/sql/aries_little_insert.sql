@@ -28,4 +28,15 @@ insert into t values(9982,'');
 insert into t values(9981,'');
 insert into t values(9980,'');
 commit ;
+begin;
+insert into t values(9979,'');
+insert into t values(9978,'');
+insert into t values(9977,'');
+insert into t values(9976,'');
+insert into t values(9975,'');
+insert into t values(9974,'');
+insert into t values(9973,'');
+insert into t values(9972,'');
+insert into t values(9971,'');
+insert into t values(9970,'');
 crash

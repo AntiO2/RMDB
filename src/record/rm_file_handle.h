@@ -88,13 +88,24 @@ class RmFileHandle {
 
     Rid insert_record(char *buf, Context *context, std::string* table_name= nullptr,
                       LogOperation log_op = LogOperation::REDO, lsn_t undo_next = INVALID_LSN);
-    void insert_record(const Rid &rid, char *buf, lsn_t lsn);
+
     void delete_record(const Rid &rid, Context *context, std::string* table_name= nullptr,
                        LogOperation log_op = LogOperation::REDO, lsn_t undo_next = INVALID_LSN);
-    void delete_record(const Rid &rid,lsn_t lsn);
+
     void update_record(const Rid &rid, char *buf, Context *context, std::string* table_name= nullptr,
                        LogOperation log_op = LogOperation::REDO, lsn_t undo_next = INVALID_LSN);
-    void update_record(const Rid &rid, char *buf, lsn_t lsn);
+
+    /**
+     * recover用于redo已有的log(包括clr类型)
+     * @param rid
+     * @param buf
+     * @param lsn
+     * @param first_free_page
+     * @param num_pages
+     */
+    void insert_record_recover(const Rid &rid, char *buf, lsn_t lsn, int first_free_page, int num_pages);
+    void delete_record_recover(const Rid &rid,lsn_t lsn, int first_free_page, int num_pages);
+    void update_record_recover(const Rid &rid, char *buf, lsn_t lsn, int first_free_page, int num_pages);
 
     RmPageHandle create_new_page_handle();
 

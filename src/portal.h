@@ -88,7 +88,6 @@ class Portal
                     return std::make_shared<PortalStmt>(PORTAL_ONE_SELECT, std::move(p->sel_cols_),
                                                         std::move(root), plan);
                 }
-                    
                 case T_Update:
                 {
                     context->txn_->set_isolation_level(IsolationLevel::READ_UNCOMMITTED);

@@ -1,5 +1,7 @@
 create table t1 ( id int , t_name char (500));
 create table t2 (d_name char(500),id2 int);
+create index t1 (id);
+create table t2 (id2);
 insert into t1 values(2,'');
 insert into t1 values(4,'');
 insert into t1 values(6,'');

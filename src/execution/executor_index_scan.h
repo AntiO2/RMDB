@@ -71,9 +71,9 @@ class IndexScanExecutor : public AbstractExecutor {
     }
 
     void beginTuple() override {
-//      if(context_->txn_->get_isolation_level()==IsolationLevel::SERIALIZABLE) {
-//        context_->lock_mgr_->lock_shared_on_table(context_->txn_,fh_->GetFd());
-//      }
+      if(context_->txn_->get_isolation_level()==IsolationLevel::SERIALIZABLE) {
+        context_->lock_mgr_->lock_shared_on_table(context_->txn_,fh_->GetFd());
+      }
         auto index_name = sm_manager_->get_ix_manager()->get_index_name(tab_name_,index_meta_.cols);
         auto iter = sm_manager_->ihs_.find(index_name);
         if(iter==sm_manager_->ihs_.end()) {

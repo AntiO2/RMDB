@@ -26,19 +26,19 @@ class IxManager {
     IxManager(DiskManager *disk_manager, BufferPoolManager *buffer_pool_manager)
         : disk_manager_(disk_manager), buffer_pool_manager_(buffer_pool_manager) {}
 
-    std::string get_index_name(const std::string &filename, const std::vector<std::string>& index_cols) {
+    static std::string get_index_name(const std::string &filename, const std::vector<std::string>& index_cols) {
         std::string index_name = filename;
-        for(size_t i = 0; i < index_cols.size(); ++i) 
-            index_name += "_" + index_cols[i];
+        for(const auto & index_col : index_cols)
+            index_name += "_" + index_col;
         index_name += ".idx";
 
         return index_name;
     }
 
-    std::string get_index_name(const std::string &filename, const std::vector<ColMeta>& index_cols) {
+    static std::string get_index_name(const std::string &filename, const std::vector<ColMeta>& index_cols) {
         std::string index_name = filename;
-        for(size_t i = 0; i < index_cols.size(); ++i) 
-            index_name += "_" + index_cols[i].name;
+        for(const auto & index_col : index_cols)
+            index_name += "_" + index_col.name;
         index_name += ".idx";
 
         return index_name;

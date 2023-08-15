@@ -28,7 +28,7 @@ extern std::atomic<bool> enable_logging;
 /** If ENABLE_LOGGING is true, the log should be flushed to disk every LOG_TIMEOUT. */
 extern std::chrono::duration<int64_t> log_timeout;
 
-static constexpr bool ARIES_DEBUG_MODE = true; // 是否调试ARIES
+static constexpr bool ARIES_DEBUG_MODE = false; // 是否调试ARIES
 
 static constexpr int INVALID_FRAME_ID = -1;                                   // invalid frame id
 static constexpr int INVALID_PAGE_ID = -1;                                    // invalid page id

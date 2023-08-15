@@ -77,6 +77,10 @@ class Portal
             switch(x->tag) {
                 case T_select:
                 {
+                    if(context->txn_->get_isolation_level()==IsolationLevel::SERIALIZABLE) {
+                        auto fd = sm_manager_->fhs_.at(x->tab_name_).get()->GetFd();
+                        context->lock_mgr_->lock_shared_on_table(context->txn_,fd);
+                    }
                     std::shared_ptr<ProjectionPlan> p = std::dynamic_pointer_cast<ProjectionPlan>(x->subplan_);
                     // root表示取出数据的执行器
                     std::unique_ptr<AbstractExecutor> root= convert_plan_executor(p, context);
@@ -91,26 +95,30 @@ class Portal
                     
                 case T_Update:
                 {
-                    context->txn_->set_isolation_level(IsolationLevel::READ_UNCOMMITTED);
+                    if(context->txn_->get_isolation_level()==IsolationLevel::SERIALIZABLE) {
+                        auto fd = sm_manager_->fhs_.at(x->tab_name_).get()->GetFd();
+                        context->lock_mgr_->lock_exclusive_on_table(context->txn_,fd);
+                    }
                     std::unique_ptr<AbstractExecutor> scan= convert_plan_executor(x->subplan_, context);
                     std::vector<Rid> rids;
                     for (scan->beginTuple(); !scan->is_end(); scan->nextTuple()) {
                         rids.push_back(scan->rid());
                     }
-                    context->txn_->set_isolation_level(IsolationLevel::SERIALIZABLE);
                     std::unique_ptr<AbstractExecutor> root =std::make_unique<UpdateExecutor>(sm_manager_, 
                                                             x->tab_name_, x->set_clauses_, x->conds_, rids, context);
                     return std::make_shared<PortalStmt>(PORTAL_DML_WITHOUT_SELECT, std::vector<TabCol>(), std::move(root), plan);
                 }
                 case T_Delete:
                 {
-                    context->txn_->set_isolation_level(IsolationLevel::READ_UNCOMMITTED);
+                    if(context->txn_->get_isolation_level()==IsolationLevel::SERIALIZABLE) {
+                        auto fd = sm_manager_->fhs_.at(x->tab_name_).get()->GetFd();
+                        context->lock_mgr_->lock_exclusive_on_table(context->txn_,fd);
+                    }
                     std::unique_ptr<AbstractExecutor> scan= convert_plan_executor(x->subplan_, context);
                     std::vector<Rid> rids;
                     for (scan->beginTuple(); !scan->is_end(); scan->nextTuple()) {
                         rids.push_back(scan->rid());
                     }
-                    context->txn_->set_isolation_level(IsolationLevel::SERIALIZABLE);
                     std::unique_ptr<AbstractExecutor> root =
                         std::make_unique<DeleteExecutor>(sm_manager_, x->tab_name_, x->conds_, rids, context);
 
@@ -119,6 +127,10 @@ class Portal
 
                 case T_Insert:
                 {
+                    if(context->txn_->get_isolation_level()==IsolationLevel::SERIALIZABLE) {
+                        auto fd = sm_manager_->fhs_.at(x->tab_name_).get()->GetFd();
+                        context->lock_mgr_->lock_exclusive_on_table(context->txn_,fd);
+                    }
                     std::unique_ptr<AbstractExecutor> root =
                             std::make_unique<InsertExecutor>(sm_manager_, x->tab_name_, x->values_, context);
             

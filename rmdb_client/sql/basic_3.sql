@@ -1,0 +1,12 @@
+create table grade (name char(20),id int,score float);
+insert into grade values ('Data Structure', 1, 90.5);
+insert into grade values ('Data Structure', 2, 95.0);
+insert into grade values ('Calculus', 2, 92.0);
+insert into grade values ('Calculus', 1, 88.5);
+select * from grade;
+update grade set score = score + 5 where name = 'Calculus' ;
+select * from grade;
+update grade set name = 'Error name' where name > 'A';
+select * from grade;
+update grade set name = 'Error' ,id = -1,score = 0 where name = 'Error name' and score > 90;
+select * from grade;

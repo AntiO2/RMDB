@@ -180,7 +180,7 @@ class IxIndexHandle {
     bool get_value(const char *key, std::vector<Rid> *result, Transaction *transaction);
 
     std::pair<IxNodeHandle *, bool> find_leaf_page(const char *key, Operation operation, Transaction *transaction,
-                                                   size_t col_cnt = 0, bool find_first = false,FIND_TYPE find_type=FIND_TYPE::COMMON);
+                                                   size_t col_cnt,FIND_TYPE find_type,bool left_most, bool right_most);
     // for insert
     page_id_t insert_entry(const char *key, const Rid &value, Transaction *transaction);
 

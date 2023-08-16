@@ -97,9 +97,9 @@ class InsertExecutor : public AbstractExecutor {
                 fh_->delete_record(rid_,context_, &tab_name_);
                 throw std::move(e);
             }
-            auto* writeRecord = new WriteRecord(WType::INSERT_TUPLE,tab_name_,rid_, undo_next);
-            context_->txn_->append_write_record(writeRecord);
         }
+        auto* writeRecord = new WriteRecord(WType::INSERT_TUPLE,tab_name_,rid_, undo_next);
+        context_->txn_->append_write_record(writeRecord);
         return nullptr;
     }
     size_t tupleLen() const override {

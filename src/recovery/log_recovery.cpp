@@ -414,8 +414,8 @@ void RecoveryManager::rebuild() {
     auto lock_mgr = std::make_unique<LockManager>();
     auto context = new Context(lock_mgr.get(),log_manager_, txn.get());
     for(auto &table_iter:sm_manager_->fhs_) {
-        auto tab = sm_manager_->db_.get_table(table_iter.first);
-        for(auto &index:tab.indexes) {
+        auto indexes = sm_manager_->db_.get_table_indexes(table_iter.first);
+        for(auto &index: indexes) {
             sm_manager_->rebuild_index(table_iter.first, index,context);
         }
     }

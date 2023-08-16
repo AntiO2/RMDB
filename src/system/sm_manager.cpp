@@ -442,7 +442,7 @@ void SmManager::rebuild_index(const std::string &tab_name, const IndexMeta&index
 //    disk_manager_->close_file(fd);
     const auto&index_name = ix_name;
     assert(ihs_.count(index_name)==0); // 确保之前没有创建过该index
-    ihs_.emplace(index_name,ix_manager_->open_index(tab_name, index_cols));
+    ihs_.emplace(index_name, std::make_unique<IxIndexHandle>(disk_manager_, buffer_pool_manager_, fd));
     auto index_handler = ihs_.find(index_name)->second.get();
     auto table_file_handle = fhs_.find(tab_name)->second.get();
     RmScan rm_scan(table_file_handle);

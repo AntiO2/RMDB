@@ -305,10 +305,16 @@ class DbMeta {
         if (pos == tabs_.end()) {
             throw TableNotFoundError(tab_name);
         }
-
-        return pos->second;
+       return pos->second;
     }
+    std::vector<IndexMeta> &get_table_indexes(const std::string &tab_name) {
+        auto pos = tabs_.find(tab_name);
+        if (pos == tabs_.end()) {
+            throw TableNotFoundError(tab_name);
+        }
 
+        return pos->second.indexes;
+    }
     // 重载操作符 <<
     friend std::ostream &operator<<(std::ostream &os, const DbMeta &db_meta) {
         os << db_meta.name_ << '\n' << db_meta.tabs_.size() << '\n';

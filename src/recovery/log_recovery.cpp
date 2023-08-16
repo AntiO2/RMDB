@@ -15,6 +15,7 @@ See the Mulan PSL v2 for more details. */
  * @description: analyze阶段，需要获得脏页表（DPT）和未完成的事务列表（ATT）
  */
 void RecoveryManager::analyze() {
+    LOG_DEBUG("ARIES: analyze");
     auto records = log_manager_->get_records();
 
     auto log_num = records.size();
@@ -138,6 +139,7 @@ void RecoveryManager::analyze() {
 @description: 重做所有未落盘的操作
 */
 void RecoveryManager::redo() {
+    LOG_DEBUG("ARIES: redo");
     if(log_manager_->dirty_page_table_.empty()) {
         return;
     }
@@ -296,6 +298,7 @@ void RecoveryManager::redo() {
  * @description: 回滚未完成的事务
  */
 void RecoveryManager::undo() {
+    LOG_DEBUG("ARIES: UNDO");
     auto undo_cmp=[](const std::pair<lsn_t,Context*>&at1, const std::pair<lsn_t,Context*>&at2) {
         return at1.first < at2.first;
     };

@@ -204,9 +204,8 @@ class IxIndexHandle {
     Iid lower_bound_cnt(const char *key, size_t cnt);
     Iid upper_bound(const char *key);
     Iid upper_bound_cnt(const char *key, size_t cnt);
-    Iid leaf_end() const;
-
-    Iid leaf_begin() const;
+    Iid leaf_end();
+    Iid leaf_begin();
 
    private:
     // 辅助函数

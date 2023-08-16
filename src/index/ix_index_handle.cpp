@@ -317,7 +317,9 @@ IxIndexHandle::find_leaf_page(const char *key, Operation operation, Transaction 
         page_id_t child_page_id;
         if(left_most) {
             // 如果是在找最左边的点
-            child_page_id = current->get_rid(0)->page_no;
+            child_page_id = current->get_rid(0) -> page_no;
+        } else if(right_most) {
+            child_page_id = current->get_rid(current->get_size() - 1) -> page_no;
         } else {
             child_page_id = current->internal_lookup(key, col_cnt,find_type);
         }
@@ -350,7 +352,6 @@ IxIndexHandle::find_leaf_page(const char *key, Operation operation, Transaction 
                 break;
             }
         }
-
         current_page = child_node_page;
         current = child_node;
     }
@@ -368,7 +369,8 @@ bool IxIndexHandle::get_value(const char *key, std::vector<Rid> *result, Transac
     // 1. 获取目标key值所在的叶子结点
 
     root_latch_.read_lock();
-    auto leaf_page_hdr = find_leaf_page(key, Operation::FIND, transaction, file_hdr_->col_num_).first;
+    auto leaf_page_hdr = find_leaf_page(key, Operation::FIND, transaction, file_hdr_->col_num_, FIND_TYPE::COMMON, false,
+                                        false).first;
     // 2. 在叶子节点中查找目标key值的位置，并读取key对应的rid
     Rid* rid;
     auto found = leaf_page_hdr->leaf_lookup(key,&rid, file_hdr_->col_num_);
@@ -541,7 +543,8 @@ page_id_t IxIndexHandle::insert_entry(const char *key, const Rid &value, Transac
         release_ancestors(transaction);
         return true;
     }
-    auto leaf_page = find_leaf_page(key, Operation::INSERT, transaction, file_hdr_->col_num_).first;
+    auto leaf_page = find_leaf_page(key, Operation::INSERT, transaction, file_hdr_->col_num_, FIND_TYPE::COMMON, false,
+                                    false).first;
     auto old_size = leaf_page->get_size();
     // 2. 在该叶子节点中插入键值对
     auto new_size = leaf_page->insert(key,value);
@@ -588,7 +591,8 @@ bool IxIndexHandle::delete_entry(const char *key, Transaction *transaction) {
         release_ancestors(transaction);
         return true;
     }
-    auto leaf_node = find_leaf_page(key, Operation::DELETE, transaction, file_hdr_->col_num_, false, FIND_TYPE::COMMON).first;
+    auto leaf_node = find_leaf_page(key, Operation::DELETE, transaction, file_hdr_->col_num_, FIND_TYPE::COMMON, false,
+                                    false).first;
     int size = leaf_node->get_size();
     // 2. 在该叶子结点中删除键值对
     if(leaf_node->remove(key)==size) {
@@ -819,10 +823,12 @@ bool IxIndexHandle::coalesce(IxNodeHandle **neighbor_node, IxNodeHandle **node, 
  */
 Rid IxIndexHandle::get_rid(const Iid &iid) const {
     IxNodeHandle *node = fetch_node(iid.page_no);
+    node->page->RLock();
     if (iid.slot_no >= node->get_size()) {
         throw IndexEntryNotFoundError();
     }
-    buffer_pool_manager_->unpin_page(node->get_page_id(), false);  // unpin it!
+    node->page->RUnlock();
+    buffer_pool_manager_->unpin_page(node->get_page_id(), false);
     return *node->get_rid(iid.slot_no);
 }
 
@@ -841,10 +847,14 @@ Rid IxIndexHandle::get_rid(const Iid &iid) const {
  *
  * @return Iid
  */
-Iid IxIndexHandle::leaf_end() const {
-    IxNodeHandle *node = fetch_node(file_hdr_->last_leaf_);
-    Iid iid = {.page_no = file_hdr_->last_leaf_, .slot_no = node->get_size()};
-    buffer_pool_manager_->unpin_page(node->get_page_id(), false);  // unpin it!
+Iid IxIndexHandle::leaf_end()  {
+
+    root_latch_.read_lock();
+    auto leaf_end_node = find_leaf_page(nullptr,Operation::FIND, nullptr,file_hdr_->col_num_, FIND_TYPE::COMMON, true,
+                                         false);
+    auto page_no = leaf_end_node.first->get_page_no();
+    Iid iid = {.page_no = page_no, .slot_no=leaf_end_node.first->get_size()};
+    buffer_pool_manager_->unpin_page(leaf_end_node.first->get_page_id(), false);
     return iid;
 }
 
@@ -854,8 +864,12 @@ Iid IxIndexHandle::leaf_end() const {
  *
  * @return Iid
  */
-Iid IxIndexHandle::leaf_begin() const {
-    Iid iid = {.page_no = file_hdr_->first_leaf_, .slot_no = 0};
+Iid IxIndexHandle::leaf_begin()  {
+    root_latch_.read_lock();
+    auto leaf_begin_node = find_leaf_page(nullptr,Operation::FIND, nullptr,file_hdr_->col_num_, FIND_TYPE::COMMON, true,
+                                         false);
+    Iid iid = {.page_no = leaf_begin_node.first->get_page_no(), .slot_no = 0};
+    buffer_pool_manager_->unpin_page(leaf_begin_node.first->get_page_id(), false);
     return iid;
 }
 
@@ -866,7 +880,7 @@ Iid IxIndexHandle::leaf_begin() const {
  * @return IxNodeHandle*
  * @note pin the page, remember to unpin it outside!
  */
-IxNodeHandle *IxIndexHandle::fetch_node(int page_no) const {
+IxNodeHandle *IxIndexHandle::fetch_node(int page_no) const  {
     Page *page = buffer_pool_manager_->fetch_page(PageId{fd_, page_no});
     auto *node = new IxNodeHandle(file_hdr_, page); // check(AntiO2) node在哪里释放？
     return node;
@@ -971,7 +985,7 @@ void IxIndexHandle::release_ancestors(Transaction *transaction) {
 
 Iid IxIndexHandle::lower_bound_cnt(const char *key, size_t cnt) {
     root_latch_.read_lock();
-    auto node = find_leaf_page(key,Operation::FIND, nullptr, cnt, false,FIND_TYPE::LOWER).first;
+    auto node = find_leaf_page(key,Operation::FIND, nullptr, cnt, FIND_TYPE::LOWER, false, false).first;
     auto idx = node->lower_bound(key,cnt);
     Iid iid = {.page_no = node->get_page_no(),.slot_no=idx};
     if(idx==node->get_size()&&node->get_page_no()!=file_hdr_->last_leaf_) {
@@ -987,8 +1001,8 @@ Iid IxIndexHandle::lower_bound_cnt(const char *key, size_t cnt) {
 }
 
 Iid IxIndexHandle::upper_bound_cnt(const char *key, size_t cnt) {
-     root_latch_.read_lock();
-    auto node = find_leaf_page(key,Operation::FIND, nullptr, cnt, false,FIND_TYPE::UPPER).first;
+    root_latch_.read_lock();
+    auto node = find_leaf_page(key,Operation::FIND, nullptr, cnt, FIND_TYPE::UPPER, false, false).first;
     auto idx = node->upper_bound(key,cnt);
     Iid iid {.page_no = node->get_page_no(), .slot_no = idx};
     if(idx==node->get_size()&&node->get_page_no()!=file_hdr_->last_leaf_) {

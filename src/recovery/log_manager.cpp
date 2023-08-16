@@ -17,7 +17,7 @@ See the Mulan PSL v2 for more details. */
  * @return {lsn_t} 返回该日志的日志记录号
  */
 lsn_t LogManager::add_log_to_buffer(LogRecord* log_record) {
-    latch_.lock();
+    // latch_.lock();
     // 如果日志缓冲区已满，则将其刷新到磁盘中
     //    if(ARIES_DEBUG_MODE) {
     //        LOG_DEBUG("%s", fmt::format("\nLSN {}\nbuffer size {}\n log_len{}\nappend len {}\n",
@@ -25,10 +25,11 @@ lsn_t LogManager::add_log_to_buffer(LogRecord* log_record) {
     //    }
     if (log_buffer_.is_full(log_record->log_tot_len_)) {
         LOG_DEBUG("Log Buffer is full, begin flush");
-        latch_.unlock();
+        // latch_.unlock();
         flush_log_to_disk();
-        latch_.lock();
+        // latch_.lock();
     }
+    std::unique_lock<std::mutex> latch(latch_);
     // 获取全局 LSN
     lsn_t lsn = ++global_lsn_;
     // 设置 LogRecord 的 LSN
@@ -36,7 +37,6 @@ lsn_t LogManager::add_log_to_buffer(LogRecord* log_record) {
     // 序列化 LogRecord 并添加到日志缓冲区
     log_record->serialize(log_buffer_.buffer_ + log_buffer_.offset_);
     log_buffer_.offset_ += log_record->log_tot_len_;
-    latch_.unlock();
     if(ARIES_DEBUG_MODE) {
         flush_log_to_disk();
     }
@@ -48,6 +48,9 @@ lsn_t LogManager::add_log_to_buffer(LogRecord* log_record) {
  */
 void LogManager::flush_log_to_disk() {
     std::unique_lock<std::mutex> latch(latch_);
+    if(log_buffer_.offset_==0) {
+        return;
+    }
     // 将日志缓冲区中的内容写入磁盘中
     disk_manager_->write_log(log_buffer_.buffer_, log_buffer_.offset_);
     // 更新 flushed_lsn_
@@ -58,6 +61,7 @@ void LogManager::flush_log_to_disk() {
 }
 
 bool LogManager::flush_log_buffer() {
+    std::unique_lock<std::mutex> latch(latch_);
     prev_offset_ = current_offset_;
     auto read_size =  disk_manager_->read_log(log_buffer_.buffer_,LOG_BUFFER_SIZE, current_offset_);
     if(read_size <= 0 ) {

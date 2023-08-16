@@ -50,9 +50,6 @@ class DeleteExecutor : public AbstractExecutor {
     }
 
     std::unique_ptr<RmRecord> Next() override {
-//      if(context_->txn_->get_isolation_level()==IsolationLevel::SERIALIZABLE) {
-//        context_->lock_mgr_->lock_exclusive_on_table(context_->txn_,fh_->GetFd());
-//      }
         std::for_each(rids_.begin(),rids_.end(),[this](const Rid&rid){
             auto tuple = fh_->get_record(rid,context_);
             auto tuple_ptr = tuple.get();

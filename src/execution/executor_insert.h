@@ -53,9 +53,6 @@ class InsertExecutor : public AbstractExecutor {
     };
 
     std::unique_ptr<RmRecord> Next() override {
-//          if(context_->txn_->get_isolation_level()==IsolationLevel::SERIALIZABLE) {
-//            context_->lock_mgr_->lock_exclusive_on_table(context_->txn_,fh_->GetFd());
-//          }
         // Make record buffer
         RmRecord rec(fh_->get_file_hdr().record_size);
         for (size_t i = 0; i < values_.size(); i++) {
@@ -72,6 +69,8 @@ class InsertExecutor : public AbstractExecutor {
         auto undo_next = context_->txn_->get_transaction_id();
         // Insert into record file
         rid_ = fh_->insert_record(rec.data, context_,&tab_name_);
+        auto* writeRecord = new WriteRecord(WType::INSERT_TUPLE,tab_name_,rid_, undo_next);
+        context_->txn_->append_write_record(writeRecord);
         // Insert into index
         for(size_t i = 0; i < tab_.indexes.size(); ++i) {
             auto& index = tab_.indexes[i];
@@ -97,12 +96,10 @@ class InsertExecutor : public AbstractExecutor {
                     index_handlers.at(j)->delete_entry(key,context_->txn_);
                 }
                 // check(AntiO2) 这里是否需要是undo类型回滚
-                fh_->delete_record(rid_,context_, &tab_name_);
+                // fh_->delete_record(rid_,context_, &tab_name_);
                 throw std::move(e);
             }
         }
-        auto* writeRecord = new WriteRecord(WType::INSERT_TUPLE,tab_name_,rid_, undo_next);
-        context_->txn_->append_write_record(writeRecord);
         return nullptr;
     }
     size_t tupleLen() const override {

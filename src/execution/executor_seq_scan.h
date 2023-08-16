@@ -67,9 +67,6 @@ class SeqScanExecutor : public AbstractExecutor {
 
     void beginTuple() override {
         // 首先初始化。
-//        if(context_->txn_->get_isolation_level()==IsolationLevel::SERIALIZABLE) {
-//          context_->lock_mgr_->lock_shared_on_table(context_->txn_,fh_->GetFd());
-//        }
         is_end_ = false;
         scan_ = std::make_unique<RmScan>(fh_); // 首先通过RmScan 获取对表的扫描
         while(!scan_->is_end()) {
@@ -86,9 +83,6 @@ class SeqScanExecutor : public AbstractExecutor {
     }
 
     void nextTuple() override {
-//        if(context_->txn_->get_isolation_level()==IsolationLevel::SERIALIZABLE) {
-//            context_->lock_mgr_->lock_shared_on_table(context_->txn_,fh_->GetFd());
-//        }
         scan_->next();
         while(!scan_->is_end()) {
             rid_ = scan_->rid();

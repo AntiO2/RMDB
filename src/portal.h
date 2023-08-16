@@ -195,7 +195,9 @@ class Portal
         } else if(auto x = std::dynamic_pointer_cast<ScanPlan>(plan)) {
             if(context->txn_->get_isolation_level()==IsolationLevel::SERIALIZABLE&&!dml_mode) {
                 auto fd = sm_manager_->fhs_.at(x->tab_name_).get()->GetFd();
-                context->lock_mgr_->lock_shared_on_table(context->txn_,fd);
+                if(!context->txn_->IsTableExclusiveLocked(fd)&&!context->txn_->IsTableSharedLocked(fd)) {
+                    context->lock_mgr_->lock_shared_on_table(context->txn_,fd);
+                }
             }
             if(x->tag == T_SeqScan) {
 //                if(x->op_){//liamY 如果有聚合函数的操作

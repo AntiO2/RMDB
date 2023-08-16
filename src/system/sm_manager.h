@@ -86,4 +86,9 @@ class SmManager {
     void drop_index(const std::string& tab_name, const std::vector<ColMeta>& col_names, Context* context);
 
     void rebuild_index(const std::string& tab_name, const IndexMeta&index_meta, Context* context);
+
+    //lsy 8.16
+    void setOff(Context *context);
+
+    void load_csv(std::string file_name, std::string tab_name, Context *context);
 };

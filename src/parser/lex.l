@@ -96,10 +96,16 @@ single_op ";"|"("|")"|","|"*"|"="|">"|"<"|"."
 "SUM" { return SUM; }
 "AS" { return AS; }
 "LIMIT" { return LIMIT; }
+
+"LOAD" {return LOAD; }
+"OFF" {return OFF; }
+"OUTPUT_FILE" {return OUTPUT_FILE; }
+
     /* operators */
 ">=" { return GEQ; }
 "<=" { return LEQ; }
 "<>" { return NEQ; }
+
 {single_op} { return yytext[0]; }
     /* id */
 {identifier} {

@@ -144,6 +144,14 @@ void SmManager::close_db() {
     }
 }
 
+/** TODO
+ * @description: 性能题目增加,停止向output.txt中写入输出结果，在未接收到该命令时，默认需要开启向output.txt中写入结果的功能
+ * @param {Context*} context
+ */
+void SmManager::setOff(Context* context){
+
+}
+
 /**
  * @description: 显示所有的表,通过测试需要将其结果写入到output.txt,详情看题目文档
  * @param {Context*} context 
@@ -454,4 +462,15 @@ void SmManager::rebuild_index(const std::string &tab_name, const IndexMeta&index
         index_handler->insert_entry(key->data,rid, &transaction);
         rm_scan.next();
     }
+}
+
+//load lsy
+/**  TODO
+ * @description: load data
+ * @param {string} 要读取的文件名
+ * @param {string} tab_name 表名称
+ * @param {Context*} context
+ */
+void SmManager::load_csv(std::string file_name,std::string tab_name,Context* context){
+
 }

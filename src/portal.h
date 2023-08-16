@@ -34,7 +34,7 @@ typedef enum portalTag{
     PORTAL_DML_WITHOUT_SELECT,
     PORTAL_MULTI_QUERY,
     PORTAL_CMD_UTILITY,
-    PORTAL_ONE_SELECT_AGGREGATE
+    PORTAL_ONE_SELECT_AGGREGATE,
 } portalTag;
 
 
@@ -71,13 +71,14 @@ class Portal
         // 这里可以将select进行拆分，例如：一个select，带有return的select等
         if (auto x = std::dynamic_pointer_cast<OtherPlan>(plan)) {
             return std::make_shared<PortalStmt>(PORTAL_CMD_UTILITY, std::vector<TabCol>(), std::unique_ptr<AbstractExecutor>(),plan);
+        } else if(auto x = std::dynamic_pointer_cast<LoadPlan>(plan)){
+            return std::make_shared<PortalStmt>(PORTAL_CMD_UTILITY,std::vector<TabCol>(),std::unique_ptr<AbstractExecutor>(),plan);
         } else if (auto x = std::dynamic_pointer_cast<DDLPlan>(plan)) {
             return std::make_shared<PortalStmt>(PORTAL_MULTI_QUERY, std::vector<TabCol>(), std::unique_ptr<AbstractExecutor>(),plan);
         } else if (auto x = std::dynamic_pointer_cast<DMLPlan>(plan)) {
             switch(x->tag) {
                 case T_select:
                 {
-
                     std::shared_ptr<ProjectionPlan> p = std::dynamic_pointer_cast<ProjectionPlan>(x->subplan_);
                     // root表示取出数据的执行器
                     std::unique_ptr<AbstractExecutor> root= convert_plan_executor(p, context, false);

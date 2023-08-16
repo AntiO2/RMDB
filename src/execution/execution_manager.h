@@ -36,12 +36,11 @@ class QlManager {
         : sm_manager_(sm_manager),  txn_mgr_(txn_mgr) {}
 
     void run_mutli_query(std::shared_ptr<Plan> plan, Context *context);
-    void run_cmd_utility(std::shared_ptr<Plan> plan, txn_id_t *txn_id, Context *context);
+    void run_cmd_utility(std::shared_ptr<Plan> plan, txn_id_t *txn_id,Context *context);
     void select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot, std::vector<TabCol> sel_cols,
                         Context *context);
     //liamY 新加入一个处理执行聚合函数plan的函数
     void select_from_aggregate(std::unique_ptr<AbstractExecutor> executorTreeRoot, std::vector<TabCol> sel_cols,std::string col_as_name,AggregateOp op,
                                Context *context);
     void run_dml(std::unique_ptr<AbstractExecutor> exec);
-
 };

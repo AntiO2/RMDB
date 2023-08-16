@@ -34,8 +34,8 @@
 /* Undocumented macros, especially those whose name start with YY_,
    are private implementation details.  Do not rely on them.  */
 
-#ifndef YY_YY_TMP_TMP_XSXJMU6B7R_SRC_PARSER_YACC_TAB_H_INCLUDED
-# define YY_YY_TMP_TMP_XSXJMU6B7R_SRC_PARSER_YACC_TAB_H_INCLUDED
+#ifndef YY_YY_TMP_TMP_OEPYEV6UKA_SRC_PARSER_YACC_TAB_H_INCLUDED
+# define YY_YY_TMP_TMP_OEPYEV6UKA_SRC_PARSER_YACC_TAB_H_INCLUDED
 /* Debug traces.  */
 #ifndef YYDEBUG
 # define YYDEBUG 0
@@ -88,16 +88,19 @@ extern int yydebug;
     SUM = 294,
     AS = 295,
     LIMIT = 296,
-    LEQ = 297,
-    NEQ = 298,
-    GEQ = 299,
-    T_EOF = 300,
-    IDENTIFIER = 301,
-    VALUE_STRING = 302,
-    VALUE_INT = 303,
-    VALUE_FLOAT = 304,
-    VALUE_BIGINT = 305,
-    VALUE_DATETIME = 306
+    OFF = 297,
+    LOAD = 298,
+    OUTPUT_FILE = 299,
+    LEQ = 300,
+    NEQ = 301,
+    GEQ = 302,
+    T_EOF = 303,
+    IDENTIFIER = 304,
+    VALUE_STRING = 305,
+    VALUE_INT = 306,
+    VALUE_FLOAT = 307,
+    VALUE_BIGINT = 308,
+    VALUE_DATETIME = 309
   };
 #endif
 
@@ -121,4 +124,4 @@ struct YYLTYPE
 
 int yyparse (void);
 
-#endif /* !YY_YY_TMP_TMP_XSXJMU6B7R_SRC_PARSER_YACC_TAB_H_INCLUDED  */
+#endif /* !YY_YY_TMP_TMP_OEPYEV6UKA_SRC_PARSER_YACC_TAB_H_INCLUDED  */

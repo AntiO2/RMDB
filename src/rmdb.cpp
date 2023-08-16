@@ -151,21 +151,6 @@ pthread_mutex_t *sockfd_mutex;
                     outfile.open("output.txt", std::ios::out | std::ios::app);
                     outfile << str;
                     outfile.close();
-                } catch (IndexEntryDuplicateError &e) {
-                    std::cerr << e.what() << std::endl;
-
-                    memcpy(data_send, e.what(), e.get_msg_len());
-                    data_send[e.get_msg_len()] = '\n';
-                    data_send[e.get_msg_len() + 1] = '\0';
-                    offset = e.get_msg_len() + 1;
-
-                    // 将报错信息写入output.txt
-                    std::fstream outfile;
-                    outfile.open("output.txt", std::ios::out | std::ios::app);
-                    outfile << "failure\n";
-                    outfile.close();
-
-                    txn_manager->abort(context->txn_, log_manager.get());
                 }
                 catch (RMDBError &e) {
                         // 遇到异常，需要打印failure到output.txt文件中，并发异常信息返回给客户端

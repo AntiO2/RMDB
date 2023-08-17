@@ -44,9 +44,9 @@ int main() {
 //        "SELECT company, order_number FROM orders ORDER BY company, order_number;",
 //        "SELECT company, order_number FROM orders ORDER BY company DESC, order_number ASC;",
 //        "SELECT company, order_number FROM orders ORDER BY order_number ASC LIMIT 2;",
-//        "load file_name into table_name;",
+        "load a.csv into table_name;",
 //        "set output_file off",
-        "update student set score=score-5.5 where id<3;",
+ //       "update student set score=score-5.5 where id<3;",
 
         "",
     };

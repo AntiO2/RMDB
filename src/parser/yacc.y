@@ -28,7 +28,7 @@ OFF LOAD OUTPUT_FILE
 %token LEQ NEQ GEQ T_EOF
 
 // type-specific tokens
-%token <sv_str> IDENTIFIER VALUE_STRING
+%token <sv_str> IDENTIFIER VALUE_STRING PATH
 %token <sv_int> VALUE_INT
 %token <sv_float> VALUE_FLOAT
 %token <sv_str> VALUE_BIGINT
@@ -502,5 +502,5 @@ tbName: IDENTIFIER;
 
 colName: IDENTIFIER;
 
-fileName: IDENTIFIER;
+fileName: PATH;
 %%

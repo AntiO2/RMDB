@@ -37,6 +37,7 @@ digit [0-9]
 white_space [ \t]+
 new_line "\r"|"\n"|"\r\n"
 sign "+"|"-"
+path (\/?{alpha}+\/?)*{alpha}+\.{alpha}{2,4}
 identifier {alpha}(_|{alpha}|{digit})*
 value_int {sign}?{digit}+
 value_float {sign}?{digit}+\.({digit}+)?
@@ -112,7 +113,12 @@ single_op ";"|"("|")"|","|"*"|"="|">"|"<"|"."
     yylval->sv_str = yytext;
     return IDENTIFIER;
 }
-    /* literals */
+
+{path} {
+    yylval->sv_str = yytext;
+    return PATH;
+}
+
 {value_int} {
     int64_t num = atoll(yytext);
     if(num >= INT_MIN && num <= INT_MAX)

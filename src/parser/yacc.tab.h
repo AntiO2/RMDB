@@ -34,8 +34,8 @@
 /* Undocumented macros, especially those whose name start with YY_,
    are private implementation details.  Do not rely on them.  */
 
-#ifndef YY_YY_TMP_TMP_OEPYEV6UKA_SRC_PARSER_YACC_TAB_H_INCLUDED
-# define YY_YY_TMP_TMP_OEPYEV6UKA_SRC_PARSER_YACC_TAB_H_INCLUDED
+#ifndef YY_YY_YACC_TAB_H_INCLUDED
+# define YY_YY_YACC_TAB_H_INCLUDED
 /* Debug traces.  */
 #ifndef YYDEBUG
 # define YYDEBUG 0
@@ -97,12 +97,67 @@ extern int yydebug;
     T_EOF = 303,
     IDENTIFIER = 304,
     VALUE_STRING = 305,
-    VALUE_INT = 306,
-    VALUE_FLOAT = 307,
-    VALUE_BIGINT = 308,
-    VALUE_DATETIME = 309
+    PATH = 306,
+    VALUE_INT = 307,
+    VALUE_FLOAT = 308,
+    VALUE_BIGINT = 309,
+    VALUE_DATETIME = 310
   };
 #endif
+/* Tokens.  */
+#define SHOW 258
+#define TABLES 259
+#define CREATE 260
+#define TABLE 261
+#define DROP 262
+#define DESC 263
+#define INSERT 264
+#define INTO 265
+#define VALUES 266
+#define DELETE 267
+#define FROM 268
+#define ASC 269
+#define ORDER 270
+#define BY 271
+#define WHERE 272
+#define UPDATE 273
+#define SET 274
+#define SELECT 275
+#define INT 276
+#define CHAR 277
+#define FLOAT 278
+#define BIGINT 279
+#define DATETIME 280
+#define INDEX 281
+#define AND 282
+#define JOIN 283
+#define EXIT 284
+#define HELP 285
+#define TXN_BEGIN 286
+#define TXN_COMMIT 287
+#define TXN_ABORT 288
+#define TXN_ROLLBACK 289
+#define ORDER_BY 290
+#define COUNT 291
+#define MAX 292
+#define MIN 293
+#define SUM 294
+#define AS 295
+#define LIMIT 296
+#define OFF 297
+#define LOAD 298
+#define OUTPUT_FILE 299
+#define LEQ 300
+#define NEQ 301
+#define GEQ 302
+#define T_EOF 303
+#define IDENTIFIER 304
+#define VALUE_STRING 305
+#define PATH 306
+#define VALUE_INT 307
+#define VALUE_FLOAT 308
+#define VALUE_BIGINT 309
+#define VALUE_DATETIME 310
 
 /* Value type.  */
 
@@ -124,4 +179,4 @@ struct YYLTYPE
 
 int yyparse (void);
 
-#endif /* !YY_YY_TMP_TMP_OEPYEV6UKA_SRC_PARSER_YACC_TAB_H_INCLUDED  */
+#endif /* !YY_YY_YACC_TAB_H_INCLUDED  */

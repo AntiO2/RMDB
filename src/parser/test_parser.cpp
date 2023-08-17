@@ -47,7 +47,8 @@ int main() {
         "load a.csv into t1;",
         "load /home/test/a.csv into t1;",
         "load ./home/test/a.csv into t1;",
-        "set output_file off",
+   //     "set output_file off",
+        "load ../../src/test/performance_test/table_data/warehouse.csv into warehouse;",
 //        "update student set score=score-5.5 where id<3;",
 
         "",

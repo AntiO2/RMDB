@@ -28,7 +28,12 @@ void IxScan::next() {
         node->page->RUnlock();
         bpm_->unpin_page(node->get_page_id(), false);
         iid_.page_no = node->get_next_leaf();
+        is_end_ = (iid_==end_);
+        return;
     }
+    node->page->RUnlock();
+    is_end_ = (iid_==end_);
+    bpm_->unpin_page(node->get_page_id(), false);
 }
 
 Rid IxScan::rid() const {

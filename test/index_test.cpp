@@ -19,6 +19,7 @@ const int POOL_SIZE = 1000;
 class IndexTest_2COL : public ::testing::Test {
 public:
     std::unique_ptr<DiskManager> disk_manager_;
+    std::unique_ptr<LogManager> log_manager_;
     std::unique_ptr<BufferPoolManager> buffer_pool_manager_;
     std::unique_ptr<IxManager> ix_manager_;
     std::unique_ptr<IxIndexHandle> ih_;
@@ -30,7 +31,8 @@ public:
     void SetUp() override {
         LOG_INFO("索引初始化开始");
         disk_manager_ = std::make_unique<DiskManager>();
-        buffer_pool_manager_ = std::make_unique<BufferPoolManager>(POOL_SIZE, disk_manager_.get());
+        log_manager_ = std::make_unique<LogManager>(disk_manager_.get());
+        buffer_pool_manager_ = std::make_unique<BufferPoolManager>(POOL_SIZE, disk_manager_.get(), log_manager_.get());
         ix_manager_ = std::make_unique<IxManager>(disk_manager_.get(), buffer_pool_manager_.get());
         txn_ = std::make_unique<Transaction>(0);
         int curr_offset = 0;
@@ -386,13 +388,15 @@ public:
     std::unique_ptr<IxIndexHandle> ih_;
     std::unique_ptr<Transaction> txn_;
     std::vector<ColDef> col_defs;
+    std::unique_ptr<LogManager> log_manager_;
     std::vector<ColMeta> cols; //用于创建索引的列
 public:
 
     void SetUp() override {
         LOG_INFO("索引初始化开始");
         disk_manager_ = std::make_unique<DiskManager>();
-        buffer_pool_manager_ = std::make_unique<BufferPoolManager>(POOL_SIZE, disk_manager_.get());
+        log_manager_ = std::make_unique<LogManager>(disk_manager_.get());
+        buffer_pool_manager_ = std::make_unique<BufferPoolManager>(POOL_SIZE, disk_manager_.get(), log_manager_.get());
         ix_manager_ = std::make_unique<IxManager>(disk_manager_.get(), buffer_pool_manager_.get());
         txn_ = std::make_unique<Transaction>(0);
         int curr_offset = 0;
@@ -993,7 +997,12 @@ void InsertHelper(IxIndexHandle *tree, const std::vector<int64_t> &keys,
         Rid rid = {.page_no = static_cast<int32_t>(key >> 32), .slot_no = value};
         index_key = (const char *)&key;
         // LOG_DEBUG("Insert %d",key);
-        tree->insert_entry(index_key, rid, transaction);
+        try {
+            tree->insert_entry(index_key, rid, transaction);
+        } catch (IndexEntryDuplicateError e) {
+
+        }
+
     }
 
     std::vector<Rid> rids;
@@ -1011,16 +1020,17 @@ void InsertHelper(IxIndexHandle *tree, const std::vector<int64_t> &keys,
 }
 
 // helper function to delete
-void DeleteHelper(IxIndexHandle *tree, const std::vector<int64_t> &keys,
+void DeleteHelper(IxIndexHandle *tree, const std::vector<int64_t> &keys, size_t * cnt,
                   __attribute__((unused)) uint64_t thread_itr = 0) {
     // create transaction
-    Transaction *transaction = new Transaction(0);  // 注意，每个线程都有一个事务；不能从上层传入一个共用的事务
-
+    auto *transaction = new Transaction(0);
     const char *index_key;
     for (auto key : keys) {
         index_key = (const char *)&key;
-        // LOG_DEBUG("Delete %d",key);
-        tree->delete_entry(index_key, transaction);
+       if(tree->delete_entry(index_key, transaction)) {
+           LOG_DEBUG("[%ld] Delete %ld", thread_itr,key );
+           (*cnt)++;
+       }
     }
 
     delete transaction;
@@ -1081,7 +1091,7 @@ TEST_F(IndexTest, MixScaleTest) {
     }
     // 这里调用了insert_entry，并且用thread_num个进程并发插入（包括并发查找）
     LaunchParallelTest(thread_num, InsertHelper, ih_.get(), keys);
-    printf("Insert key 1~%ld finished\n", scale);
+    LOG_DEBUG("Insert key 1~%ld finished\n", scale);
 
     draw(buffer_pool_manager_.get(),"ii.dot");
     // keys to Delete
@@ -1089,9 +1099,11 @@ TEST_F(IndexTest, MixScaleTest) {
     for (int64_t key = 1; key <= delete_scale; key++) {
         delete_keys.push_back(key);
     }
-    LaunchParallelTest(thread_num, DeleteHelper, ih_.get(), delete_keys);
-    printf("Delete key 1~%ld finished\n", delete_scale);
-
+    size_t cnt = 0;
+    LaunchParallelTest(thread_num, DeleteHelper, ih_.get(), delete_keys,  &cnt);
+    LOG_DEBUG("Delete key 1~%ld finished\n", delete_scale);
+    LOG_DEBUG("Delete tot %ld",cnt);
+    draw(buffer_pool_manager_.get(),"dd.dot");
     int64_t start_key = *delete_keys.rbegin() + 1;
     int64_t current_key = start_key;
     int64_t size = 0;

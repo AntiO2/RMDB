@@ -37,7 +37,7 @@ digit [0-9]
 white_space [ \t]+
 new_line "\r"|"\n"|"\r\n"
 sign "+"|"-"
-path (\/?(_|{alpha}|{digit})+\/?)*(_|{alpha}|{digit})+\.{alpha}{2,4}
+path (\/?(_|(\.)|{alpha}|{digit})+\/?)*(_|(\.)|{alpha}|{digit})+\.{alpha}{2,4}
 identifier {alpha}(_|{alpha}|{digit})*
 value_int {sign}?{digit}+
 value_float {sign}?{digit}+\.({digit}+)?

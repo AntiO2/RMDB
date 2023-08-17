@@ -484,15 +484,17 @@ void SmManager::load_csv(std::string file_name,std::string tab_name,Context* con
     std::vector<std::string> values;
     std::getline(infile,line);
     //3.对每一行进行insert
+    //去拿sm_manager
+    extern std::unique_ptr<SmManager>  sm_manager;
+    auto sm_manager_ = sm_manager.get();
     while(std::getline(infile,line)){
+        //将values清空
+        values.clear();
         std::stringstream ss(line);
         std::string value;
         while(std::getline(ss,value,',')){
             values.push_back(value);
         }
-        //去拿sm_manager
-        extern std::unique_ptr<SmManager>  sm_manager;
-        auto sm_manager_ = sm_manager.get();
 
         //这个时候values里面就是装有每一行的所有数据了，按照从左到右的顺序，先模仿portal的操作，对insert进行初始化
 //        if(context->txn_->get_isolation_level()==IsolationLevel::SERIALIZABLE) {
@@ -526,9 +528,6 @@ void SmManager::load_csv(std::string file_name,std::string tab_name,Context* con
         for (size_t i = 0; i < values_.size(); i++) {
             auto &col = tab_.cols[i];
             auto &val = values_[i];
-            if (col.type != val.type) {
-                throw IncompatibleTypeError(coltype2str(col.type), coltype2str(val.type));
-            }
             val.init_raw(col.len);
             // 将Value数据存入rec中。
             memcpy(rec.data + col.offset, val.raw->data, col.len);

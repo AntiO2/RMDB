@@ -257,9 +257,7 @@ int IxNodeHandle::remove(const char *key) {
         erase_pair(pos);
     }
     // 3. 返回完成删除操作后的键值对数量
-    size-=1;
-    set_size(size);
-    return size;
+    return get_size();
 }
 
 
@@ -344,7 +342,8 @@ IxIndexHandle::find_leaf_page(const char *key, Operation operation, Transaction 
                 break;
             }
             case Operation::DELETE: {
-                 child_node_page->WLock();
+
+                child_node_page->WLock();
                 transaction->append_index_latch_page_set(current_page);
                 if(child_node->get_size() > child_node->get_min_size()) {
                     release_ancestors(transaction);   // 释放所有祖先page latch
@@ -589,15 +588,15 @@ bool IxIndexHandle::delete_entry(const char *key, Transaction *transaction) {
     transaction->append_index_latch_page_set(nullptr);
     if(is_empty()) {
         release_ancestors(transaction);
-        return true;
+        return false;
     }
     auto leaf_node = find_leaf_page(key, Operation::DELETE, transaction, file_hdr_->col_num_, FIND_TYPE::COMMON, false,
                                     false).first;
     int size = leaf_node->get_size();
     // 2. 在该叶子结点中删除键值对
     if(leaf_node->remove(key)==size) {
-        release_ancestors(transaction);   // 释放所有祖先page latch
         leaf_node->page->WUnlock();
+        release_ancestors(transaction);   // 释放所有祖先page latch
         buffer_pool_manager_->unpin_page(leaf_node->get_page_id(), false);
         return false;
     } else {
@@ -713,7 +712,7 @@ bool IxIndexHandle::adjust_root(IxNodeHandle *old_root_node) {
     if (!old_root_node->is_leaf_page() && old_root_node->get_size() == 1) {
         auto child_node = fetch_node(old_root_node->get_rid(0)->page_no);
         auto child_page = child_node->page;
-       child_node->set_parent_page_no(INVALID_PAGE_ID);
+        child_node->set_parent_page_no(INVALID_PAGE_ID);
 
         auto root_page_id_ = child_node->get_page_id();
         file_hdr_->root_page_ = root_page_id_.page_no;
@@ -850,8 +849,8 @@ Rid IxIndexHandle::get_rid(const Iid &iid) const {
 Iid IxIndexHandle::leaf_end()  {
 
     root_latch_.read_lock();
-    auto leaf_end_node = find_leaf_page(nullptr,Operation::FIND, nullptr,file_hdr_->col_num_, FIND_TYPE::COMMON, true,
-                                         false);
+    auto leaf_end_node = find_leaf_page(nullptr,Operation::FIND, nullptr,file_hdr_->col_num_, FIND_TYPE::COMMON, false,
+                                         true);
     auto page_no = leaf_end_node.first->get_page_no();
     Iid iid = {.page_no = page_no, .slot_no=leaf_end_node.first->get_size()};
     buffer_pool_manager_->unpin_page(leaf_end_node.first->get_page_id(), false);
@@ -954,7 +953,7 @@ void IxIndexHandle::erase_leaf(IxNodeHandle *leaf) {
  * @param node
  */
 void IxIndexHandle::release_node_handle(IxNodeHandle &node) {
-    file_hdr_->num_pages_--;
+    // file_hdr_->num_pages_--;
 }
 
 /**
@@ -976,7 +975,7 @@ void IxIndexHandle::release_ancestors(Transaction *transaction) {
              root_latch_.write_unlock();
             // buffer_pool_manager_->unpin_page(PageId{fd_,file_hdr_->root_page_}, false); // Check(AntiO2) 是否需要释放root?
         } else {
-             latch_page->WUnlock();
+            latch_page->WUnlock();
             buffer_pool_manager_->unpin_page(latch_page->get_page_id(), false);
         }
     }
@@ -995,7 +994,7 @@ Iid IxIndexHandle::lower_bound_cnt(const char *key, size_t cnt) {
             iid.slot_no=0;
         }
     }
-
+    node->page->RUnlock();
     buffer_pool_manager_->unpin_page(node->get_page_id(), false);
     return iid;
 }
@@ -1009,6 +1008,7 @@ Iid IxIndexHandle::upper_bound_cnt(const char *key, size_t cnt) {
         iid.page_no=node->get_next_leaf();
         iid.slot_no=0;
     }
+    node->page->RUnlock();
     buffer_pool_manager_->unpin_page(node->get_page_id(), false);
     return iid;
 }

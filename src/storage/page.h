@@ -78,7 +78,9 @@ class Page {
 
     void RLock() {latch_.read_lock();}
     void RUnlock() {latch_.read_unlock();}
-    void WLock() {latch_.write_lock();}
+    void WLock() {
+        latch_.write_lock();
+    }
     void WUnlock() {latch_.write_unlock();}
 private:
     void reset_memory() {

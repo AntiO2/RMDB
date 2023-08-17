@@ -44,6 +44,7 @@ target_link_libraries(storage2_test
 target_link_libraries(executor_test
         execution)
 target_link_libraries(index_test
-        index)
+storage index
+        )
 target_link_libraries(crab_test
         index)

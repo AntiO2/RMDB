@@ -144,14 +144,6 @@ void SmManager::close_db() {
     }
 }
 
-/** TODO
- * @description: 性能题目增加,停止向output.txt中写入输出结果，在未接收到该命令时，默认需要开启向output.txt中写入结果的功能
- * @param {Context*} context
- */
-void SmManager::setOff(Context* context){
-
-}
-
 /**
  * @description: 显示所有的表,通过测试需要将其结果写入到output.txt,详情看题目文档
  * @param {Context*} context 

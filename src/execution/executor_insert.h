@@ -70,6 +70,9 @@ class InsertExecutor : public AbstractExecutor {
         // Insert into record file
         rid_ = fh_->insert_record(rec.data, context_,&tab_name_);
         // Insert into index
+        context_->lock_mgr_->lock_exclusive_on_record(context_->txn_, rid_, fh_->GetFd());
+        auto* writeRecord = new WriteRecord(WType::INSERT_TUPLE,tab_name_,rid_, undo_next);
+        context_->txn_->append_write_record(writeRecord);
         for(size_t i = 0; i < tab_.indexes.size(); ++i) {
             auto& index = tab_.indexes[i];
             char* key = new char[index.col_tot_len];
@@ -79,6 +82,28 @@ class InsertExecutor : public AbstractExecutor {
                 offset += index.cols[j].len;
             }
             try {
+                auto lower_iid = index_handlers.at(i)->lower_bound(key);
+                auto upper_iid = index_handlers.at(i)->upper_bound(key);
+                auto lower_rid = index_handlers.at(i)->get_rid(lower_iid);
+                auto lower_rec = fh_->get_record(lower_rid,context_);
+                if(memcpy(lower_rec->data,rec.data,rec.size)==nullptr ) {
+                    throw IndexEntryDuplicateError();
+                }
+                GapLockPoint left_point(lower_rec->data,GapLockPointType::E,index.col_num,lower_rec->size);
+                GapLockPoint right_point;
+                try {
+                    auto upper_rid = index_handlers.at(i)->get_rid(upper_iid);
+                    auto upper_rec = fh_->get_record( upper_rid,context_);
+                    // 左闭右开区间
+                    right_point = GapLockPoint(upper_rec->data, GapLockPointType::NE, index.col_num, upper_rec->size);
+                } catch (IndexEntryNotFoundError &e) {
+                    right_point.col_len_=0;
+                    right_point.type_=GapLockPointType::INF;
+                }
+
+                // lock_gap_on_index(Transaction *txn,GapLockRequest request, int iid, const std::vector<ColMeta> &col_meta,LockMode lock_mode);
+                context_->lock_mgr_->lock_gap_on_index(context_->txn_, GapLockRequest(left_point,right_point,context_->txn_->getTxnId()),
+                                                                          index_handlers.at(i)->getFd(),  index.cols, LockManager::LockMode::EXCLUSIVE);
                 index_handlers.at(i)->insert_entry(key, rid_, context_->txn_);
             } catch(IndexEntryDuplicateError &e) {
                 // 第i个索引发生重复key
@@ -93,13 +118,13 @@ class InsertExecutor : public AbstractExecutor {
                     }
                     index_handlers.at(j)->delete_entry(key,context_->txn_);
                 }
-                // check(AntiO2) 这里是否需要是undo类型回滚
                 fh_->delete_record(rid_,context_, &tab_name_);
+                auto* deleteRecord = new WriteRecord(WType::DELETE_TUPLE,tab_name_,rid_, rec, undo_next);
+                context_->txn_->append_write_record(writeRecord);
                 throw std::move(e);
             }
         }
-        auto* writeRecord = new WriteRecord(WType::INSERT_TUPLE,tab_name_,rid_, undo_next);
-        context_->txn_->append_write_record(writeRecord);
+
         return nullptr;
     }
     size_t tupleLen() const override {

@@ -74,7 +74,33 @@ private:
     RmRecord record_;
     lsn_t undo_next_;
 };
+/*间隙锁的端点*/
+enum GapLockPointType{INF,E,NE}; // 无端点，相等，空心端点
+class GapLockPoint {
+public:
+    GapLockPoint() {}
 
+    GapLockPoint(char *key, GapLockPointType type, size_t tot_len,size_t col_len): col_len_{col_len}{
+        key = new char[tot_len];
+        type_ = type;
+        if(key!= nullptr) {
+            memcpy(key_,key,tot_len);
+        }
+    }
+    char* key_{};
+    size_t col_len_;
+    GapLockPointType type_;
+};
+class GapLockRequest {
+public:
+    GapLockRequest(const GapLockPoint &leftLock, const GapLockPoint &rightLock, txn_id_t txnId) : right_lock(rightLock), left_lock(
+            leftLock), txn_id(txnId) {}
+
+    GapLockPoint right_lock;
+    GapLockPoint left_lock;
+    txn_id_t txn_id;
+    bool granted_{false};
+};
 /* 多粒度锁，加锁对象的类型，包括记录和表 */
 enum class LockDataType { TABLE = 0, RECORD = 1 };
 

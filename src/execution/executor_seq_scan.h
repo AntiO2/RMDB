@@ -38,8 +38,10 @@ class SeqScanExecutor : public AbstractExecutor {
     std::unique_ptr<RmRecord> rec_; // 存储下一个要返回的rec_
 
     bool is_end_{false}; // 指示是否完成了扫描
+    bool dml_mode_;
    public:
-    SeqScanExecutor(SmManager *sm_manager, std::string tab_name, std::vector<Condition> conds, Context *context) {
+    SeqScanExecutor(SmManager *sm_manager, std::string tab_name, std::vector<Condition> conds, Context *context, bool dml_mode) {
+        dml_mode_ = dml_mode;
         sm_manager_ = sm_manager;
         tab_name_ = std::move(tab_name);
         conds_ = std::move(conds);
@@ -71,6 +73,7 @@ class SeqScanExecutor : public AbstractExecutor {
         scan_ = std::make_unique<RmScan>(fh_); // 首先通过RmScan 获取对表的扫描
         while(!scan_->is_end()) {
             rid_ = scan_->rid();
+
             // LOG_DEBUG("%s", fmt::format("rid page_no {} slot_no{}",rid_.page_no,rid_.slot_no).c_str());
             if(CheckConditionByRid(rid_)) {
                 // 找到了满足条件的
@@ -86,9 +89,19 @@ class SeqScanExecutor : public AbstractExecutor {
         scan_->next();
         while(!scan_->is_end()) {
             rid_ = scan_->rid();
+
             // LOG_DEBUG("%s", fmt::format("rid page_no {} slot_no{}",rid_.page_no,rid_.slot_no).c_str());
             if(CheckConditionByRid(rid_)) {
                 // 找到了满足条件的
+                if(context_->txn_->get_isolation_level()==IsolationLevel::REPEATABLE_READ) {
+                    if(dml_mode_) {
+                        context_->lock_mgr_->lock_exclusive_on_record(context_->txn_, rid_, fh_->GetFd());
+                    } else {
+                        if(!context_->txn_->IsRowSharedLocked(fh_->GetFd(),rid_)&&!context_->txn_->IsRowExclusiveLocked(fh_->GetFd(),rid_)) {
+                            context_->lock_mgr_->lock_shared_on_record(context_->txn_, rid_, fh_->GetFd());
+                        }
+                    }
+                }
                 return;
             }
             scan_->next();

@@ -150,12 +150,19 @@ auto TransactionManager::ReleaseLocks(Transaction *txn) -> void {
 //  for(auto lock:*lock_set) {
 //    lock_manager_->unlock(txn,lock); // 这种写法是错的，因为unlock操作会改变lock_set
 //  }
-  std::vector<LockDataId> lock_list;
+    std::vector<LockDataId> lock_list;
     for(auto lock:*lock_set) {
       lock_list.emplace_back(lock);
     }
     for(auto lock:lock_list) {
       lock_manager_->unlock(txn,lock);
     }
-    lock_set->clear();
+    std::vector<int> gap_lock_list;
+    for(auto index:*txn->gap_lock_set_) {
+        gap_lock_list.emplace_back(index);
+    }
+    for(auto index:gap_lock_list) {
+        lock_manager_->unlock_gap_on_index(txn, index);
+    }
+    txn->gap_lock_set_->clear();
 }

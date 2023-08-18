@@ -10,6 +10,8 @@ See the Mulan PSL v2 for more details. */
 
 #include "lock_manager.h"
 
+#include <utility>
+
 /**
  * @description: 申请行级共享锁
  *
@@ -609,4 +611,127 @@ auto LockManager::CheckCompatible(LockManager::LockMode old_lock,
       return false;
     }
   }
+}
+
+bool LockManager::lock_gap_on_index(Transaction *txn,GapLockRequest request, int iid, const std::vector<ColMeta> &col_meta,LockMode lock_mode) {
+
+    if(txn->get_state()==TransactionState::SHRINKING) {
+        txn->set_state(TransactionState::ABORTED);
+        // 如果在收缩阶段加锁，抛出异常
+        throw TransactionAbortException(txn->get_transaction_id(),AbortReason::LOCK_ON_SHRINKING);
+    }
+    latch_.lock();
+    auto gap_request_queue_iter = gap_lock_table_.find(iid);
+    if(gap_request_queue_iter==gap_lock_table_.end()) {
+        gap_request_queue_iter = gap_lock_table_.emplace(iid,std::make_shared<GapLockRequestQueue>(col_meta)).first;
+    }
+    auto lock_request_queue = gap_request_queue_iter->second;
+    lock_request_queue->latch_.lock();
+    latch_.unlock();
+    auto txn_id = txn->get_transaction_id();
+    txn->set_state(TransactionState::GROWING);
+    for (auto &x_request : lock_request_queue->x_request_queue_) {
+        if(x_request->granted_) {
+            if(txn_id!=x_request->txn_id&&!lock_request_queue->CheckGapLockCompat(request,*(x_request.get()))) {
+                // 采用no-wait策略
+                txn->set_state(TransactionState::ABORTED);
+                lock_request_queue->latch_.unlock();
+                throw TransactionAbortException(txn->get_transaction_id(),AbortReason::DEADLOCK_PREVENTION);
+            }
+        }
+        // 同一事务可能加上多个锁
+    }
+    if(lock_mode==LockMode::EXCLUSIVE) {
+        // 如果是写锁，还需要检查读锁
+        for (auto &s_request : lock_request_queue->s_request_queue_) {
+            if(s_request->granted_) {
+                if(txn_id!=s_request->txn_id&&!lock_request_queue->CheckGapLockCompat(request,*(s_request.get()))) {
+                    // 采用no-wait策略
+                    txn->set_state(TransactionState::ABORTED);
+                    lock_request_queue->latch_.unlock();
+                    throw TransactionAbortException(txn->get_transaction_id(),AbortReason::DEADLOCK_PREVENTION);
+                }
+            }
+            // 同一事务可能加上多个锁
+        }
+    }
+    // 循环完队列，没有冲突
+    std::unique_lock<std::mutex> lock(lock_request_queue->latch_, std::adopt_lock);
+    request.granted_= false;
+    auto new_request = std::make_shared<GapLockRequest>(request);
+    if(LockMode::SHARED==lock_mode) {
+        lock_request_queue->s_request_queue_.push_back(new_request);
+        while (!lock_request_queue->CheckXLock(request)) {
+            lock_request_queue->cv_.wait(lock);
+            if (txn->get_state() == TransactionState::ABORTED) {
+                lock_request_queue->s_request_queue_.remove(new_request);
+                lock_request_queue->cv_.notify_all();
+                throw TransactionAbortException(txn->get_transaction_id(),AbortReason::DEADLOCK_PREVENTION);
+                return false;
+            }
+        }
+    }
+    if(LockMode::EXCLUSIVE==lock_mode) {
+        lock_request_queue->x_request_queue_.push_back(new_request);
+        while (!lock_request_queue->CheckXLock(request)) {
+            lock_request_queue->cv_.wait(lock);
+            if (txn->get_state() == TransactionState::ABORTED) {
+                lock_request_queue->x_request_queue_.remove(new_request);
+                lock_request_queue->cv_.notify_all();
+                throw TransactionAbortException(txn->get_transaction_id(),AbortReason::DEADLOCK_PREVENTION);
+                return false;
+            }
+        }
+    }
+    // 获取锁
+    new_request->granted_ = true;
+    lock_request_queue->cv_.notify_all();
+    txn->gap_lock_set_->emplace(iid);
+    return true;
+}
+
+bool LockManager::unlock_gap_on_index(Transaction *txn, int iid) {
+    latch_.lock();
+    auto lock_request_queue_it = gap_lock_table_.find(iid);
+    if(lock_request_queue_it==gap_lock_table_.end()) {
+
+        txn->set_state(TransactionState::ABORTED);
+        latch_.unlock();
+        throw TransactionAbortException(txn->get_transaction_id(), AbortReason::ATTEMPTED_UNLOCK_BUT_NO_LOCK_HELD);
+    }
+    auto lock_request_queue = lock_request_queue_it->second;
+    lock_request_queue->latch_.lock();
+    latch_.unlock();
+    auto txn_id = txn->get_transaction_id();
+    for (auto it = lock_request_queue->s_request_queue_.begin();
+         it != lock_request_queue->s_request_queue_.end(); it++) {
+        if((*it)->txn_id==txn_id) {
+            lock_request_queue->s_request_queue_.erase(it);
+            lock_request_queue->cv_.notify_all();
+        }
+    }
+    for (auto it = lock_request_queue->x_request_queue_.begin();
+         it != lock_request_queue->x_request_queue_.end(); it++) {
+        if((*it)->txn_id==txn_id) {
+            lock_request_queue->x_request_queue_.erase(it);
+            lock_request_queue->cv_.notify_all();
+        }
+    }
+    txn->gap_lock_set_->erase(iid);
+    return true;
+}
+
+
+LockManager::GapLockRequestQueue::GapLockRequestQueue(std::vector<ColMeta>& colMeta) : col_meta_(colMeta) {
+    for(auto &col_meta:col_meta_) {
+        col_type_.emplace_back(col_meta.type);
+        col_len_.emplace_back(col_meta.len);
+    }
+}
+
+LockManager::GapLockRequestQueue::GapLockRequestQueue(const std::vector<ColMeta> col_meta): col_meta_(col_meta) {
+    for(auto &acol_meta:col_meta_) {
+        col_type_.emplace_back(acol_meta.type);
+        col_len_.emplace_back(acol_meta.len);
+    }
 }

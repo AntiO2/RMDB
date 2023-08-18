@@ -167,7 +167,9 @@ class IxIndexHandle {
     RWLatch root_latch_;
    public:
     IxIndexHandle(DiskManager *disk_manager, BufferPoolManager *buffer_pool_manager, int fd);
-
+    inline int get_num_per_page() {
+        return file_hdr_.
+    }
     DiskManager *getDiskManager() const;
 
     BufferPoolManager *getBufferPoolManager() const;
@@ -207,7 +209,10 @@ class IxIndexHandle {
     Iid leaf_end();
     Iid leaf_begin();
 
-   private:
+    // for index test
+    Rid get_rid(const Iid &iid) const;
+
+private:
     // 辅助函数
     void update_root_page_no(page_id_t root) { file_hdr_->root_page_ = root; }
 
@@ -227,6 +232,4 @@ class IxIndexHandle {
 
     void maintain_child(IxNodeHandle *node, int child_idx);
     void release_ancestors(Transaction*transaction);
-    // for index test
-    Rid get_rid(const Iid &iid) const;
 };

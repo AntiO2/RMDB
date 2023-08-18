@@ -174,4 +174,7 @@ class Transaction {
 
     std::shared_ptr<std::unordered_map<int, std::unordered_set<Rid,RidHash>>> s_row_lock_set_;
     std::shared_ptr<std::unordered_map<int, std::unordered_set<Rid,RidHash>>> x_row_lock_set_;
+public:
+    // 事务的间隙锁
+    std::shared_ptr<std::unordered_set<int>> gap_lock_set_;
 };

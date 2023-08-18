@@ -162,11 +162,15 @@ struct TabMeta {
 
         IndexMeta const* best_choice = nullptr;
         std::vector<size_t> match_conds;
-        match_conds.resize(cond_size);
+        std::vector<bool> book; // 标记条件是否出现过
+        match_conds.reserve(cond_size);
         best_conds.resize(cond_size);
+        book.resize(cond_size);
         std::iota(best_conds.begin(),best_conds.end(), 0);
         for(auto& index: indexes) {
-            std::iota(match_conds.begin(),match_conds.end(), 0);
+            // std::iota(match_conds.begin(),match_conds.end(), 0);
+            match_conds.clear();
+            std::fill(book.begin(), book.end(), false);
             size_t i = 0;
             bool flag_break = false; //标记还能不能走下一列
             bool flag_exit = false;
@@ -188,7 +192,8 @@ struct TabMeta {
                         size_t op_index = item.index;
                         int op = ops[op_index];
                         if(op){
-                            std::swap(match_conds[match_cols],match_conds[cond_index[op_index]]);
+                            book[cond_index[op_index]] = true; // 标记该条件出现过了
+                            match_conds.emplace_back(cond_index[op_index]);
                             match_cols++;
                             if(op!=1)
                                 flag_break = true;
@@ -208,6 +213,12 @@ struct TabMeta {
 
             //i=0的话显然就是a都没有,可以检测下一个Index了
             if(i == 0) continue;
+            for(size_t j = 0; j < cond_size; j++) {
+                if(!book[j]) {
+                    // 如果条件j没有出现的话，添加到后面
+                    match_conds.emplace_back(j);
+                }
+            }
             if(index.col_num < match_cols)
                 mismatch_cols = 0;
             else

@@ -181,7 +181,7 @@ class IndexScanExecutor : public AbstractExecutor {
                 // 前面有等于号，从等于号开始找
                 upper_iid = ix_handler_->upper_bound_cnt(upper_key,equal+1);
             } else {
-                // 相当于没有下限了
+                // 相当于没有上限了
                 upper_iid = ix_handler_->leaf_end();
             }
         }

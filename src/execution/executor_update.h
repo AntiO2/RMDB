@@ -80,8 +80,9 @@ class UpdateExecutor : public AbstractExecutor {
                     //先保存set_clauses_[i]的值，后面用完过后把它复原
                     auto temp_set_clause = set_clauses_[i];
                     //为了支持新的update类型，将has_col为true的情况进行处理，也就是要+或者-原来的值，来更新set_clauses_[i].set_expr.val.raw->data
-                    if(set_clauses_[i].set_expr.has_col){//判定有表达式操作，找到原始值，并且将其按照类型转换后再做+/-然后又转化为rawdata再更新
+                    if(set_clauses_[i].set_expr.has_col){//判定有表达式操作，找到原始值，并且将其按照类型转换后再做+/-然后又转化为raw data再更新
                         auto set_clause_exp = &set_clauses_[i].set_expr;
+                        set_clause_exp->val.raw = nullptr;//把原始raw放空，对应common.h里面的判断条件
                         switch (set_clause_exp->val.type) {
                             case TYPE_INT:
                                 int temp_int;

@@ -853,6 +853,7 @@ Iid IxIndexHandle::leaf_end()  {
                                          true);
     auto page_no = leaf_end_node.first->get_page_no();
     Iid iid = {.page_no = page_no, .slot_no=leaf_end_node.first->get_size()};
+    leaf_end_node.first->page->RUnlock();
     buffer_pool_manager_->unpin_page(leaf_end_node.first->get_page_id(), false);
     return iid;
 }
@@ -868,6 +869,7 @@ Iid IxIndexHandle::leaf_begin()  {
     auto leaf_begin_node = find_leaf_page(nullptr,Operation::FIND, nullptr,file_hdr_->col_num_, FIND_TYPE::COMMON, true,
                                          false);
     Iid iid = {.page_no = leaf_begin_node.first->get_page_no(), .slot_no = 0};
+    leaf_begin_node.first->page->RUnlock();
     buffer_pool_manager_->unpin_page(leaf_begin_node.first->get_page_id(), false);
     return iid;
 }

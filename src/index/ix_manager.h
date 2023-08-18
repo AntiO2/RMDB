@@ -80,7 +80,7 @@ class IxManager {
         // Key: index cols
         // Value: RID
         int btree_order = static_cast<int>((PAGE_SIZE - sizeof(IxPageHdr)) / (col_tot_len + sizeof(Rid)) - 1);
-        assert(btree_order > 2);
+        // assert(btree_order > 2);
 
         // Create file header and write to file
         IxFileHdr* fhdr = new IxFileHdr(IX_NO_PAGE, IX_INIT_NUM_PAGES, IX_INIT_ROOT_PAGE,

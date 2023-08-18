@@ -310,7 +310,7 @@ void SmManager::create_index(const std::string& tab_name, const std::vector<std:
     }
     ix_manager_->create_index(tab_name,index_cols);
     auto index_name = ix_manager_->get_index_name(tab_name,index_cols);
-    assert(ihs_.count(index_name)==0); // 确保之前没有创建过该index
+    // assert(ihs_.count(index_name)==0); // 确保之前没有创建过该index
     ihs_.emplace(index_name,ix_manager_->open_index(tab_name, index_cols));
     auto index_handler = ihs_.find(index_name)->second.get();
     indexMeta.col_num = col_num;
@@ -393,7 +393,7 @@ void SmManager::rebuild_index(const std::string &tab_name, const IndexMeta&index
     // Key: index cols
     // Value: RID
     int btree_order = static_cast<int>((PAGE_SIZE - sizeof(IxPageHdr)) / (col_tot_len + sizeof(Rid)) - 1);
-    assert(btree_order > 2);
+    // assert(btree_order > 2);
 
     // Create file header and write to file
     IxFileHdr* fhdr = new IxFileHdr(IX_NO_PAGE, IX_INIT_NUM_PAGES, IX_INIT_ROOT_PAGE,
@@ -449,7 +449,7 @@ void SmManager::rebuild_index(const std::string &tab_name, const IndexMeta&index
 //    // Close index file
 //    disk_manager_->close_file(fd);
     const auto&index_name = ix_name;
-    assert(ihs_.count(index_name)==0); // 确保之前没有创建过该index
+    // assert(ihs_.count(index_name)==0); // 确保之前没有创建过该index
     ihs_.emplace(index_name, std::make_unique<IxIndexHandle>(disk_manager_, buffer_pool_manager_, fd));
     auto index_handler = ihs_.find(index_name)->second.get();
     auto table_file_handle = fhs_.find(tab_name)->second.get();

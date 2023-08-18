@@ -136,7 +136,7 @@ inline bool is_valid_date(const std::string& date_str) {
     }
 
     void init_raw(int len) {
-        assert(raw == nullptr);
+//        assert(raw == nullptr);
         raw = std::make_shared<RmRecord>(len);
         if (type == TYPE_INT) {
             assert(len == sizeof(int));

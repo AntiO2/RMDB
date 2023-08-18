@@ -163,6 +163,8 @@ struct TabMeta {
         IndexMeta const* best_choice = nullptr;
         std::vector<size_t> match_conds;
         match_conds.resize(cond_size);
+        best_conds.resize(cond_size);
+        std::iota(best_conds.begin(),best_conds.end(), 0);
         for(auto& index: indexes) {
             std::iota(match_conds.begin(),match_conds.end(), 0);
             size_t i = 0;

@@ -162,9 +162,9 @@ struct TabMeta {
 
         IndexMeta const* best_choice = nullptr;
         std::vector<size_t> match_conds;
-        std::vector<bool> book; // 标记条件是否出现过
         match_conds.reserve(cond_size);
         best_conds.resize(cond_size);
+        std::vector<bool> book; // 标记条件是否出现过
         book.resize(cond_size);
         std::iota(best_conds.begin(),best_conds.end(), 0);
         for(auto& index: indexes) {
@@ -211,14 +211,15 @@ struct TabMeta {
                 }
             }
 
-            //i=0的话显然就是a都没有,可以检测下一个Index了
-            if(i == 0) continue;
             for(size_t j = 0; j < cond_size; j++) {
                 if(!book[j]) {
                     // 如果条件j没有出现的话，添加到后面
                     match_conds.emplace_back(j);
                 }
             }
+            assert(match_conds.size()==cond_size);
+            //i=0的话显然就是a都没有,可以检测下一个Index了
+            if(i == 0) continue;
             if(index.col_num < match_cols)
                 mismatch_cols = 0;
             else

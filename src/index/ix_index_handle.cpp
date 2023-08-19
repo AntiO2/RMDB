@@ -846,16 +846,16 @@ Rid IxIndexHandle::get_rid(const Iid &iid) const {
  *
  * @return Iid
  */
-Iid IxIndexHandle::leaf_end()  {
+std::pair<Iid,IxNodeHandle*> IxIndexHandle::leaf_end()  {
 
     root_latch_.read_lock();
     auto leaf_end_node = find_leaf_page(nullptr,Operation::FIND, nullptr,file_hdr_->col_num_, FIND_TYPE::COMMON, false,
                                          true);
     auto page_no = leaf_end_node.first->get_page_no();
     Iid iid = {.page_no = page_no, .slot_no=leaf_end_node.first->get_size()};
-    leaf_end_node.first->page->RUnlock();
-    buffer_pool_manager_->unpin_page(leaf_end_node.first->get_page_id(), false);
-    return iid;
+    // leaf_end_node.first->page->RUnlock();
+    // buffer_pool_manager_->unpin_page(leaf_end_node.first->get_page_id(), false);
+    return std::make_pair(iid,leaf_end_node.first);
 }
 
 /**
@@ -864,14 +864,14 @@ Iid IxIndexHandle::leaf_end()  {
  *
  * @return Iid
  */
-Iid IxIndexHandle::leaf_begin()  {
+std::pair<Iid,IxNodeHandle*> IxIndexHandle::leaf_begin()  {
     root_latch_.read_lock();
     auto leaf_begin_node = find_leaf_page(nullptr,Operation::FIND, nullptr,file_hdr_->col_num_, FIND_TYPE::COMMON, true,
                                          false);
     Iid iid = {.page_no = leaf_begin_node.first->get_page_no(), .slot_no = 0};
-    leaf_begin_node.first->page->RUnlock();
-    buffer_pool_manager_->unpin_page(leaf_begin_node.first->get_page_id(), false);
-    return iid;
+    // leaf_begin_node.first->page->RUnlock();
+    // buffer_pool_manager_->unpin_page(leaf_begin_node.first->get_page_id(), false);
+    return std::make_pair(iid,leaf_begin_node.first);
 }
 
 /**
@@ -984,7 +984,7 @@ void IxIndexHandle::release_ancestors(Transaction *transaction) {
     transaction->get_index_latch_page_set()->clear();
 }
 
-Iid IxIndexHandle::lower_bound_cnt(const char *key, size_t cnt) {
+std::pair<Iid,IxNodeHandle*> IxIndexHandle::lower_bound_cnt(const char *key, size_t cnt) {
     root_latch_.read_lock();
     auto node = find_leaf_page(key,Operation::FIND, nullptr, cnt, FIND_TYPE::LOWER, false, false).first;
     auto idx = node->lower_bound(key,cnt);
@@ -996,12 +996,12 @@ Iid IxIndexHandle::lower_bound_cnt(const char *key, size_t cnt) {
             iid.slot_no=0;
         }
     }
-    node->page->RUnlock();
+    // node->page->RUnlock();
     buffer_pool_manager_->unpin_page(node->get_page_id(), false);
-    return iid;
+    return std::make_pair(iid,node);
 }
 
-Iid IxIndexHandle::upper_bound_cnt(const char *key, size_t cnt) {
+std::pair<Iid,IxNodeHandle*> IxIndexHandle::upper_bound_cnt(const char *key, size_t cnt) {
     root_latch_.read_lock();
     auto node = find_leaf_page(key,Operation::FIND, nullptr, cnt, FIND_TYPE::UPPER, false, false).first;
     auto idx = node->upper_bound(key,cnt);
@@ -1010,14 +1010,14 @@ Iid IxIndexHandle::upper_bound_cnt(const char *key, size_t cnt) {
         iid.page_no=node->get_next_leaf();
         iid.slot_no=0;
     }
-    node->page->RUnlock();
+    // node->page->RUnlock();
     buffer_pool_manager_->unpin_page(node->get_page_id(), false);
-    return iid;
+    return std::make_pair(iid,node);
 }
 
 
 
-Iid IxIndexHandle::lower_bound(const char *key) {
+std::pair<Iid,IxNodeHandle*> IxIndexHandle::lower_bound(const char *key) {
     return lower_bound_cnt(key, file_hdr_->col_num_);
 }
 
@@ -1027,7 +1027,7 @@ Iid IxIndexHandle::lower_bound(const char *key) {
  * @param key
  * @return Iid
  */
-Iid IxIndexHandle::upper_bound(const char *key) {
+std::pair<Iid,IxNodeHandle*> IxIndexHandle::upper_bound(const char *key) {
     return upper_bound_cnt(key, file_hdr_->col_num_);
 }
 

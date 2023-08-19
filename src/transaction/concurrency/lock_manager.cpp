@@ -632,24 +632,65 @@ bool LockManager::lock_gap_on_index(Transaction *txn,GapLockRequest request, int
     txn->set_state(TransactionState::GROWING);
     for (auto &x_request : lock_request_queue->x_request_queue_) {
         if(x_request->granted_) {
-            if(txn_id!=x_request->txn_id&&!lock_request_queue->CheckGapLockCompat(request,*(x_request.get()))) {
-                // 采用no-wait策略
-                txn->set_state(TransactionState::ABORTED);
-                lock_request_queue->latch_.unlock();
-                throw TransactionAbortException(txn->get_transaction_id(),AbortReason::DEADLOCK_PREVENTION);
-            }
-        }
-        // 同一事务可能加上多个锁
-    }
-    if(lock_mode==LockMode::EXCLUSIVE) {
-        // 如果是写锁，还需要检查读锁
-        for (auto &s_request : lock_request_queue->s_request_queue_) {
-            if(s_request->granted_) {
-                if(txn_id!=s_request->txn_id&&!lock_request_queue->CheckGapLockCompat(request,*(s_request.get()))) {
+            if(txn_id!=x_request->txn_id) {
+                if((!request.point_lock&&!lock_request_queue->CheckGapLockCompat(request,*x_request)) || //两个gaplock
+                (request.point_lock&&!lock_request_queue->CheckPointGapLockCompat(request,*x_request)) // 查询point是否和x gap冲突
+                ) {
                     // 采用no-wait策略
                     txn->set_state(TransactionState::ABORTED);
                     lock_request_queue->latch_.unlock();
                     throw TransactionAbortException(txn->get_transaction_id(),AbortReason::DEADLOCK_PREVENTION);
+                }
+
+            }
+        }
+        // 同一事务可能加上多个锁
+    }
+    for (auto &x_request : lock_request_queue->x_point_queue_) {
+        if(x_request->granted_) {
+            if(txn_id!=x_request->txn_id) {
+                if((!request.point_lock&&!lock_request_queue->CheckPointGapLockCompat(*x_request,request)) ||
+                   (request.point_lock&&!lock_request_queue->CheckTwoPointGapLockCompat(request,*x_request)) // 两个point
+                        ) {
+                    // 采用no-wait策略
+                    txn->set_state(TransactionState::ABORTED);
+                    lock_request_queue->latch_.unlock();
+                    throw TransactionAbortException(txn->get_transaction_id(),AbortReason::DEADLOCK_PREVENTION);
+                }
+
+            }
+        }
+        // 同一事务可能加上多个锁
+    }
+
+    if(lock_mode==LockMode::EXCLUSIVE) {
+        // 如果是写锁，还需要检查读锁
+        for (auto &s_request : lock_request_queue->s_request_queue_) {
+            if(s_request->granted_) {
+                if(txn_id!=s_request->txn_id) {
+                    if((!request.point_lock&&!lock_request_queue->CheckGapLockCompat(request,*(s_request)))||
+                            (request.point_lock&&!lock_request_queue->CheckPointGapLockCompat(request,*s_request))
+                    ) {
+                        // 采用no-wait策略
+                        txn->set_state(TransactionState::ABORTED);
+                        lock_request_queue->latch_.unlock();
+                        throw TransactionAbortException(txn->get_transaction_id(),AbortReason::DEADLOCK_PREVENTION);
+                    }
+                 }
+            }
+            // 同一事务可能加上多个锁
+        }
+        for (auto &s_request : lock_request_queue->s_point_queue_) {
+            if(s_request->granted_) {
+                if(txn_id!=s_request->txn_id) {
+                    if((!request.point_lock&&!lock_request_queue->CheckGapLockCompat(*(s_request),request))||
+                       (request.point_lock&&!lock_request_queue->CheckTwoPointGapLockCompat(request,*s_request))
+                            ) {
+                        // 采用no-wait策略
+                        txn->set_state(TransactionState::ABORTED);
+                        lock_request_queue->latch_.unlock();
+                        throw TransactionAbortException(txn->get_transaction_id(),AbortReason::DEADLOCK_PREVENTION);
+                    }
                 }
             }
             // 同一事务可能加上多个锁
@@ -659,7 +700,7 @@ bool LockManager::lock_gap_on_index(Transaction *txn,GapLockRequest request, int
     std::unique_lock<std::mutex> lock(lock_request_queue->latch_, std::adopt_lock);
     request.granted_= false;
     auto new_request = std::make_shared<GapLockRequest>(request);
-    if(LockMode::SHARED==lock_mode) {
+    if(LockMode::SHARED==lock_mode&&!new_request->point_lock) {
         lock_request_queue->s_request_queue_.push_back(new_request);
         while (!lock_request_queue->CheckXLock(request)) {
             lock_request_queue->cv_.wait(lock);
@@ -671,9 +712,33 @@ bool LockManager::lock_gap_on_index(Transaction *txn,GapLockRequest request, int
             }
         }
     }
-    if(LockMode::EXCLUSIVE==lock_mode) {
-        lock_request_queue->x_request_queue_.push_back(new_request);
+    if(LockMode::SHARED==lock_mode&&new_request->point_lock) {
+        lock_request_queue->s_point_queue_.push_back(new_request);
         while (!lock_request_queue->CheckXLock(request)) {
+            lock_request_queue->cv_.wait(lock);
+            if (txn->get_state() == TransactionState::ABORTED) {
+                lock_request_queue->s_request_queue_.remove(new_request);
+                lock_request_queue->cv_.notify_all();
+                throw TransactionAbortException(txn->get_transaction_id(),AbortReason::DEADLOCK_PREVENTION);
+                return false;
+            }
+        }
+    }
+    if(LockMode::EXCLUSIVE==lock_mode&&!new_request->point_lock) {
+        lock_request_queue->x_request_queue_.push_back(new_request);
+        while (!lock_request_queue->CheckXLock(request)&&!lock_request_queue->CheckSLock(request)) {
+            lock_request_queue->cv_.wait(lock);
+            if (txn->get_state() == TransactionState::ABORTED) {
+                lock_request_queue->x_request_queue_.remove(new_request);
+                lock_request_queue->cv_.notify_all();
+                throw TransactionAbortException(txn->get_transaction_id(),AbortReason::DEADLOCK_PREVENTION);
+                return false;
+            }
+        }
+    }
+    if(LockMode::EXCLUSIVE==lock_mode&&new_request->point_lock) {
+        lock_request_queue->x_point_queue_.push_back(new_request);
+        while (!lock_request_queue->CheckXLock(request)&&!lock_request_queue->CheckSLock(request)) {
             lock_request_queue->cv_.wait(lock);
             if (txn->get_state() == TransactionState::ABORTED) {
                 lock_request_queue->x_request_queue_.remove(new_request);
@@ -700,23 +765,46 @@ bool LockManager::unlock_gap_on_index(Transaction *txn, int iid) {
         throw TransactionAbortException(txn->get_transaction_id(), AbortReason::ATTEMPTED_UNLOCK_BUT_NO_LOCK_HELD);
     }
     auto lock_request_queue = lock_request_queue_it->second;
-    lock_request_queue->latch_.lock();
+    std::unique_lock<std::mutex> lock(lock_request_queue->latch_);
     latch_.unlock();
     auto txn_id = txn->get_transaction_id();
     for (auto it = lock_request_queue->s_request_queue_.begin();
-         it != lock_request_queue->s_request_queue_.end(); it++) {
+         it != lock_request_queue->s_request_queue_.end(); ) {
         if((*it)->txn_id==txn_id) {
-            lock_request_queue->s_request_queue_.erase(it);
+            lock_request_queue->s_request_queue_.erase(it++);
             lock_request_queue->cv_.notify_all();
+        } else {
+            ++it;
         }
     }
     for (auto it = lock_request_queue->x_request_queue_.begin();
-         it != lock_request_queue->x_request_queue_.end(); it++) {
+         it != lock_request_queue->x_request_queue_.end();) {
         if((*it)->txn_id==txn_id) {
-            lock_request_queue->x_request_queue_.erase(it);
+            lock_request_queue->x_request_queue_.erase(it++);
             lock_request_queue->cv_.notify_all();
+        } else {
+            ++it;
         }
     }
+    for (auto it = lock_request_queue->x_point_queue_.begin();
+         it != lock_request_queue->x_point_queue_.end(); ) {
+        if ((*it)->txn_id == txn_id) {
+            lock_request_queue->x_point_queue_.erase(it++);
+            lock_request_queue->cv_.notify_all();
+        } else {
+            ++it;
+        }
+
+    }
+    for (auto it = lock_request_queue->s_point_queue_.begin();
+             it != lock_request_queue->s_point_queue_.end(); ) {
+            if((*it)->txn_id==txn_id) {
+                lock_request_queue->s_point_queue_.erase(it++);
+                lock_request_queue->cv_.notify_all();
+            } else {
+                ++it;
+            }
+        }
     txn->gap_lock_set_->erase(iid);
     return true;
 }

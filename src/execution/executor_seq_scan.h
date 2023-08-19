@@ -23,7 +23,7 @@ class SeqScanExecutor : public AbstractExecutor {
     std::vector<Condition> conds_;      // scan的条件
     RmFileHandle *fh_;                  // 表的数据文件句柄
     std::vector<ColMeta> cols_;         // scan后生成的记录的字段
-    size_t len_;                        // scan后生成的每条记录的长度
+    size_t len_;                        // s.,can后生成的每条记录的长度
     std::vector<Condition> fed_conds_;  // 同conds_，两个字段相同
 
 //    //liamY 加入了处理聚合函数的变量 col_as_name_ 记录聚合函数的as的名字 op_记录操作

@@ -65,6 +65,8 @@ private:
         std::mutex latch_;
         std::list<std::shared_ptr<GapLockRequest>> s_request_queue_; // 申请S的范围锁
         std::list<std::shared_ptr<GapLockRequest>> x_request_queue_; // 申请X的范围锁
+        std::list<std::shared_ptr<GapLockRequest>> x_point_queue_; // 在insert时申请的点锁
+        std::list<std::shared_ptr<GapLockRequest>> s_point_queue_; // 在select单点时申请的点锁
         std::vector<ColMeta> col_meta_;
         std::vector<ColType> col_type_;
         std::vector<int> col_len_;
@@ -277,28 +279,177 @@ private:
             //不兼容
             return false;
         }
+        /**
+         * 检查点请求是否和gap_request兼容
+         * @param point_request
+         * @param gap_request
+         * @return
+         */
+        bool CheckPointGapLockCompat(GapLockRequest &point_request, GapLockRequest &gap_request) {
+            assert(point_request.point_lock);
+            // 判断gap.left > point || gap.right < point 这两种情况兼容（不相交 ）
+            auto cmp_len = std::min(gap_request.left_lock.col_len_, point_request.left_lock.col_len_);
+            auto res = ix_compare(gap_request.left_lock.key_,point_request.left_lock.key_,col_type_,col_len_,cmp_len);
+            switch (gap_request.left_lock.type_) {
+                case INF:
+                    break;
+                case E:
+                    // gap.left<=point
+                    // 1 <=gap  ,point = 1,1
+                {
+                    // point = 1,2 a>=1,1 a >=0
+                    if(res <0) {
+                        break;
+                    }
+                    if(res>0) {
+                        // point = 1,2 a>=1,3 a>=2
+                        return true;
+                    }
+                    // point = 1,2 a>=1 a>=1,2 不能确定相交
+                    break;
+                }
+                case NE:
+                    // 要求当gap.left < point 相交
+                {
+                    if(res < 0) {
+                        // p=1,2 ;a>0,a>1,1
+                        break;
+                    }
+                    if(res > 0) {
+                        // p=1,2;a>2,a>1,3
+                        return true;
+                    }
+                    // point = 1,2 ; a>1; 不相交
+                    // p=1,2;a>1,2
+                    return true;
+                }
+            }
+            cmp_len = std::min(gap_request.right_lock.col_len_, point_request.left_lock.col_len_);
+            res = ix_compare(gap_request.right_lock.key_,point_request.left_lock.key_,col_type_,col_len_,cmp_len);
+            // 如果lock > right，也能实现不冲突
+            switch (gap_request.right_lock.type_) {
+
+                case INF :
+                    break;
+                case E: {
+                    // p =1,2
+                    if(res > 0) {
+                        // a <=1,3 a <=2
+                        break;
+                    }
+                    if(res <0) {
+                        // a 《<=1，1 a<=0
+                        return true;
+                    }
+                    // a<=1, a<=1,2
+                    break;
+                }
+                case NE: {
+                    if(res > 0) {
+                        // a<1,3, a<2
+                        break;
+                    }
+                    if(res<0) {
+                        // a <0 a<1,2
+                        return true;
+                    }
+                    // a < 1 true
+                    // a < 1,2 true
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * 检查两个点是否重合，如果重合（不兼容），则返回false,否则返回true
+         * @param point_a
+         * @param point_b
+         * @return
+         */
+        bool CheckTwoPointGapLockCompat(GapLockRequest &point_a, GapLockRequest &point_b) {
+            assert(point_a.point_lock&&point_b.point_lock);
+            auto res = ix_compare(point_a.left_lock.key_, point_b.left_lock.key_, col_type_, col_len_, col_type_.size());
+            if(res==0) return false; // 如果两个点相等，返回false
+            return true;
+        }
         bool CheckSLock(GapLockRequest &request) {
             // 检查是否和读锁冲突
-            for(auto &s_request:s_request_queue_) {
-                if(s_request->granted_) {
-                    if(s_request->txn_id!=request.txn_id&&!CheckGapLockCompat(*(s_request), request)) {
-                        // 如果有区间重复
-                        return false;
+            if(request.point_lock) {
+                for(auto &s_request:s_request_queue_) {
+                    if(s_request->granted_) {
+                        if(s_request->txn_id!=request.txn_id&&!CheckPointGapLockCompat(request, *s_request)) {
+                            // 如果有区间重复
+                            return false;
+                        }
+                    }
+                }
+                for(auto &s_point_request:s_point_queue_) {
+                    // check(AntiO2) 多个单点修改，好像不需要？好像又要？
+                    if(s_point_request->granted_) {
+                        if(s_point_request->txn_id!=request.txn_id&&!CheckPointGapLockCompat(request, *s_point_request)) {
+                            // 如果有点重合
+                            return false;
+                        }
+                    }
+                }
+
+            } else {
+                for(auto &s_request:s_request_queue_) {
+                    if(s_request->granted_) {
+                        if(s_request->txn_id!=request.txn_id&&!CheckGapLockCompat(*(s_request), request)) {
+                            // 如果有区间重复
+                            return false;
+                        }
+                    }
+                }
+                for(auto &s_point_request:s_point_queue_) {
+                    if(s_point_request->granted_) {
+                        if(s_point_request->txn_id!=request.txn_id&&!CheckPointGapLockCompat(*s_point_request, request)) {
+                            return false;
+                        }
                     }
                 }
             }
             return true;
         }
         bool CheckXLock(GapLockRequest &request) {
-            // 检查是否和读锁冲突
-            auto res = true;
-            for(auto &x_request:x_request_queue_) {
-                if(x_request->granted_) {
-                    if(x_request->txn_id!=request.txn_id&&!CheckGapLockCompat(*(x_request), request)) {
-                        // 如果有区间重复
-                        return false;
+            // 检查是否和写锁冲突
+            if(request.point_lock) {
+                for(auto &x_request:x_request_queue_) {
+                    if(x_request->granted_) {
+                        if(x_request->txn_id!=request.txn_id&&!CheckPointGapLockCompat(request, *x_request)) {
+                            // 如果有区间重复
+                            return false;
+                        }
                     }
                 }
+                for(auto &x_point_request:x_point_queue_) {
+                    // check(AntiO2) 多个单点修改，好像不需要？好像又要？
+                    if(x_point_request->granted_) {
+                        if(x_point_request->txn_id!=request.txn_id&&!CheckPointGapLockCompat(request, *x_point_request)) {
+                            // 如果有点重合
+                            return false;
+                        }
+                    }
+                }
+            } else {
+                for(auto &x_request:x_request_queue_) {
+                    if(x_request->granted_) {
+                        if(x_request->txn_id!=request.txn_id&&!CheckGapLockCompat(*(x_request), request)) {
+                            // 如果有区间重复
+                            return false;
+                        }
+                    }
+                }
+                for(auto &x_point_request:x_point_queue_) {
+                    if(x_point_request->granted_) {
+                        if(x_point_request->txn_id!=request.txn_id&&!CheckPointGapLockCompat(*x_point_request, request)) {
+                            return false;
+                        }
+                    }
+                }
+
             }
             return true;
         }

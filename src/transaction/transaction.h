@@ -21,7 +21,7 @@ See the Mulan PSL v2 for more details. */
 
 class Transaction {
    public:
-    explicit Transaction(txn_id_t txn_id, IsolationLevel isolation_level = IsolationLevel::SERIALIZABLE)
+    explicit Transaction(txn_id_t txn_id, IsolationLevel isolation_level = DEFAULT_ISOLATION_LEVEL)
         : state_(TransactionState::DEFAULT), isolation_level_(isolation_level), txn_id_(txn_id),
            s_table_lock_set_{new std::unordered_set<int>},
            x_table_lock_set_{new std::unordered_set<int>},
@@ -29,7 +29,8 @@ class Transaction {
            ix_table_lock_set_{new std::unordered_set<int>},
            six_table_lock_set_{new std::unordered_set<int>},
            s_row_lock_set_{new std::unordered_map<int, std::unordered_set<Rid,RidHash>>},
-           x_row_lock_set_{new std::unordered_map<int, std::unordered_set<Rid,RidHash>>} {
+           x_row_lock_set_{new std::unordered_map<int, std::unordered_set<Rid,RidHash>>},
+           gap_lock_set_(new  std::unordered_set<int>){
         write_set_ = std::make_shared<std::deque<WriteRecord *>>();
         lock_set_ = std::make_shared<std::unordered_set<LockDataId>>();
         index_latch_page_set_ = std::make_shared<std::deque<Page *>>();
@@ -176,5 +177,6 @@ class Transaction {
     std::shared_ptr<std::unordered_map<int, std::unordered_set<Rid,RidHash>>> x_row_lock_set_;
 public:
     // 事务的间隙锁
+    // 只要在index上面有一个锁，就加入集合
     std::shared_ptr<std::unordered_set<int>> gap_lock_set_;
 };

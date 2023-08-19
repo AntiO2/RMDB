@@ -20,8 +20,7 @@ See the Mulan PSL v2 for more details. */
 /* 标识事务状态 */
 enum class TransactionState { DEFAULT, GROWING, SHRINKING, COMMITTED, ABORTED };
 
-/* 系统的隔离级别，当前赛题中为可串行化隔离级别 */
-enum class IsolationLevel { READ_UNCOMMITTED, REPEATABLE_READ, READ_COMMITTED, SERIALIZABLE };
+
 
 /* 事务写操作类型，包括插入、删除、更新三种操作 */
 enum class WType { INSERT_TUPLE = 0, DELETE_TUPLE, UPDATE_TUPLE};
@@ -80,8 +79,8 @@ class GapLockPoint {
 public:
     GapLockPoint() {}
 
-    GapLockPoint(char *key, GapLockPointType type, size_t tot_len,size_t col_len): col_len_{col_len}{
-        key = new char[tot_len];
+    GapLockPoint(const char *key, GapLockPointType type, size_t tot_len,size_t col_len): col_len_{col_len}{
+        key_ = new char[tot_len];
         type_ = type;
         if(key!= nullptr) {
             memcpy(key_,key,tot_len);
@@ -95,10 +94,14 @@ class GapLockRequest {
 public:
     GapLockRequest(const GapLockPoint &leftLock, const GapLockPoint &rightLock, txn_id_t txnId) : right_lock(rightLock), left_lock(
             leftLock), txn_id(txnId) {}
-
+    GapLockRequest(const GapLockPoint &leftLock, txn_id_t txnId) : left_lock(leftLock), txn_id(txnId) {
+        point_lock = true;
+    }
     GapLockPoint right_lock;
     GapLockPoint left_lock;
     txn_id_t txn_id;
+
+    bool point_lock{false}; // 是否为点目标
     bool granted_{false};
 };
 /* 多粒度锁，加锁对象的类型，包括记录和表 */

@@ -1,5 +1,5 @@
 create table t1 (w_id int,name char(8),flo float);
-create index t1(flo);
+create index t1(w_id);
 insert into t1 values(1,'23',1);
 insert into t1 values(2,'34',4);
 insert into t1 values(3,'45',9);

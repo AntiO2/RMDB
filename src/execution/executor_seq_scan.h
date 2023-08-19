@@ -77,6 +77,16 @@ class SeqScanExecutor : public AbstractExecutor {
             // LOG_DEBUG("%s", fmt::format("rid page_no {} slot_no{}",rid_.page_no,rid_.slot_no).c_str());
             if(CheckConditionByRid(rid_)) {
                 // 找到了满足条件的
+                // 找到了满足条件的
+                if(context_->txn_->get_isolation_level()==IsolationLevel::REPEATABLE_READ) {
+                    if(dml_mode_) {
+                        context_->lock_mgr_->lock_exclusive_on_record(context_->txn_, rid_, fh_->GetFd());
+                    } else {
+                        if(!context_->txn_->IsRowSharedLocked(fh_->GetFd(),rid_)&&!context_->txn_->IsRowExclusiveLocked(fh_->GetFd(),rid_)) {
+                            context_->lock_mgr_->lock_shared_on_record(context_->txn_, rid_, fh_->GetFd());
+                        }
+                    }
+                }
                 is_end_ = false;
                 return;
             }

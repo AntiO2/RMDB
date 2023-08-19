@@ -41,7 +41,18 @@ TEST(INDEX, TWO_COL) {
         fmt::print("insert into t1 values({},'{}{}',{});\n",i,i+1,i+2,i*i);
     }
     for(int i = 1; i <= scale; i++) {
-        fmt::print("select w_id from t1 where w_id = {};\n",i);
+        fmt::print("select w_id from t1 where w_id = {};\n",i); // 单列测试
+    }
+    for(int i = 1; i <= scale; i++) {
+        fmt::print("select w_id from t1 where flo > {} and w_id = {};\n",i,i); // eq gt测试 双列测试
+    }
+}
+TEST(INDEX, INIT_TWO_COL) {
+    int scale = 3000;
+    fmt::print("create table t1 (w_id int,name char(8),flo float);\n"
+               "create index t1(w_id,flo);\n");
+    for(int i = 1; i <= scale; i++) {
+        fmt::print("insert into t1 values({},'{}{}',{});\n",i,i+1,i+2,i*i);
     }
 }
 TEST(INDEX, ONE_COL) {

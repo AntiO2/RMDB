@@ -994,10 +994,15 @@ std::pair<Iid,IxNodeHandle*> IxIndexHandle::lower_bound_cnt(const char *key, siz
             // 说明在第一个key之前
             iid.page_no=node->get_next_leaf();
             iid.slot_no=0;
+            auto new_node = fetch_node(iid.page_no);
+            new_node->page->RLock();
+            node->page->RUnlock();
+            buffer_pool_manager_->unpin_page(node->get_page_id(), false);
+            node = new_node;
         }
     }
     // node->page->RUnlock();
-    buffer_pool_manager_->unpin_page(node->get_page_id(), false);
+    // buffer_pool_manager_->unpin_page(node->get_page_id(), false);
     return std::make_pair(iid,node);
 }
 
@@ -1009,9 +1014,14 @@ std::pair<Iid,IxNodeHandle*> IxIndexHandle::upper_bound_cnt(const char *key, siz
     if(idx==node->get_size()&&node->get_page_no()!=file_hdr_->last_leaf_) {
         iid.page_no=node->get_next_leaf();
         iid.slot_no=0;
+        auto new_node = fetch_node(iid.page_no);
+        new_node->page->RLock();
+        node->page->RUnlock();
+        buffer_pool_manager_->unpin_page(node->get_page_id(), false);
+        node = new_node;
     }
     // node->page->RUnlock();
-    buffer_pool_manager_->unpin_page(node->get_page_id(), false);
+    // buffer_pool_manager_->unpin_page(node->get_page_id(), false);
     return std::make_pair(iid,node);
 }
 

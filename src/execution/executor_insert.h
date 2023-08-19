@@ -84,7 +84,7 @@ class InsertExecutor : public AbstractExecutor {
                 offset += index.cols[j].len;
             }
             try {
-                GapLockPoint left_point(key,GapLockPointType::E,index.col_num, offset);
+                GapLockPoint left_point(key,GapLockPointType::E, offset, index.col_num);
 
                 // lock_gap_on_index(Transaction *txn,GapLockRequest request, int iid, const std::vector<ColMeta> &col_meta,LockMode lock_mode);
                 if(context_->txn_->get_isolation_level()==IsolationLevel::REPEATABLE_READ) {

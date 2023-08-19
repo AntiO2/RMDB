@@ -382,6 +382,7 @@ void RecoveryManager::undo() {
                 case COMMIT: {
                     LOG_ERROR("Rollback Committed Txn");
                     undo_iter.first = log->prev_lsn_;
+                    return;
                     break;
 
                 }

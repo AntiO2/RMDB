@@ -24,3 +24,24 @@ date: 2023年8月19日
 |        |          |                                     |      |
 |        |          |                                     |      |
 
+### 写丢失
+
+```
+create table t(id int, age int);
+insert into t values(1,19);
+insert into t values(2,16);
+t1 begin;
+t1 delete from t;
+t2 begin;
+t2 insert into t values(3,19);
+t2 insert into t values(4,16);
+t1 abort;
+```
+
+本来t2应该能够正常插入，但是因为delete占用了空的rid，insert尝试插入空的rid，造成X锁冲突。
+
+解决方法：
+
+在Commit阶段再进行实际上的delete操作（标记bitmap）。在执行器期间只记录写操作。但是这样会造成一个问题，就是删除操作会对事务本身不可见。比如先delete，再select。
+
+解决方法是delete时不对rid加锁。

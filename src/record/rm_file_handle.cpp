@@ -170,7 +170,7 @@ void RmFileHandle::delete_record(const Rid& rid, Context* context, std::string* 
     if(log_mgr->dirty_page_table_.find(PageId{fd_,rid.page_no})==log_mgr->dirty_page_table_.end()) {
         log_mgr->dirty_page_table_.emplace(page_id,log_record->lsn_);
     }
-
+    Bitmap::reset(pageHandle.mark_delete,rid.slot_no);
     Bitmap::reset(pageHandle.bitmap,rid.slot_no);
     // 2. 更新page_handle.page_hdr中的数据结构
     pageHandle.page_hdr->num_records--;
@@ -196,6 +196,8 @@ void RmFileHandle::delete_record_recover(const Rid& rid,lsn_t lsn, int first_fre
     //位图判断及更新
     if(!Bitmap::is_set(pageHandle.bitmap,rid.slot_no))
         throw RecordNotFoundError(rid.page_no,rid.slot_no);
+
+    Bitmap::reset(pageHandle.mark_delete,rid.slot_no);
     Bitmap::reset(pageHandle.bitmap,rid.slot_no);
 
     // 2. 更新page_handle.page_hdr中的数据结构
@@ -379,4 +381,21 @@ void RmFileHandle::release_page_handle(RmPageHandle&page_handle) {
     page_handle.page_hdr->next_free_page_no = file_hdr_.first_free_page_no;
     file_hdr_.first_free_page_no = page_handle.page->get_page_id().page_no;
     disk_manager_->write_page(fd_, RM_FILE_HDR_PAGE, (char *)&file_hdr_, sizeof(file_hdr_)); // 更新之后，需要立即写回磁盘
+}
+
+void RmFileHandle::mark_delete_record(const Rid &rid, Context *context, std::string *table_name, LogOperation log_op,
+                                      lsn_t undo_next) {
+    // 1. 获取指定记录所在的page handle
+    RmPageHandle pageHandle = fetch_page_handle(rid.page_no);
+    if(log_op==LogOperation::REDO) {
+        Bitmap::set(pageHandle.mark_delete,rid.slot_no);
+    } else {
+        Bitmap::reset(pageHandle.mark_delete,rid.slot_no);
+    }
+    buffer_pool_manager_->unpin_page(PageId{fd_, rid.page_no}, true);
+}
+
+bool RmFileHandle::is_mark_delete(const Rid &rid, Context *context) {
+    RmPageHandle pageHandle = fetch_page_handle(rid.page_no);
+    return Bitmap::is_set(pageHandle.mark_delete, rid.slot_no);
 }

@@ -49,6 +49,11 @@ void TransactionManager::commit(Transaction* txn, LogManager* log_manager) {
     auto write_set = txn->get_write_set();
     while(!write_set->empty()) {
       // log_manager->add_log_to_buffer(new log_record);
+      auto write = write_set->front();
+      if(write->GetWriteType()==WType::DELETE_TUPLE) {
+          auto fh = sm_manager_->fhs_[write->GetTableName()].get();
+          fh->delete_record(write->GetRid(), context, &write->GetTableName(), LogOperation::REDO);
+      }
       write_set->pop_front();
     }
     // 2. 释放所有锁
@@ -101,11 +106,13 @@ void TransactionManager::abort(Transaction * txn, LogManager *log_manager) {
       }
       case WType::DELETE_TUPLE: {
         auto old_rec = write->GetRecord();
-        auto rid = table->insert_record(old_rec.data,context, &write->GetTableName(),LogOperation::UNDO, write->getUndoNext());
+//        auto rid = table->insert_record(old_rec.data,context, &write->GetTableName(),LogOperation::UNDO, write->getUndoNext());
+        // delete此时还没有被写入bitmap
+        table->mark_delete_record(write->GetRid(), context, &tab_name, LogOperation::UNDO, write->getUndoNext());
         for(const auto& index:sm_manager_->db_.get_table(tab_name).indexes) {
           auto index_name = sm_manager_->get_ix_manager()->get_index_name(tab_name,index.cols);
           auto &index_handler = sm_manager_->ihs_.at(index_name);
-          index_handler->insert_entry(old_rec.key_from_rec(index.cols)->data,rid,txn);
+          index_handler->insert_entry(old_rec.key_from_rec(index.cols)->data, write->GetRid(),txn);
         }
         break;
       }

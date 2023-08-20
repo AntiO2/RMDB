@@ -42,7 +42,9 @@ class WriteRecord {
 
     // constructor for insert operation
     WriteRecord(WType wtype, const std::string &tab_name, const Rid &rid, lsn_t undo_next)
-        : wtype_(wtype), tab_name_(tab_name), rid_(rid), undo_next_(undo_next) {}
+        : wtype_(wtype), tab_name_(tab_name), rid_(rid), undo_next_(undo_next) {
+        RmRecord();
+    }
 
     // constructor for delete & update operation
     WriteRecord(WType wtype, const std::string &tab_name, const Rid &rid, const RmRecord &record, lsn_t undo_next)

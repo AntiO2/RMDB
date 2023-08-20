@@ -87,6 +87,10 @@ class SeqScanExecutor : public AbstractExecutor {
                         }
                     }
                 }
+                if(fh_->is_mark_delete(rid_,context_)) {
+                    scan_->next();
+                    continue;
+                }
                 is_end_ = false;
                 return;
             }
@@ -111,6 +115,10 @@ class SeqScanExecutor : public AbstractExecutor {
                             context_->lock_mgr_->lock_shared_on_record(context_->txn_, rid_, fh_->GetFd());
                         }
                     }
+                }
+                if(fh_->is_mark_delete(rid_,context_)) {
+                    scan_->next();
+                    continue;
                 }
                 return;
             }

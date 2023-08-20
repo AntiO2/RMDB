@@ -119,6 +119,11 @@ class UpdateExecutor : public AbstractExecutor {
                 }
                 for(size_t i = 0; i < index_size;i++) {
                     index_handlers.at(i)->delete_entry(tuple->key_from_rec(tab_.indexes.at(i).cols)->data, context_->txn_);
+                    GapLockPoint delete_point(tuple->key_from_rec(tab_.indexes.at(i).cols)->data,GapLockPointType::E, index_handlers.at(i)->getFileHdr()->col_tot_len_, index_handlers.at(i)->getFileHdr()->col_num_);
+                    if(context_->txn_->get_isolation_level()==IsolationLevel::REPEATABLE_READ) {
+                        context_->lock_mgr_->lock_gap_on_index(context_->txn_, GapLockRequest(delete_point,context_->txn_->getTxnId()),
+                                                               index_handlers.at(i)->getFd(),  tab_.indexes.at(i).cols, LockManager::LockMode::EXCLUSIVE);
+                    }
                     try {
                         GapLockPoint update_point(new_tuple.key_from_rec(tab_.indexes.at(i).cols)->data,GapLockPointType::E, index_handlers.at(i)->getFileHdr()->col_tot_len_, index_handlers.at(i)->getFileHdr()->col_num_);
                         if(context_->txn_->get_isolation_level()==IsolationLevel::REPEATABLE_READ) {

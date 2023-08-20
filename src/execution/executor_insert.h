@@ -73,6 +73,7 @@ class InsertExecutor : public AbstractExecutor {
         if(context_->txn_->get_isolation_level()==IsolationLevel::REPEATABLE_READ) {
             context_->lock_mgr_->lock_exclusive_on_record(context_->txn_, rid_, fh_->GetFd());
         }
+        auto undo_write = context_->txn_->get_write_set()->rbegin();
         context_->txn_->append_write_record(std::make_unique<WriteRecord>(WType::INSERT_TUPLE,tab_name_,rid_, undo_next));
         for(size_t i = 0; i < tab_.indexes.size(); ++i) {
             auto& index = tab_.indexes[i];
@@ -91,7 +92,6 @@ class InsertExecutor : public AbstractExecutor {
                     context_->lock_mgr_->lock_gap_on_index(context_->txn_, GapLockRequest(left_point,context_->txn_->getTxnId()),
                                                            index_handlers.at(i)->getFd(),  index.cols, LockManager::LockMode::EXCLUSIVE);
                 }
-
             } catch(IndexEntryDuplicateError &e) {
                 // 第i个索引发生重复key
                 // 需要将前i - 1个index回滚
@@ -107,10 +107,11 @@ class InsertExecutor : public AbstractExecutor {
                 }
                 undo_next = context_->txn_->get_prev_lsn();
                 fh_->mark_delete_record(rid_,context_, &tab_name_);
-                context_->txn_->append_write_record(std::make_unique<WriteRecord>(WType::DELETE_TUPLE,tab_name_,rid_, rec, undo_next));
+                context_->txn_->append_write_record(std::make_unique<WriteRecord>(WType::CLR_DELETE,tab_name_,rid_, rec, undo_next));
+                context_->txn_->get_write_set()->back()->undo_next_write_ = undo_write;
                 throw std::move(e);
             } catch (TransactionAbortException &e) {
-                for(int j = 0;j < i;j++) {
+                for(int j = 0;j <= i;j++) {
                     index = tab_.indexes[j];
                     key = new char[index.col_tot_len];
                     offset = 0;
@@ -122,7 +123,8 @@ class InsertExecutor : public AbstractExecutor {
                 }
                 undo_next = context_->txn_->get_prev_lsn();
                 fh_->mark_delete_record(rid_,context_, &tab_name_);
-                context_->txn_->append_write_record(std::make_unique<WriteRecord>(WType::DELETE_TUPLE,tab_name_,rid_, rec, undo_next));
+                context_->txn_->append_write_record(std::make_unique<WriteRecord>(WType::CLR_DELETE,tab_name_,rid_, rec, undo_next));
+                context_->txn_->get_write_set()->back()->undo_next_write_ = undo_write;
                 throw std::move(e);
             }
         }

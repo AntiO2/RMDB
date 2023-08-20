@@ -23,7 +23,7 @@ enum class TransactionState { DEFAULT, GROWING, SHRINKING, COMMITTED, ABORTED };
 
 
 /* 事务写操作类型，包括插入、删除、更新三种操作 */
-enum class WType { INSERT_TUPLE = 0, DELETE_TUPLE, UPDATE_TUPLE};
+enum class WType { INSERT_TUPLE = 0, DELETE_TUPLE, UPDATE_TUPLE, CLR_DELETE};
 
 /**
  * @brief 事务的写操作记录，用于事务的回滚
@@ -67,13 +67,14 @@ class WriteRecord {
     void setRid(const Rid &rid) {
         rid_ = rid;
     }
-
+    std::reverse_iterator<std::_Deque_iterator<std::unique_ptr<WriteRecord>, std::unique_ptr<WriteRecord> &, std::unique_ptr<WriteRecord> *>> undo_next_write_;
 private:
     WType wtype_;
     std::string tab_name_;
     Rid rid_;
     RmRecord record_;
     lsn_t undo_next_;
+
 };
 /*间隙锁的端点*/
 enum GapLockPointType{INF,E,NE}; // 无端点，相等，空心端点

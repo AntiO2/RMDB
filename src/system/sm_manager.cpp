@@ -524,10 +524,9 @@ void SmManager::load_csv(std::string file_name,std::string tab_name,Context* con
             // 将Value数据存入rec中。
             memcpy(rec.data + col.offset, val.raw->data, col.len);
         }
-        auto undo_next = context->txn_->get_transaction_id();
+        auto undo_next = context->txn_->get_prev_lsn();
         // Insert into record file
         auto rid_ = fh_->insert_record(rec.data, context,&tab_name);
-        auto* writeRecord = new WriteRecord(WType::INSERT_TUPLE,tab_name,rid_, undo_next);
-        context->txn_->append_write_record(writeRecord);
+        context->txn_->append_write_record(std::make_unique<WriteRecord>(WType::INSERT_TUPLE,tab_name,rid_, undo_next));
     }
 }

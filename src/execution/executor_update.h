@@ -139,9 +139,9 @@ class UpdateExecutor : public AbstractExecutor {
                     }
                 }
                 RmRecord update_record(*tuple);
-                auto* writeRecord = new WriteRecord(WType::UPDATE_TUPLE,tab_name_,rid,update_record,context_->txn_->get_prev_lsn());
+                auto undo_next = context_->txn_->get_prev_lsn();
                 fh_->update_record(rid,new_tuple.data,context_,&tab_name_);
-                context_->txn_->append_write_record(writeRecord);
+                context_->txn_->append_write_record(std::make_unique<WriteRecord>(WType::UPDATE_TUPLE,tab_name_,rid,update_record,undo_next));
             }});
         // LOG_DEBUG("Update Complete");
         return nullptr;

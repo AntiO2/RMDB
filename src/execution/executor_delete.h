@@ -60,9 +60,9 @@ class DeleteExecutor : public AbstractExecutor {
                     index_handlers.at(i)->delete_entry(tuple->key_from_rec(tab_.indexes.at(i).cols)->data, context_->txn_);
                 }
                 RmRecord delete_record(*tuple);
-                auto* writeRecord = new WriteRecord(WType::DELETE_TUPLE,tab_name_,rid,delete_record, context_->txn_->get_prev_lsn()); // 注意先获得了undo_next,再进行删除操作
+                auto undo_next =  context_->txn_->get_prev_lsn();
                 fh_->mark_delete_record(rid,context_,&tab_name_);
-                context_->txn_->append_write_record(writeRecord);
+                context_->txn_->append_write_record(std::make_unique<WriteRecord>(WType::DELETE_TUPLE,tab_name_,rid,delete_record,undo_next));
             }
       });
         LOG_DEBUG("Delete Complete");

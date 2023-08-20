@@ -90,7 +90,7 @@ class RmFileHandle {
                       LogOperation log_op = LogOperation::REDO, lsn_t undo_next = INVALID_LSN);
     void mark_delete_record(const Rid &rid, Context *context, std::string* table_name,
                             LogOperation log_op = LogOperation::REDO, lsn_t undo_next = INVALID_LSN);
-    bool is_mark_delete(const Rid &rid, Context *context);
+    bool is_mark_delete(const Rid &rid, Context *context) const;
     void delete_record(const Rid &rid, Context *context, std::string* table_name,
                        LogOperation log_op = LogOperation::REDO, lsn_t undo_next = INVALID_LSN);
 
@@ -108,7 +108,7 @@ class RmFileHandle {
     void insert_record_recover(const Rid &rid, char *buf, lsn_t lsn, int first_free_page, int num_pages);
     void delete_record_recover(const Rid &rid, lsn_t lsn, int first_free_page, int num_pages);
     void update_record_recover(const Rid &rid, char *buf, lsn_t lsn, int first_free_page, int num_pages);
-
+    void mark_delete_record_recover(const Rid &rid, lsn_t lsn, int first_free_page, int num_pages, bool mark);
     RmPageHandle create_new_page_handle();
 
     RmPageHandle fetch_page_handle(int page_no) const;

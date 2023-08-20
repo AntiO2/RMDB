@@ -129,6 +129,29 @@ void RecoveryManager::analyze() {
             case CKPT_END: {
                 break;
             }
+            case Mark_Delete: {
+                auto mark_delete_record = dynamic_cast<Mark_Delete_Record *>(log_record->get());
+                std::string table_name(mark_delete_record ->table_name_, mark_delete_record ->table_name_size_);
+                auto table = sm_manager_->fhs_[table_name].get();
+                auto page_id = PageId{.fd = table->GetFd(), .page_no = mark_delete_record->rid_.page_no};
+                if ( log_manager_->dirty_page_table_.find(page_id) ==  log_manager_->dirty_page_table_.end()) {
+                    log_manager_->dirty_page_table_[page_id] = lsn; // 记录第一个使该页面变脏的log (reclsn)
+                }
+                log_manager_->active_txn_table_[txn_id] = lsn;  // 更新该事务的last lsn
+                break;
+            }
+
+            case CLR_MARK_DELETE: {
+                auto mark_delete_record = dynamic_cast<CLR_Mark_Delete_Record *>(log_record->get());
+                std::string table_name(mark_delete_record ->table_name_, mark_delete_record ->table_name_size_);
+                auto table = sm_manager_->fhs_[table_name].get();
+                auto page_id = PageId{.fd = table->GetFd(), .page_no = mark_delete_record->rid_.page_no};
+                if ( log_manager_->dirty_page_table_.find(page_id) ==  log_manager_->dirty_page_table_.end()) {
+                    log_manager_->dirty_page_table_[page_id] = lsn; // 记录第一个使该页面变脏的log (reclsn)
+                }
+                log_manager_->active_txn_table_[txn_id] = lsn;  // 更新该事务的last lsn
+                break;
+            }
         }
     }
     log_manager_->set_global_lsn(idx-log_offset_); // 设置global lsn
@@ -276,6 +299,48 @@ void RecoveryManager::redo() {
                 buffer_pool_manager_->unpin_page(page_id, true);
                 break;
             }
+            case Mark_Delete: {
+                auto mark_delete_record = dynamic_cast<Mark_Delete_Record *>(log);
+                std::string table_name(mark_delete_record->table_name_, mark_delete_record->table_name_size_);
+                auto table = sm_manager_->fhs_[table_name].get();
+                auto page_id = PageId{.fd = table->GetFd(), .page_no = mark_delete_record->rid_.page_no};
+                if ( log_manager_->dirty_page_table_.find(page_id) ==  log_manager_->dirty_page_table_.end()) {
+                    // 如果不在脏页表中，不需要重做
+                    break;
+                }
+                auto page = buffer_pool_manager_->fetch_page(page_id);
+                if(page->get_page_lsn() >= lsn) {
+                    // 如果已经被持久化，不需要更新
+                    buffer_pool_manager_->unpin_page(page_id, false);
+                    break;
+                }
+                auto fh = sm_manager_->fhs_.at(table_name).get();
+                fh->mark_delete_record_recover(mark_delete_record->rid_,lsn,mark_delete_record->first_free_page_no_, mark_delete_record->num_pages_,
+                                               true);
+                buffer_pool_manager_->unpin_page(page_id, true);
+                break;
+            }
+            case CLR_MARK_DELETE: {
+                auto mark_delete_record = dynamic_cast<CLR_Mark_Delete_Record *>(log);
+                std::string table_name(mark_delete_record->table_name_, mark_delete_record->table_name_size_);
+                auto table = sm_manager_->fhs_[table_name].get();
+                auto page_id = PageId{.fd = table->GetFd(), .page_no = mark_delete_record->rid_.page_no};
+                if ( log_manager_->dirty_page_table_.find(page_id) ==  log_manager_->dirty_page_table_.end()) {
+                    // 如果不在脏页表中，不需要重做
+                    break;
+                }
+                auto page = buffer_pool_manager_->fetch_page(page_id);
+                if(page->get_page_lsn() >= lsn) {
+                    // 如果已经被持久化，不需要更新
+                    buffer_pool_manager_->unpin_page(page_id, false);
+                    break;
+                }
+                auto fh = sm_manager_->fhs_.at(table_name).get();
+                fh->mark_delete_record_recover(mark_delete_record->rid_,lsn,mark_delete_record->first_free_page_no_, mark_delete_record->num_pages_,
+                                               false);
+                buffer_pool_manager_->unpin_page(page_id, true);
+                break;
+            }
 //            case CKPT_BEGIN:
 //                break;
 //            case CKPT_END:
@@ -286,6 +351,7 @@ void RecoveryManager::redo() {
 //                break;
 //            case ABORT:
 //                break;
+
             default:
                 break;
         }
@@ -317,84 +383,99 @@ void RecoveryManager::undo() {
         auto undo_lsn = undo_iter.first;
         auto context = undo_iter.second;
         auto log = get_log_by_lsn(undo_lsn);
-        if(log== nullptr) {
+        if (log == nullptr) {
             LOG_ERROR("undo lsn is invalid");
             undo_list.pop();
             continue;
         }
         switch (log->log_type_) {
-                case UPDATE: {
-                    auto update_log = dynamic_cast<UpdateLogRecord *>(log);
-                    std::string table_name(update_log->table_name_, update_log->table_name_size_);
-                    auto table = sm_manager_->fhs_[table_name].get();
-                    auto page_id = PageId{.fd = table->GetFd(), .page_no = update_log->rid_.page_no};
-                    auto fh = sm_manager_->fhs_.at(table_name).get();
-                    fh->update_record(update_log->rid_,update_log->before_update_value_.data, context,&table_name, LogOperation::UNDO, update_log->prev_lsn_);
-                    undo_list.pop();
-                    undo_list.emplace(log->prev_lsn_,context);
-                    break;
-                }
-                case INSERT: {
-                    auto insert_log = dynamic_cast<InsertLogRecord *>(log);
-                    std::string table_name(insert_log->table_name_, insert_log->table_name_size_);
-                    auto table = sm_manager_->fhs_[table_name].get();
-                    auto fh = sm_manager_->fhs_.at(table_name).get();
-                    fh->delete_record(insert_log->rid_,context,&table_name, LogOperation::UNDO,insert_log->prev_lsn_);
-                    undo_list.pop();
-                    undo_list.emplace(log->prev_lsn_,context);
-                    break;
-                }
-                case DELETE: {
-                    auto delete_log = dynamic_cast<DeleteLogRecord*>(log);
-                    std::string table_name(delete_log->table_name_, delete_log->table_name_size_);
-                    auto table = sm_manager_->fhs_[table_name].get();
-                    auto fh = sm_manager_->fhs_.at(table_name).get();
-                    fh->insert_record(delete_log->delete_value_.data, context, &table_name, LogOperation::UNDO, delete_log->prev_lsn_);
-                    undo_list.pop();
-                    undo_list.emplace(log->prev_lsn_,context);
-                    break;
-                }
-
-                case CLR_INSERT: {
-                    auto clr_log = dynamic_cast<CLR_Insert_Record*>(log);
-                    undo_list.pop();
-                    undo_list.emplace( clr_log->undo_next_, context);
-                    break;
-                }
-
-                case CLR_DELETE: {
-                    auto clr_log = dynamic_cast<CLR_Delete_Record*>(log);
-                    undo_list.pop();
-                    undo_list.emplace( clr_log->undo_next_, context);
-                    break;
-                }
-                case CLR_UPDATE: {
-                    auto clr_log = dynamic_cast<CLR_Insert_Record*>(log);
-                    undo_list.pop();
-                    undo_list.emplace( clr_log->undo_next_, context);
-                    break;
-                }
-                case BEGIN:{
-                    delete context;
-                    undo_list.pop();
-                    break;
-                }
-                case COMMIT: {
-                    LOG_ERROR("Rollback Committed Txn");
-                    undo_iter.first = log->prev_lsn_;
-                    return;
-                    break;
-
-                }
-                case ABORT: {
-                    LOG_ERROR("Rollback Aborted Txn");
-                    undo_iter.first = log->prev_lsn_;
-                    break;
-                }
-                default: {
-                    LOG_ERROR("Error log type while undoing");
-                }
+            case UPDATE: {
+                auto update_log = dynamic_cast<UpdateLogRecord *>(log);
+                std::string table_name(update_log->table_name_, update_log->table_name_size_);
+                auto table = sm_manager_->fhs_[table_name].get();
+                auto page_id = PageId{.fd = table->GetFd(), .page_no = update_log->rid_.page_no};
+                auto fh = sm_manager_->fhs_.at(table_name).get();
+                fh->update_record(update_log->rid_, update_log->before_update_value_.data, context, &table_name,
+                                  LogOperation::UNDO, update_log->prev_lsn_);
+                undo_list.pop();
+                undo_list.emplace(log->prev_lsn_, context);
+                break;
             }
+            case INSERT: {
+                auto insert_log = dynamic_cast<InsertLogRecord *>(log);
+                std::string table_name(insert_log->table_name_, insert_log->table_name_size_);
+                auto table = sm_manager_->fhs_[table_name].get();
+                auto fh = sm_manager_->fhs_.at(table_name).get();
+                fh->delete_record(insert_log->rid_, context, &table_name, LogOperation::UNDO, insert_log->prev_lsn_);
+                undo_list.pop();
+                undo_list.emplace(log->prev_lsn_, context);
+                break;
+            }
+            case DELETE: {
+                auto delete_log = dynamic_cast<DeleteLogRecord *>(log);
+                std::string table_name(delete_log->table_name_, delete_log->table_name_size_);
+                auto table = sm_manager_->fhs_[table_name].get();
+                auto fh = sm_manager_->fhs_.at(table_name).get();
+                fh->insert_record(delete_log->delete_value_.data, context, &table_name, LogOperation::UNDO,
+                                  delete_log->prev_lsn_);
+                undo_list.pop();
+                undo_list.emplace(log->prev_lsn_, context);
+                break;
+            }
+            case Mark_Delete: {
+                auto mark_log = dynamic_cast<Mark_Delete_Record *>(log);
+                std::string table_name(mark_log->table_name_, mark_log->table_name_size_);
+                auto table = sm_manager_->fhs_[table_name].get();
+                auto fh = sm_manager_->fhs_.at(table_name).get();
+                fh->mark_delete_record(mark_log->rid_, context, &table_name, LogOperation::UNDO, mark_log->prev_lsn_);
+                undo_list.pop();
+                undo_list.emplace(log->prev_lsn_, context);
+                break;
+            }
+            case CLR_INSERT: {
+                auto clr_log = dynamic_cast<CLR_Insert_Record *>(log);
+                undo_list.pop();
+                undo_list.emplace(clr_log->undo_next_, context);
+                break;
+            }
+
+            case CLR_DELETE: {
+                auto clr_log = dynamic_cast<CLR_Delete_Record *>(log);
+                undo_list.pop();
+                undo_list.emplace(clr_log->undo_next_, context);
+                break;
+            }
+            case CLR_UPDATE: {
+                auto clr_log = dynamic_cast<CLR_Insert_Record *>(log);
+                undo_list.pop();
+                undo_list.emplace(clr_log->undo_next_, context);
+                break;
+            }
+            case CLR_MARK_DELETE: {
+                auto clr_log = dynamic_cast<CLR_Mark_Delete_Record *>(log);
+                undo_list.pop();
+                undo_list.emplace(clr_log->undo_next_, context);
+                break;
+            }
+            case BEGIN: {
+                delete context;
+                undo_list.pop();
+                break;
+            }
+            case COMMIT: {
+                LOG_ERROR("Rollback Committed Txn");
+                undo_iter.first = log->prev_lsn_;
+                return;
+                break;
+
+            }
+            case ABORT: {
+                LOG_ERROR("Rollback Aborted Txn");
+                undo_iter.first = log->prev_lsn_;
+                break;
+            }
+
+        }
     }
     assert(undo_list.empty());
 }

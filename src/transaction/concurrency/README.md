@@ -44,4 +44,4 @@ t1 abort;
 
 在Commit阶段再进行实际上的delete操作（标记bitmap）。在执行器期间只记录写操作。但是这样会造成一个问题，就是删除操作会对事务本身不可见。比如先delete，再select。
 
-解决方法是delete时不对rid加锁。
+解决方法是增加一个mark delete字段

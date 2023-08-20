@@ -49,7 +49,7 @@ void TransactionManager::commit(Transaction* txn, LogManager* log_manager) {
     auto write_set = txn->get_write_set();
     while(!write_set->empty()) {
       // log_manager->add_log_to_buffer(new log_record);
-      auto write = write_set->front();
+      auto write = write_set->front().get();
       if(write->GetWriteType()==WType::DELETE_TUPLE) {
           auto fh = sm_manager_->fhs_[write->GetTableName()].get();
           fh->delete_record(write->GetRid(), context, &write->GetTableName(), LogOperation::REDO);
@@ -88,7 +88,7 @@ void TransactionManager::abort(Transaction * txn, LogManager *log_manager) {
     auto write_set = txn->get_write_set();
     auto context = new Context(lock_manager_, log_manager, txn);
     for(auto r_write_iter = write_set->rbegin();r_write_iter!=write_set->rend();++r_write_iter){//改成倒着读取record内容
-        auto write = *r_write_iter;
+        auto write = (*r_write_iter).get();
 //    }
 //    for(auto&write:*write_set) {
       auto tab_name = write->GetTableName();
@@ -110,7 +110,7 @@ void TransactionManager::abort(Transaction * txn, LogManager *log_manager) {
         // delete此时还没有被写入bitmap
         table->mark_delete_record(write->GetRid(), context, &tab_name, LogOperation::UNDO, write->getUndoNext());
         for(const auto& index:sm_manager_->db_.get_table(tab_name).indexes) {
-          auto index_name = sm_manager_->get_ix_manager()->get_index_name(tab_name,index.cols);
+          auto index_name = IxManager::get_index_name(tab_name,index.cols);
           auto &index_handler = sm_manager_->ihs_.at(index_name);
           index_handler->insert_entry(old_rec.key_from_rec(index.cols)->data, write->GetRid(),txn);
         }
@@ -120,20 +120,20 @@ void TransactionManager::abort(Transaction * txn, LogManager *log_manager) {
         auto old_rec = write->GetRecord();
         auto new_rec = table->get_record(write->GetRid(),context);
         for(const auto& index:sm_manager_->db_.get_table(tab_name).indexes) {
-          auto index_name = sm_manager_->get_ix_manager()->get_index_name(tab_name,index.cols);
+          auto index_name = IxManager::get_index_name(tab_name,index.cols);
           auto &index_handler = sm_manager_->ihs_.at(index_name);
           index_handler->delete_entry(new_rec->key_from_rec(index.cols)->data,txn);
         }
         auto rid = write->GetRid();
         table->update_record(rid, old_rec.data, context, &write->GetTableName(),LogOperation::UNDO, write->getUndoNext());
         for(const auto& index:sm_manager_->db_.get_table(tab_name).indexes) {
-          auto index_name = sm_manager_->get_ix_manager()->get_index_name(tab_name,index.cols);
+          auto index_name = IxManager::get_index_name(tab_name,index.cols);
           auto &index_handler = sm_manager_->ihs_.at(index_name);
           index_handler->insert_entry(old_rec.key_from_rec(index.cols)->data,rid,txn);
         }
         break;
       }
-      delete write;
+      // delete write;
     }
     delete context;
 

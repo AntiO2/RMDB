@@ -387,7 +387,7 @@ private:
                 for(auto &s_point_request:s_point_queue_) {
                     // check(AntiO2) 多个单点修改，好像不需要？好像又要？
                     if(s_point_request->granted_) {
-                        if(s_point_request->txn_id!=request.txn_id&&!CheckPointGapLockCompat(request, *s_point_request)) {
+                        if(s_point_request->txn_id!=request.txn_id&&!CheckTwoPointGapLockCompat(request, *s_point_request)) {
                             // 如果有点重合
                             return false;
                         }
@@ -395,6 +395,7 @@ private:
                 }
 
             } else {
+                // 两线段
                 for(auto &s_request:s_request_queue_) {
                     if(s_request->granted_) {
                         if(s_request->txn_id!=request.txn_id&&!CheckGapLockCompat(*(s_request), request)) {
@@ -403,6 +404,7 @@ private:
                         }
                     }
                 }
+                // 线段和点
                 for(auto &s_point_request:s_point_queue_) {
                     if(s_point_request->granted_) {
                         if(s_point_request->txn_id!=request.txn_id&&!CheckPointGapLockCompat(*s_point_request, request)) {
@@ -427,7 +429,7 @@ private:
                 for(auto &x_point_request:x_point_queue_) {
                     // check(AntiO2) 多个单点修改，好像不需要？好像又要？
                     if(x_point_request->granted_) {
-                        if(x_point_request->txn_id!=request.txn_id&&!CheckPointGapLockCompat(request, *x_point_request)) {
+                        if(x_point_request->txn_id!=request.txn_id&&!CheckTwoPointGapLockCompat(request, *x_point_request)) {
                             // 如果有点重合
                             return false;
                         }

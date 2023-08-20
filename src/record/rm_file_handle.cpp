@@ -140,7 +140,6 @@ void RmFileHandle::insert_record_recover(const Rid &rid, char *buf, lsn_t lsn, i
  * @param {Context*} context
  */
 void RmFileHandle::delete_record(const Rid& rid, Context* context, std::string* table_name,  LogOperation log_op, lsn_t undo_next) {
-    // Todo: v
     // 1. 获取指定记录所在的page handle
     // 2. 更新page_handle.page_hdr中的数据结构
     // 注意考虑删除一条记录后页面未满的情况，需要调用release_page_handle()
@@ -387,15 +386,59 @@ void RmFileHandle::mark_delete_record(const Rid &rid, Context *context, std::str
                                       lsn_t undo_next) {
     // 1. 获取指定记录所在的page handle
     RmPageHandle pageHandle = fetch_page_handle(rid.page_no);
+
+    auto txn = context->txn_;
+    auto log_mgr = context->log_mgr_;
+    auto page_id = PageId{fd_,rid.page_no};
+    LogRecord* log_record= nullptr;
+    if(log_op==LogOperation::REDO) {
+        log_record = new Mark_Delete_Record(txn->getTxnId(), rid, *table_name, txn->getPrevLsn(), file_hdr_.first_free_page_no, file_hdr_.num_pages);
+    } else {
+        log_record = new CLR_Delete_Record(context->txn_->getTxnId(), rid, *table_name,context->txn_->get_prev_lsn(), undo_next, file_hdr_.first_free_page_no, file_hdr_.num_pages);
+    }
+    log_mgr->add_log_to_buffer(log_record);
+    txn->set_prev_lsn(log_record->lsn_);
+    log_mgr->active_txn_table_[txn->getTxnId()] = log_record->lsn_;
+    if(log_mgr->dirty_page_table_.find(PageId{fd_,rid.page_no})==log_mgr->dirty_page_table_.end()) {
+        log_mgr->dirty_page_table_.emplace(page_id,log_record->lsn_);
+    }
+
     if(log_op==LogOperation::REDO) {
         Bitmap::set(pageHandle.mark_delete,rid.slot_no);
     } else {
         Bitmap::reset(pageHandle.mark_delete,rid.slot_no);
     }
     buffer_pool_manager_->unpin_page(PageId{fd_, rid.page_no}, true);
+
+    pageHandle.page->set_page_lsn(log_record->lsn_);
+    buffer_pool_manager_->unpin_page(PageId{fd_, rid.page_no}, true);
 }
 
-bool RmFileHandle::is_mark_delete(const Rid &rid, Context *context) {
+bool RmFileHandle::is_mark_delete(const Rid &rid, Context *context) const {
     RmPageHandle pageHandle = fetch_page_handle(rid.page_no);
     return Bitmap::is_set(pageHandle.mark_delete, rid.slot_no);
+
 }
+
+void
+RmFileHandle::mark_delete_record_recover(const Rid &rid, lsn_t lsn, int first_free_page, int num_pages, bool mark) {
+    file_hdr_.first_free_page_no = first_free_page;
+    file_hdr_.num_pages = num_pages;
+    // 1. 获取指定记录所在的page handle
+    // 2. 更新记录
+
+    // 1. 获取指定记录所在的page handle
+    RmPageHandle pageHandle = fetch_page_handle(rid.page_no);
+    // 2. 更新记
+    if(mark) {
+        Bitmap::set(pageHandle.mark_delete, rid.slot_no);
+    } else {
+        Bitmap::reset(pageHandle.mark_delete, rid.slot_no);
+    }
+    pageHandle.page->set_page_lsn(lsn);
+    buffer_pool_manager_->unpin_page(PageId{fd_,rid.page_no}, true);
+}
+
+
+
+

@@ -614,7 +614,7 @@ auto LockManager::CheckCompatible(LockManager::LockMode old_lock,
 }
 
 bool LockManager::lock_gap_on_index(Transaction *txn,GapLockRequest request, int iid, const std::vector<ColMeta> &col_meta,LockMode lock_mode) {
-
+    return true;
     if(txn->get_state()==TransactionState::SHRINKING) {
         txn->set_state(TransactionState::ABORTED);
         // 如果在收缩阶段加锁，抛出异常

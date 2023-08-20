@@ -260,6 +260,7 @@ void RmFileHandle::update_record(const Rid& rid, char* buf, Context* context, st
 
     memcpy(addr_slot,buf,size);
     pageHandle.page->set_page_lsn(log_record->lsn_);
+    pageHandle.page->WUnlock();
     buffer_pool_manager_->unpin_page(PageId{fd_,rid.page_no}, true);
 }
 /**
@@ -278,6 +279,7 @@ void RmFileHandle::update_record_recover(const Rid& rid, char* buf,lsn_t lsn, in
 
     // 1. 获取指定记录所在的page handle
     RmPageHandle pageHandle = fetch_page_handle(rid.page_no);
+    pageHandle.page->WLock();
     //判断位图
     if (!Bitmap::is_set(pageHandle.bitmap, rid.slot_no)) {
         throw RecordNotFoundError(rid.page_no, rid.slot_no);

@@ -63,7 +63,7 @@ pthread_mutex_t *sockfd_mutex;
                 context->txn_ = txn_manager->begin(nullptr, context->log_mgr_);
                 *txn_id = context->txn_->get_transaction_id();
                 context->txn_->set_txn_mode(false);//设置为false为单条语句sql语句的事务
-               //  context->txn_->set_isolation_level(IsolationLevel::SERIALIZABLE);
+                context->txn_->set_isolation_level(IsolationLevel::SERIALIZABLE);
             }
         }
 

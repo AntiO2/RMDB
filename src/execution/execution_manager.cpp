@@ -78,7 +78,7 @@ void QlManager::run_mutli_query(std::shared_ptr<Plan> plan, Context *context){
 }
 
 // 执行help; show tables; desc table; begin; commit; abort;语句
-void QlManager::run_cmd_utility(std::shared_ptr<Plan> plan, txn_id_t *txn_id,Context *context) {
+void QlManager::run_cmd_utility(std::shared_ptr<Plan> plan, txn_id_t *txn_id, Context *context) {
     if (auto x = std::dynamic_pointer_cast<OtherPlan>(plan)) {
         switch(x->tag) {
             case T_Help:
@@ -90,11 +90,6 @@ void QlManager::run_cmd_utility(std::shared_ptr<Plan> plan, txn_id_t *txn_id,Con
             case T_ShowTable:
             {
                 sm_manager_->show_tables(context);
-                break;
-            }
-            case T_SetOff:
-            {
-                sm_manager_->setOff(context);
                 break;
             }
             case T_ShowIndex:
@@ -135,12 +130,9 @@ void QlManager::run_cmd_utility(std::shared_ptr<Plan> plan, txn_id_t *txn_id,Con
                 throw InternalError("Unexpected field type");
                 break;                        
         }
-    }
-    else if(auto x = std::dynamic_pointer_cast<LoadPlan>(plan)){
-        sm_manager_->load_csv(x->file_name_,x->tab_name_,context);
+
     }
 }
-
 //完成aggregate操作 分为sum min max count
 void QlManager::select_from_aggregate(std::unique_ptr<AbstractExecutor> executorTreeRoot, std::vector<TabCol> sel_cols,std::string col_as_name,AggregateOp op,
                                       Context *context){

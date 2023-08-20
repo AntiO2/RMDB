@@ -36,10 +36,6 @@ enum AggregateType {
     SV_COUNT, SV_MIN, SV_MAX ,SV_SUM,
 };
 
-enum CalType {
-    SV_ADD, SV_SUB,
-};
-
 // Base class for tree nodes
 struct TreeNode {
     virtual ~TreeNode() = default;  // enable polymorphism
@@ -51,19 +47,9 @@ struct Help : public TreeNode {
 struct ShowTables : public TreeNode {
 };
 
-struct SetOff : public TreeNode {
-};
-
 struct ShowIndex : public  TreeNode {
     std::string tab_name;
     ShowIndex(std::string tab_name_) : tab_name(std::move(tab_name_)) {}
-};
-
-struct LoadStmt : public TreeNode{
-    std::string file_name;
-    std::string tab_name;
-    LoadStmt(std::string file_name_, std::string tab_name_) :
-    file_name(std::move(file_name_)), tab_name(std::move(tab_name_)) {}
 };
 
 struct TxnBegin : public TreeNode {
@@ -185,34 +171,12 @@ struct AggregateCol : public Expr{
         ag_type(ag_type_), col_name(std::move(col_name_)), as_col_name(std::move(as_col_name_)) {}
 };
 
-struct SetExpr : public TreeNode {
-    CalType cal_type;         //+或-
-    bool has_col;             //表示计算表达式中含不含列名, 如为true则形如score = score + 9
-    std::shared_ptr<Value> val;
-
-    SetExpr( bool has_col_, std::shared_ptr<Value> val_) :
-    has_col(has_col_),val(std::move(val_)) {
-        cal_type = SV_ADD;
-        if(auto x = std::dynamic_pointer_cast<IntLit>(val)){
-            if(x->val < 0){
-                x->val = -x->val;
-                cal_type = SV_SUB;
-            }
-        } else if(auto x = std::dynamic_pointer_cast<FloatLit>(val)){
-            if(x->val < 0){
-                x->val = -x->val;
-                cal_type = SV_SUB;
-            }
-        }
-    }
-};
-
 struct SetClause : public TreeNode {
     std::string col_name;
-    std::shared_ptr<SetExpr> set_expr;
+    std::shared_ptr<Value> val;
 
-    SetClause(std::string col_name_, std::shared_ptr<SetExpr> set_expr_) :
-            col_name(std::move(col_name_)), set_expr(std::move(set_expr_)) {}
+    SetClause(std::string col_name_, std::shared_ptr<Value> val_) :
+            col_name(std::move(col_name_)), val(std::move(val_)) {}
 };
 
 struct BinaryExpr : public TreeNode {
@@ -329,7 +293,6 @@ struct SemValue {
 
     SvCompOp sv_comp_op;
     AggregateType sv_aggregate_type;
-   // CalType sv_set_expr_type;
 
     std::shared_ptr<TypeLen> sv_type_len;
 
@@ -357,8 +320,6 @@ struct SemValue {
 
     //aggregate
     std::shared_ptr<AggregateCol> sv_aggregate;
-
-    std::shared_ptr<ast::SetExpr> sv_set_expr;
 };
 
 extern std::shared_ptr<ast::TreeNode> parse_tree;

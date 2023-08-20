@@ -57,13 +57,12 @@ class UpdateExecutor : public AbstractExecutor {
         auto set_size = set_clauses_.size();
         std::for_each(set_clauses_.begin(), set_clauses_.end(),[this,&set_cols, &set_lens](SetClause& set_clause) { //  引用捕获
             auto set_col = tab_.get_col(set_clause.lhs.col_name); // 找到在原表中更新的列
-            //TODO 目前还是支持的原来的update类型
-            if(set_col->type!=set_clause.set_expr.val.type) {
+            if(set_col->type!=set_clause.rhs.type) {
                 // 需要目标列和右值匹配
-                throw IncompatibleTypeError(coltype2str(set_col->type), coltype2str(set_clause.set_expr.val.type));
+                throw IncompatibleTypeError(coltype2str(set_col->type), coltype2str(set_clause.rhs.type));
             }
             set_lens.emplace_back(set_col->len);
-            set_clause.set_expr.val.init_raw(set_col->len); // 使得原始的二进制数据能够读取
+            set_clause.rhs.init_raw(set_col->len); // 使得原始的二进制数据能够读取
             set_cols.emplace_back(set_col->offset);
 
         });
@@ -76,7 +75,7 @@ class UpdateExecutor : public AbstractExecutor {
                 RmRecord new_tuple(tuple->size,tuple->data);
                 auto index_size = index_handlers.size();
                 for(decltype(set_size) i = 0; i < set_size; i++) {
-                    memcpy(new_tuple.data+set_cols[i], set_clauses_[i].set_expr.val.raw->data,set_lens[i]); // 修改所有列
+                    memcpy(new_tuple.data+set_cols[i], set_clauses_[i].rhs.raw->data,set_lens[i]); // 修改所有列
                 }
                 for(size_t i = 0; i < index_size;i++) {
                     index_handlers.at(i)->delete_entry(tuple->key_from_rec(tab_.indexes.at(i).cols)->data, context_->txn_);

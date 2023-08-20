@@ -35,7 +35,6 @@ struct OrderCol {
     bool is_desc_;
 };
 
-
 struct Value {
     ColType type;  // type of value
     union {
@@ -182,12 +181,6 @@ inline  std::string datenum2datetime(const std::string &str){
     return datetime_str;
 }
 
-struct SetExpr {
-    bool is_add;    //因为只支持加减, 不支持乘除，就这样处理了
-    bool has_col;
-    Value val;
-};
-
 /**
  * @description 这个是在ix_index_handle::ix_compare() 改过来的，用于在值之间进行判断大小。之后有新类型需要在这里增加
  *
@@ -293,7 +286,7 @@ public:
 
 struct SetClause {
     TabCol lhs;
-    SetExpr set_expr;
+    Value rhs;
 };
 /**
  * 通过Value和ColMetas构造RMrecord

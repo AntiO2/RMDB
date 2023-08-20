@@ -23,14 +23,14 @@ class IxScan : public RecScan {
     Iid iid_;  // 初始为lower（用于遍历的指针）
     Iid end_;  // 初始为upper
     BufferPoolManager *bpm_;
-    bool is_end_;
+
    public:
     IxScan(const IxIndexHandle *ih, const Iid &lower, const Iid &upper, BufferPoolManager *bpm)
         : ih_(ih), iid_(lower), end_(upper), bpm_(bpm) {}
 
     void next() override;
 
-    bool is_end() const override { return is_end_; }
+    bool is_end() const override { return iid_ == end_; }
 
     Rid rid() const override;
 

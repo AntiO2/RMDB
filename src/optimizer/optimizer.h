@@ -38,9 +38,6 @@ class Optimizer {
         } else if (auto x = std::dynamic_pointer_cast<ast::ShowTables>(query->parse)) {
             // show tables;
             return std::make_shared<OtherPlan>(T_ShowTable, std::string());
-        } else if(auto x = std::dynamic_pointer_cast<ast::SetOff>(query->parse)) {
-            //set output_file off;
-            return std::make_shared<OtherPlan>(T_SetOff, std::string());
         } else if (auto x = std::dynamic_pointer_cast<ast::ShowIndex>(query->parse)) {
             // show index;
             return std::make_shared<OtherPlan>(T_ShowIndex, x->tab_name);
@@ -59,10 +56,6 @@ class Optimizer {
         } else if (auto x = std::dynamic_pointer_cast<ast::TxnRollback>(query->parse)) {
             // rollback;
             return std::make_shared<OtherPlan>(T_Transaction_rollback, std::string());
-        } else if(auto x = std::dynamic_pointer_cast<ast::LoadStmt>(query->parse)){
-            //lsy
-            //load data
-            return std::make_shared<LoadPlan>(x->file_name,x->tab_name);
         } else {
             return planner_->do_planner(query, context);
         }

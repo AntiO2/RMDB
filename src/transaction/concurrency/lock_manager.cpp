@@ -614,7 +614,7 @@ auto LockManager::CheckCompatible(LockManager::LockMode old_lock,
 }
 
 bool LockManager::lock_gap_on_index(Transaction *txn,GapLockRequest request, int iid, const std::vector<ColMeta> &col_meta,LockMode lock_mode) {
-    return true;
+    // return true;
     if(txn->get_state()==TransactionState::SHRINKING) {
         txn->set_state(TransactionState::ABORTED);
         // 如果在收缩阶段加锁，抛出异常
@@ -626,7 +626,8 @@ bool LockManager::lock_gap_on_index(Transaction *txn,GapLockRequest request, int
         gap_request_queue_iter = gap_lock_table_.emplace(iid,std::make_shared<GapLockRequestQueue>(col_meta)).first;
     }
     auto lock_request_queue = gap_request_queue_iter->second;
-    lock_request_queue->latch_.lock();
+    // lock_request_queue->latch_.lock();
+    std::unique_lock<std::mutex> queue( lock_request_queue->latch_);
     latch_.unlock();
     auto txn_id = txn->get_transaction_id();
     txn->set_state(TransactionState::GROWING);
@@ -700,6 +701,34 @@ bool LockManager::lock_gap_on_index(Transaction *txn,GapLockRequest request, int
         }
     }
     // 循环完队列，没有冲突
+
+    request.granted_ = true;
+    auto no_wait_request = std::make_shared<GapLockRequest>(request);
+    switch (lock_mode) {
+
+        case LockMode::SHARED:
+            if(no_wait_request->point_lock) {
+                lock_request_queue->s_point_queue_.emplace_back(no_wait_request);
+            } else {
+                lock_request_queue->s_request_queue_.emplace_back(no_wait_request);
+            }
+            break;
+        case LockMode::EXCLUSIVE:
+            if(no_wait_request->point_lock) {
+                lock_request_queue->x_point_queue_.emplace_back(no_wait_request);
+            } else {
+                lock_request_queue->x_request_queue_.emplace_back(no_wait_request);
+            }
+            break;
+        default:
+            assert(false);
+    }
+    txn->gap_lock_set_->emplace(iid);
+    return true;
+    // 以下为wait_die
+    /**************************************************************
+     *
+     */
     std::unique_lock<std::mutex> lock(lock_request_queue->latch_, std::adopt_lock);
     request.granted_= false;
     auto new_request = std::make_shared<GapLockRequest>(request);
@@ -775,7 +804,6 @@ bool LockManager::unlock_gap_on_index(Transaction *txn, int iid) {
     latch_.lock();
     auto lock_request_queue_it = gap_lock_table_.find(iid);
     if(lock_request_queue_it==gap_lock_table_.end()) {
-
         txn->set_state(TransactionState::ABORTED);
         latch_.unlock();
         throw TransactionAbortException(txn->get_transaction_id(), AbortReason::ATTEMPTED_UNLOCK_BUT_NO_LOCK_HELD);

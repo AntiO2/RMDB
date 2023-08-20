@@ -250,26 +250,33 @@ class IndexScanExecutor : public AbstractExecutor {
         }
 
         if(context_->txn_->get_isolation_level()==IsolationLevel::REPEATABLE_READ) {
-            if (equal + 1 == index_col_types.size()) {
-                // 如果是单点查询，比如index w(a,b) ;select from w where a=1 and b=2
-                GapLockRequest lock_request(left_point, context_->txn_->get_transaction_id());
-                if (dml_mode_) {
-                    context_->lock_mgr_->lock_gap_on_index(context_->txn_, lock_request, ix_handler_->getFd(), cols_, LockManager::LockMode::EXCLUSIVE);
+            try {
+                if (equal + 1 == index_col_types.size()) {
+                    // 如果是单点查询，比如index w(a,b) ;select from w where a=1 and b=2
+                    GapLockRequest lock_request(left_point, context_->txn_->get_transaction_id());
+                    if (dml_mode_) {
+                        context_->lock_mgr_->lock_gap_on_index(context_->txn_, lock_request, ix_handler_->getFd(), cols_, LockManager::LockMode::EXCLUSIVE);
+                    } else {
+                        context_->lock_mgr_->lock_gap_on_index(context_->txn_, lock_request, ix_handler_->getFd(), cols_,
+                                                               LockManager::LockMode::SHARED);
+                    }
                 } else {
-                    context_->lock_mgr_->lock_gap_on_index(context_->txn_, lock_request, ix_handler_->getFd(), cols_,
-                                                           LockManager::LockMode::SHARED);
+                    // 加间隙锁
+                    GapLockRequest lock_request(left_point, right_point, context_->txn_->get_transaction_id());
+                    if (dml_mode_) {
+                        context_->lock_mgr_->lock_gap_on_index(context_->txn_, lock_request, ix_handler_->getFd(), cols_,
+                                                               LockManager::LockMode::EXCLUSIVE);
+                    } else {
+                        context_->lock_mgr_->lock_gap_on_index(context_->txn_, lock_request, ix_handler_->getFd(), cols_,
+                                                               LockManager::LockMode::SHARED);
+                    }
                 }
-            } else {
-                // 加间隙锁
-                GapLockRequest lock_request(left_point, right_point, context_->txn_->get_transaction_id());
-                if (dml_mode_) {
-                    context_->lock_mgr_->lock_gap_on_index(context_->txn_, lock_request, ix_handler_->getFd(), cols_,
-                                                           LockManager::LockMode::EXCLUSIVE);
-                } else {
-                    context_->lock_mgr_->lock_gap_on_index(context_->txn_, lock_request, ix_handler_->getFd(), cols_,
-                                                           LockManager::LockMode::SHARED);
-                }
+            } catch (TransactionAbortException &e) {
+                begin_node->get_page()->RUnlock();
+                sm_manager_->get_bpm()->unpin_page(begin_node->get_page_id(), false);
+                throw e;
             }
+
         }
         ix_scan_ = std::make_unique<IxScan>(ix_handler_,lower_iid,upper_key,tot_len,right_point.col_len_,sm_manager_->get_bpm()
                 ,begin_node, right_point.type_);

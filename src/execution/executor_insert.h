@@ -86,11 +86,12 @@ class InsertExecutor : public AbstractExecutor {
                 GapLockPoint left_point(key,GapLockPointType::E, offset, index.col_num);
 
                 // lock_gap_on_index(Transaction *txn,GapLockRequest request, int iid, const std::vector<ColMeta> &col_meta,LockMode lock_mode);
+                index_handlers.at(i)->insert_entry(key, rid_, context_->txn_);
                 if(context_->txn_->get_isolation_level()==IsolationLevel::REPEATABLE_READ) {
                     context_->lock_mgr_->lock_gap_on_index(context_->txn_, GapLockRequest(left_point,context_->txn_->getTxnId()),
                                                            index_handlers.at(i)->getFd(),  index.cols, LockManager::LockMode::EXCLUSIVE);
                 }
-                index_handlers.at(i)->insert_entry(key, rid_, context_->txn_);
+
             } catch(IndexEntryDuplicateError &e) {
                 // 第i个索引发生重复key
                 // 需要将前i - 1个index回滚

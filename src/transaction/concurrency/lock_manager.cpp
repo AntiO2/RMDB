@@ -190,9 +190,11 @@ auto LockManager::HandleLockRequest(
 //      }
         if(request->txn_id_ != txn_id &&!CheckCompatible(request->lock_mode_,lock_mode)) {
           // 采用no-wait策略
-          txn->set_state(TransactionState::ABORTED);
-          lock_request_queue->latch_.unlock();
-          throw TransactionAbortException(txn->get_transaction_id(),AbortReason::DEADLOCK_PREVENTION);
+          if(txn_id > request->txn_id_) {
+              txn->set_state(TransactionState::ABORTED);
+              lock_request_queue->latch_.unlock();
+              throw TransactionAbortException(txn->get_transaction_id(),AbortReason::DEADLOCK_PREVENTION);
+          }
         }
     }
     if (request->txn_id_ == txn_id) {
@@ -639,9 +641,13 @@ bool LockManager::lock_gap_on_index(Transaction *txn,GapLockRequest request, int
                 (request.point_lock&&!lock_request_queue->CheckPointGapLockCompat(request,*x_request)) // 查询point是否和x gap冲突
                 ) {
                     // 采用no-wait策略
-                    txn->set_state(TransactionState::ABORTED);
-                    lock_request_queue->latch_.unlock();
-                    throw TransactionAbortException(txn->get_transaction_id(),AbortReason::DEADLOCK_PREVENTION);
+                    if(request.txn_id > x_request->txn_id) {
+                        // 采用waitdie
+                        txn->set_state(TransactionState::ABORTED);
+                        lock_request_queue->latch_.unlock();
+                        throw TransactionAbortException(txn->get_transaction_id(),AbortReason::DEADLOCK_PREVENTION);
+                    }
+
                 }
             }
         } else {
@@ -656,9 +662,12 @@ bool LockManager::lock_gap_on_index(Transaction *txn,GapLockRequest request, int
                    (request.point_lock&&!lock_request_queue->CheckTwoPointGapLockCompat(request,*x_point_request)) // 两个point
                         ) {
                     // 采用no-wait策略
-                    txn->set_state(TransactionState::ABORTED);
-                    lock_request_queue->latch_.unlock();
-                    throw TransactionAbortException(txn->get_transaction_id(),AbortReason::DEADLOCK_PREVENTION);
+                    if(request.txn_id > x_point_request->txn_id) {
+                        // 采用waitdie
+                        txn->set_state(TransactionState::ABORTED);
+                        lock_request_queue->latch_.unlock();
+                        throw TransactionAbortException(txn->get_transaction_id(),AbortReason::DEADLOCK_PREVENTION);
+                    }
                 }
             }
         } else {
@@ -676,9 +685,12 @@ bool LockManager::lock_gap_on_index(Transaction *txn,GapLockRequest request, int
                             (request.point_lock&&!lock_request_queue->CheckPointGapLockCompat(request,*s_request))
                     ) {
                         // 采用no-wait策略
-                        txn->set_state(TransactionState::ABORTED);
-                        lock_request_queue->latch_.unlock();
-                        throw TransactionAbortException(txn->get_transaction_id(),AbortReason::DEADLOCK_PREVENTION);
+                        if(request.txn_id > s_request->txn_id) {
+                            // 采用waitdie
+                            txn->set_state(TransactionState::ABORTED);
+                            lock_request_queue->latch_.unlock();
+                            throw TransactionAbortException(txn->get_transaction_id(),AbortReason::DEADLOCK_PREVENTION);
+                        }
                     }
                  }
             }
@@ -691,9 +703,12 @@ bool LockManager::lock_gap_on_index(Transaction *txn,GapLockRequest request, int
                        (request.point_lock&&!lock_request_queue->CheckTwoPointGapLockCompat(request,*s_point_request))
                             ) {
                         // 采用no-wait策略
-                        txn->set_state(TransactionState::ABORTED);
-                        lock_request_queue->latch_.unlock();
-                        throw TransactionAbortException(txn->get_transaction_id(),AbortReason::DEADLOCK_PREVENTION);
+                        if(request.txn_id > s_point_request->txn_id) {
+                            // 采用waitdie
+                            txn->set_state(TransactionState::ABORTED);
+                            lock_request_queue->latch_.unlock();
+                            throw TransactionAbortException(txn->get_transaction_id(),AbortReason::DEADLOCK_PREVENTION);
+                        }
                     }
                 }
             }

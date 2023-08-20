@@ -5,7 +5,7 @@
 #include "fmt/core.h"
 #include "gtest/gtest.h"
 
-TEST(BLOCK_JOIN,GEN_SQL) {
+TEST(BLOCK_JOIN,DISABLED_GEN_SQL) {
     int scale = 10000;
     fmt::print("create table t1 ( id int , t_name char (500));\n"); // 这里char填多一点，方便测试溢出的情况
     fmt::print("create index t1 (id);\n\n");
@@ -32,4 +32,34 @@ TEST(BLOCK_JOIN,DISABLED_GEN_SQL2) {
     fmt::print("select * from t1,t2 where t1.id  = t2.id2 order by t1.id;\n");
 
     // fmt::print("drop table t1;\ndrop table d1;\n");
+}
+TEST(INDEX, TWO_COL) {
+    int scale = 3000;
+    fmt::print("create table t1 (w_id int,name char(8),flo float);\n"
+               "create index t1(w_id,flo);\n");
+    for(int i = 1; i <= scale; i++) {
+        fmt::print("insert into t1 values({},'{}{}',{});\n",i,i+1,i+2,i*i);
+    }
+    for(int i = 1; i <= scale; i++) {
+        fmt::print("select w_id from t1 where w_id = {};\n",i); // 单列测试
+    }
+    for(int i = 1; i <= scale; i++) {
+        fmt::print("select w_id from t1 where flo > {} and w_id = {};\n",i,i); // eq gt测试 双列测试
+    }
+}
+TEST(INDEX, INIT_TWO_COL) {
+    int scale = 3000;
+    fmt::print("create table t1 (w_id int,name char(8),flo float);\n"
+               "create index t1(w_id,flo);\n");
+    for(int i = 1; i <= scale; i++) {
+        fmt::print("insert into t1 values({},'{}{}',{});\n",i,i+1,i+2,i*i);
+    }
+}
+TEST(INDEX, ONE_COL) {
+    int scale = 3000;
+    fmt::print("create table t1 (w_id int,name char(8),flo float);\n"
+               "create index t1(flo);\n");
+    for(int i = 1; i <= scale; i++) {
+        fmt::print("insert into t1 values({},'{}{}',{});\n",i,i+1,i+2,i*i);
+    }
 }

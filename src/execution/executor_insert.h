@@ -66,10 +66,15 @@ class InsertExecutor : public AbstractExecutor {
             memcpy(rec.data + col.offset, val.raw->data, col.len);
         }
 
-        auto undo_next = context_->txn_->get_transaction_id();
+        auto undo_next = context_->txn_->get_prev_lsn();
         // Insert into record file
         rid_ = fh_->insert_record(rec.data, context_,&tab_name_);
         // Insert into index
+        if(context_->txn_->get_isolation_level()==IsolationLevel::REPEATABLE_READ) {
+            context_->lock_mgr_->lock_exclusive_on_record(context_->txn_, rid_, fh_->GetFd());
+        }
+        auto undo_write = context_->txn_->get_write_set()->rbegin();
+        context_->txn_->append_write_record(std::make_unique<WriteRecord>(WType::INSERT_TUPLE,tab_name_,rid_, undo_next));
         for(size_t i = 0; i < tab_.indexes.size(); ++i) {
             auto& index = tab_.indexes[i];
             char* key = new char[index.col_tot_len];
@@ -79,7 +84,14 @@ class InsertExecutor : public AbstractExecutor {
                 offset += index.cols[j].len;
             }
             try {
+                GapLockPoint left_point(key,GapLockPointType::E, offset, index.col_num);
+
+                // lock_gap_on_index(Transaction *txn,GapLockRequest request, int iid, const std::vector<ColMeta> &col_meta,LockMode lock_mode);
                 index_handlers.at(i)->insert_entry(key, rid_, context_->txn_);
+                if(context_->txn_->get_isolation_level()==IsolationLevel::REPEATABLE_READ) {
+                    context_->lock_mgr_->lock_gap_on_index(context_->txn_, GapLockRequest(left_point,context_->txn_->getTxnId()),
+                                                           index_handlers.at(i)->getFd(),  index.cols, LockManager::LockMode::EXCLUSIVE);
+                }
             } catch(IndexEntryDuplicateError &e) {
                 // 第i个索引发生重复key
                 // 需要将前i - 1个index回滚
@@ -93,13 +105,29 @@ class InsertExecutor : public AbstractExecutor {
                     }
                     index_handlers.at(j)->delete_entry(key,context_->txn_);
                 }
-                // check(AntiO2) 这里是否需要是undo类型回滚
-                fh_->delete_record(rid_,context_, &tab_name_);
+                undo_next = context_->txn_->get_prev_lsn();
+                fh_->mark_delete_record(rid_,context_, &tab_name_);
+                context_->txn_->append_write_record(std::make_unique<WriteRecord>(WType::CLR_DELETE,tab_name_,rid_, rec, undo_next));
+                context_->txn_->get_write_set()->back()->undo_next_write_ = undo_write;
+                throw std::move(e);
+            } catch (TransactionAbortException &e) {
+                for(int j = 0;j <= i;j++) {
+                    index = tab_.indexes[j];
+                    key = new char[index.col_tot_len];
+                    offset = 0;
+                    for(size_t k = 0; k < index.col_num; ++k) {
+                        memcpy(key + offset, rec.data + index.cols[k].offset, index.cols[k].len);
+                        offset += index.cols[k].len;
+                    }
+                    index_handlers.at(j)->delete_entry(key,context_->txn_);
+                }
+                undo_next = context_->txn_->get_prev_lsn();
+                fh_->mark_delete_record(rid_,context_, &tab_name_);
+                context_->txn_->append_write_record(std::make_unique<WriteRecord>(WType::CLR_DELETE,tab_name_,rid_, rec, undo_next));
+                context_->txn_->get_write_set()->back()->undo_next_write_ = undo_write;
                 throw std::move(e);
             }
         }
-        auto* writeRecord = new WriteRecord(WType::INSERT_TUPLE,tab_name_,rid_, undo_next);
-        context_->txn_->append_write_record(writeRecord);
         return nullptr;
     }
     size_t tupleLen() const override {

@@ -21,20 +21,24 @@ See the Mulan PSL v2 for more details. */
 class IxScan : public RecScan {
     const IxIndexHandle *ih_;
     Iid iid_;  // 初始为lower（用于遍历的指针）
-    Iid end_;  // 初始为upper
+    // Iid end_;  // 初始为upper
+    char* end_key_;
+    size_t end_key_size_;
+    size_t col_cmp_num_; // 多少个col_cmp_num用于最终比较
     BufferPoolManager *bpm_;
-    bool is_end_;
+    bool is_end_{false};
+    IxNodeHandle* leaf_node_; // 当前的leaf_page
+    GapLockPointType right_point_type; // 右key的约束类型，是 NE:<, 还是N: <, 还是INF(无右端点)
    public:
-    IxScan(const IxIndexHandle *ih, const Iid &lower, const Iid &upper, BufferPoolManager *bpm)
-        : ih_(ih), iid_(lower), end_(upper), bpm_(bpm) {}
-
+    IxScan(const IxIndexHandle *ih, const Iid &iid, char *endKey, size_t endKeySize, size_t colCmpNum,
+           BufferPoolManager *bpm, IxNodeHandle* leaf_node, GapLockPointType rightPointType);
     void next() override;
 
     bool is_end() const override { return is_end_; }
-
+    void flush_is_end();
     Rid rid() const override;
 
     const Iid &iid() const { return iid_; }
 
-    ~IxScan() = default;
+    ~IxScan();
 };

@@ -37,24 +37,45 @@ See the Mulan PSL v2 for more details. */
 //}
 
 
-std::pair<IndexMeta,size_t> Planner::get_index_cols(std::string tab_name, std::vector<Condition> curr_conds, std::vector<std::string>& index_col_names) {
+std::pair<IndexMeta,size_t> Planner::get_index_cols(std::string tab_name, std::vector<Condition> &curr_conds, std::vector<std::string>& index_col_names) {
     index_col_names.clear();
 
     std::vector<int> ops;
+    std::vector<size_t> cond_index;
     ops.clear();
-    for(auto& cond: curr_conds) {
+    auto col_num = curr_conds.size();
+    for(size_t i = 0; i < col_num; i++) {
+        auto & cond = curr_conds.at(i);
         if(cond.is_rhs_val && cond.lhs_col.tab_name.compare(tab_name) == 0){
             index_col_names.push_back(cond.lhs_col.col_name);
-            if(cond.op == OP_EQ)
+            if(cond.op == OP_EQ) {
                 ops.push_back(1);
+                cond_index.push_back(i);
+            }
+
             else if(cond.op == OP_NE)
+            {
                 ops.push_back(0);
-            else
+                cond_index.push_back(i);
+            }
+
+            else             {
                 ops.push_back(2);
+                cond_index.push_back(i);
+            }
+
         }
     }
     TabMeta& tab = sm_manager_->db_.get_table(tab_name);
-    return tab.get_index(index_col_names,ops);
+    std::vector<size_t> best_conds;
+    auto res =  tab.get_index(index_col_names,ops, cond_index, curr_conds.size(), best_conds);
+    // 根据best_conds的下标，改变条件的顺序
+    std::vector<Condition> conds; // 调整后的conds
+    for(auto &best_cond:best_conds) {
+        conds.emplace_back(std::move(curr_conds.at(best_cond)));
+    }
+    curr_conds = std::move(conds);
+    return res;
 }
 
 

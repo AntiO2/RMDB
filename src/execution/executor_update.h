@@ -136,6 +136,11 @@ class UpdateExecutor : public AbstractExecutor {
                             index_handlers.at(i)->insert_entry(tuple->key_from_rec(tab_.indexes.at(i).cols)->data, rid, context_->txn_);
                         }
                         throw std::move(e);
+                    } catch (TransactionAbortException &e) {
+                        for(size_t j = 0; j <= i; j++) {
+                            index_handlers.at(i)->insert_entry(tuple->key_from_rec(tab_.indexes.at(i).cols)->data, rid, context_->txn_);
+                        }
+                        throw std::move(e);
                     }
                 }
                 RmRecord update_record(*tuple);

@@ -254,8 +254,7 @@ class IndexScanExecutor : public AbstractExecutor {
                 // 如果是单点查询，比如index w(a,b) ;select from w where a=1 and b=2
                 GapLockRequest lock_request(left_point, context_->txn_->get_transaction_id());
                 if (dml_mode_) {
-                    context_->lock_mgr_->lock_gap_on_index(context_->txn_, lock_request, ix_handler_->getFd(), cols_,
-                                                           LockManager::LockMode::EXCLUSIVE);
+                    context_->lock_mgr_->lock_gap_on_index(context_->txn_, lock_request, ix_handler_->getFd(), cols_, LockManager::LockMode::EXCLUSIVE);
                 } else {
                     context_->lock_mgr_->lock_gap_on_index(context_->txn_, lock_request, ix_handler_->getFd(), cols_,
                                                            LockManager::LockMode::SHARED);

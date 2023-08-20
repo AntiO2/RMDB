@@ -30,7 +30,7 @@ class QlManager {
    private:
     SmManager *sm_manager_;
     TransactionManager *txn_mgr_;
-    bool output_file_{true};
+
    public:
     QlManager(SmManager *sm_manager, TransactionManager *txn_mgr) 
         : sm_manager_(sm_manager),  txn_mgr_(txn_mgr) {}
@@ -43,8 +43,4 @@ class QlManager {
     void select_from_aggregate(std::unique_ptr<AbstractExecutor> executorTreeRoot, std::vector<TabCol> sel_cols,std::string col_as_name,AggregateOp op,
                                Context *context);
     void run_dml(std::unique_ptr<AbstractExecutor> exec);
-
-    bool isOutputFile() const;
-
-    void setOutputFile(bool outputFile);
 };

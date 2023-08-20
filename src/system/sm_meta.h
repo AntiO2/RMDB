@@ -15,7 +15,6 @@ See the Mulan PSL v2 for more details. */
 #include <map>
 #include <string>
 #include <vector>
-#include <numeric>
 
 #include "errors.h"
 #include "sm_defs.h"
@@ -151,8 +150,7 @@ struct TabMeta {
      * 如果有index返回IndexMeta*/
     //TODO 参数传CompOp的话好像有嵌套调用的错误,先用int草率处理一下
     //0:NOT_EQ, 1:EQ, 2:其他
-    std::pair<IndexMeta,size_t> get_index(const std::vector<std::string>& col_names, const std::vector<int>& ops,
-                                          std::vector<size_t>& cond_index, size_t cond_size, std::vector<size_t>&best_conds)  {
+    std::pair<IndexMeta,size_t> get_index(const std::vector<std::string>& col_names, const std::vector<int>& ops) const {
         //最左匹配, 并支持列的顺序交换
 
         size_t max_match_cols = 0;
@@ -161,16 +159,8 @@ struct TabMeta {
         size_t mismatch_cols = 0;
 
         IndexMeta const* best_choice = nullptr;
-        std::vector<size_t> match_conds;
-        match_conds.reserve(cond_size);
-        best_conds.resize(cond_size);
-        std::vector<bool> book; // 标记条件是否出现过
-        book.resize(cond_size);
-        std::iota(best_conds.begin(),best_conds.end(), 0);
+
         for(auto& index: indexes) {
-            // std::iota(match_conds.begin(),match_conds.end(), 0);
-            match_conds.clear();
-            std::fill(book.begin(), book.end(), false);
             size_t i = 0;
             bool flag_break = false; //标记还能不能走下一列
             bool flag_exit = false;
@@ -192,8 +182,6 @@ struct TabMeta {
                         size_t op_index = item.index;
                         int op = ops[op_index];
                         if(op){
-                            book[cond_index[op_index]] = true; // 标记该条件出现过了
-                            match_conds.emplace_back(cond_index[op_index]);
                             match_cols++;
                             if(op!=1)
                                 flag_break = true;
@@ -209,15 +197,9 @@ struct TabMeta {
                     if(flag_exit)
                         break;
                 }
+
             }
 
-            for(size_t j = 0; j < cond_size; j++) {
-                if(!book[j]) {
-                    // 如果条件j没有出现的话，添加到后面
-                    match_conds.emplace_back(j);
-                }
-            }
-            assert(match_conds.size()==cond_size);
             //i=0的话显然就是a都没有,可以检测下一个Index了
             if(i == 0) continue;
             if(index.col_num < match_cols)
@@ -228,14 +210,12 @@ struct TabMeta {
                 best_choice = &index;
                 min_mismatch_cols = mismatch_cols;
                 max_match_cols = match_cols;
-                best_conds = match_conds;
             }
             match_cols = 0;
         }
-        if(best_choice) {
-            return {*best_choice, max_match_cols};
-        }
 
+        if(best_choice)
+            return {*best_choice, max_match_cols};
         return {IndexMeta(),0};
     }
 

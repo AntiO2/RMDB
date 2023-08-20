@@ -47,9 +47,6 @@ class RmManager {
         file_hdr.num_records_per_page =
             (BITMAP_WIDTH * (PAGE_SIZE - 1 - (int)sizeof(RmFileHdr)) + 1) / (1 + record_size * BITMAP_WIDTH); // check(AntiO2) 是否正确
         file_hdr.bitmap_size = (file_hdr.num_records_per_page + BITMAP_WIDTH - 1) / BITMAP_WIDTH;
-
-        file_hdr.num_records_per_page =
-                (BITMAP_WIDTH * (PAGE_SIZE - 1 - (int)sizeof(RmFileHdr)) + 1) / (2 + record_size * BITMAP_WIDTH);
         // 将file header写入磁盘文件（名为file name，文件描述符为fd）中的第0页
         // head page直接写入磁盘，没有经过缓冲区的NewPage，那么也就不需要FlushPage
         disk_manager_->write_page(fd, RM_FILE_HDR_PAGE, (char *)&file_hdr, PAGE_SIZE);

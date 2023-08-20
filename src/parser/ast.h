@@ -193,17 +193,15 @@ struct SetExpr : public TreeNode {
     SetExpr( bool has_col_, std::shared_ptr<Value> val_) :
     has_col(has_col_),val(std::move(val_)) {
         cal_type = SV_ADD;
-        if(has_col){
-            if(auto x = std::dynamic_pointer_cast<IntLit>(val)){
-                if(x->val < 0){
-                    x->val = -x->val;
-                    cal_type = SV_SUB;
-                }
-            } else if(auto x = std::dynamic_pointer_cast<FloatLit>(val)){
-                if(x->val < 0){
-                    x->val = -x->val;
-                    cal_type = SV_SUB;
-                }
+        if(auto x = std::dynamic_pointer_cast<IntLit>(val)){
+            if(x->val < 0){
+                x->val = -x->val;
+                cal_type = SV_SUB;
+            }
+        } else if(auto x = std::dynamic_pointer_cast<FloatLit>(val)){
+            if(x->val < 0){
+                x->val = -x->val;
+                cal_type = SV_SUB;
             }
         }
     }

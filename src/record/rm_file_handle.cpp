@@ -23,13 +23,13 @@ std::unique_ptr<RmRecord> RmFileHandle::get_record(const Rid& rid, Context* cont
 
     // 1. 获取指定记录所在的page handle
     RmPageHandle pageHandle = fetch_page_handle(rid.page_no);
-    pageHandle.page->RLock();
+
     // 2. 初始化一个指向RmRecord的指针（赋值其内部的data和size）
     int size = pageHandle.file_hdr->record_size;
     std::unique_ptr<RmRecord> record = std::make_unique<RmRecord>(size);
     record->size = size;
     memcpy(record->data, pageHandle.get_slot(rid.slot_no),size);
-    pageHandle.page->RUnlock();
+
     buffer_pool_manager_->unpin_page(PageId{fd_,rid.page_no}, false); // check(AntiO2) 这里是否需要unpin
 
     return record;
@@ -50,7 +50,7 @@ Rid RmFileHandle::insert_record(char* buf, Context* context, std::string* table_
 
     // 1. 获取当前未满的page handle
     RmPageHandle pageHandle = create_page_handle();
-    pageHandle.page->WLock();
+
     // 2. 在page handle中找到空闲slot位置,从位图找
     int slot_no = Bitmap::first_bit(false, pageHandle.bitmap, file_hdr_.num_records_per_page);
     if(slot_no >= file_hdr_.num_records_per_page) {
@@ -98,7 +98,6 @@ Rid RmFileHandle::insert_record(char* buf, Context* context, std::string* table_
 
     pageHandle.page->set_page_lsn(log_record->lsn_);
     //该页面结束使用，取消对该页面的固定,并标记为dirty
-    pageHandle.page->WUnlock();
     buffer_pool_manager_->unpin_page(pageHandle.page->get_page_id(),true);
     return rid;
 }
@@ -114,7 +113,7 @@ void RmFileHandle::insert_record_recover(const Rid &rid, char *buf, lsn_t lsn, i
     file_hdr_.num_pages = num_pages;
     //1. 拿到pageHandle
     RmPageHandle pageHandle = fetch_page_handle(rid.page_no);
-    pageHandle.page->WLock();
+
     //2. 判断并更新位图
     assert(!Bitmap::is_set(pageHandle.bitmap,rid.slot_no));
     Bitmap::set(pageHandle.bitmap,rid.slot_no);
@@ -130,7 +129,7 @@ void RmFileHandle::insert_record_recover(const Rid &rid, char *buf, lsn_t lsn, i
         disk_manager_->write_page(fd_, RM_FILE_HDR_PAGE, (char *)&file_hdr_, sizeof(file_hdr_));
     }
     pageHandle.page->set_page_lsn(lsn);
-    pageHandle.page->WUnlock();
+
     //该页面结束使用，取消对该页面的固定,并标记为dirty
     buffer_pool_manager_->unpin_page(pageHandle.page->get_page_id(),true);
 }
@@ -141,13 +140,14 @@ void RmFileHandle::insert_record_recover(const Rid &rid, char *buf, lsn_t lsn, i
  * @param {Context*} context
  */
 void RmFileHandle::delete_record(const Rid& rid, Context* context, std::string* table_name,  LogOperation log_op, lsn_t undo_next) {
+    // Todo: v
     // 1. 获取指定记录所在的page handle
     // 2. 更新page_handle.page_hdr中的数据结构
     // 注意考虑删除一条记录后页面未满的情况，需要调用release_page_handle()
 
     // 1. 获取指定记录所在的page handle
     RmPageHandle pageHandle = fetch_page_handle(rid.page_no);
-    pageHandle.page->WLock();
+
     //位图判断及更新
     if(!Bitmap::is_set(pageHandle.bitmap,rid.slot_no))
         throw RecordNotFoundError(rid.page_no,rid.slot_no);
@@ -170,7 +170,7 @@ void RmFileHandle::delete_record(const Rid& rid, Context* context, std::string* 
     if(log_mgr->dirty_page_table_.find(PageId{fd_,rid.page_no})==log_mgr->dirty_page_table_.end()) {
         log_mgr->dirty_page_table_.emplace(page_id,log_record->lsn_);
     }
-    Bitmap::reset(pageHandle.mark_delete,rid.slot_no);
+
     Bitmap::reset(pageHandle.bitmap,rid.slot_no);
     // 2. 更新page_handle.page_hdr中的数据结构
     pageHandle.page_hdr->num_records--;
@@ -180,7 +180,6 @@ void RmFileHandle::delete_record(const Rid& rid, Context* context, std::string* 
         release_page_handle(pageHandle);
     }
     pageHandle.page->set_page_lsn(log_record->lsn_);
-    pageHandle.page->WUnlock();
     buffer_pool_manager_->unpin_page(PageId{fd_, rid.page_no}, true);
 }
 
@@ -194,23 +193,19 @@ void RmFileHandle::delete_record_recover(const Rid& rid,lsn_t lsn, int first_fre
     file_hdr_.first_free_page_no = first_free_page;
     file_hdr_.num_pages = num_pages;
     RmPageHandle pageHandle = fetch_page_handle(rid.page_no);
-    pageHandle.page->WLock();
     //位图判断及更新
     if(!Bitmap::is_set(pageHandle.bitmap,rid.slot_no))
         throw RecordNotFoundError(rid.page_no,rid.slot_no);
-
-    Bitmap::reset(pageHandle.mark_delete,rid.slot_no);
     Bitmap::reset(pageHandle.bitmap,rid.slot_no);
 
     // 2. 更新page_handle.page_hdr中的数据结构
     pageHandle.page_hdr->num_records--;
     pageHandle.page->set_page_lsn(lsn);
-    pageHandle.page->WUnlock();
+    buffer_pool_manager_->unpin_page(PageId{fd_, rid.page_no}, true);
     if(pageHandle.page_hdr->num_records == file_hdr_.num_records_per_page - 1) {
         // 当从无空位转化成有空位，进行release操作
         release_page_handle(pageHandle);
     }
-    buffer_pool_manager_->unpin_page(PageId{fd_, rid.page_no}, true);
 }
 
 /**
@@ -226,7 +221,7 @@ void RmFileHandle::update_record(const Rid& rid, char* buf, Context* context, st
 
     // 1. 获取指定记录所在的page handle
     RmPageHandle pageHandle = fetch_page_handle(rid.page_no);
-    pageHandle.page->WLock();
+
     //判断位图
     if (!Bitmap::is_set(pageHandle.bitmap, rid.slot_no)) {
         assert(false);
@@ -260,7 +255,6 @@ void RmFileHandle::update_record(const Rid& rid, char* buf, Context* context, st
 
     memcpy(addr_slot,buf,size);
     pageHandle.page->set_page_lsn(log_record->lsn_);
-    pageHandle.page->WUnlock();
     buffer_pool_manager_->unpin_page(PageId{fd_,rid.page_no}, true);
 }
 /**
@@ -279,7 +273,6 @@ void RmFileHandle::update_record_recover(const Rid& rid, char* buf,lsn_t lsn, in
 
     // 1. 获取指定记录所在的page handle
     RmPageHandle pageHandle = fetch_page_handle(rid.page_no);
-    pageHandle.page->WLock();
     //判断位图
     if (!Bitmap::is_set(pageHandle.bitmap, rid.slot_no)) {
         throw RecordNotFoundError(rid.page_no, rid.slot_no);
@@ -288,8 +281,6 @@ void RmFileHandle::update_record_recover(const Rid& rid, char* buf,lsn_t lsn, in
     char* addr_slot = pageHandle.get_slot(rid.slot_no);
     memcpy(addr_slot,buf,pageHandle.file_hdr->record_size);
     pageHandle.page->set_page_lsn(lsn);
-    pageHandle.page->WUnlock();
-
     buffer_pool_manager_->unpin_page(PageId{fd_,rid.page_no}, true);
 }
 /**
@@ -389,70 +380,3 @@ void RmFileHandle::release_page_handle(RmPageHandle&page_handle) {
     file_hdr_.first_free_page_no = page_handle.page->get_page_id().page_no;
     disk_manager_->write_page(fd_, RM_FILE_HDR_PAGE, (char *)&file_hdr_, sizeof(file_hdr_)); // 更新之后，需要立即写回磁盘
 }
-
-void RmFileHandle::mark_delete_record(const Rid &rid, Context *context, std::string *table_name, LogOperation log_op,
-                                      lsn_t undo_next) {
-    // 1. 获取指定记录所在的page handle
-    RmPageHandle pageHandle = fetch_page_handle(rid.page_no);
-    pageHandle.page->WLock();
-    auto txn = context->txn_;
-    auto log_mgr = context->log_mgr_;
-    auto page_id = PageId{fd_,rid.page_no};
-    LogRecord* log_record= nullptr;
-    if(log_op==LogOperation::REDO) {
-        log_record = new Mark_Delete_Record(txn->getTxnId(), rid, *table_name, txn->getPrevLsn(), file_hdr_.first_free_page_no, file_hdr_.num_pages);
-    } else {
-        log_record = new CLR_Delete_Record(context->txn_->getTxnId(), rid, *table_name,context->txn_->get_prev_lsn(), undo_next, file_hdr_.first_free_page_no, file_hdr_.num_pages);
-    }
-    log_mgr->add_log_to_buffer(log_record);
-    txn->set_prev_lsn(log_record->lsn_);
-    log_mgr->active_txn_table_[txn->getTxnId()] = log_record->lsn_;
-    if(log_mgr->dirty_page_table_.find(PageId{fd_,rid.page_no})==log_mgr->dirty_page_table_.end()) {
-        log_mgr->dirty_page_table_.emplace(page_id,log_record->lsn_);
-    }
-
-    if(log_op==LogOperation::REDO) {
-        Bitmap::set(pageHandle.mark_delete,rid.slot_no);
-    } else {
-        Bitmap::reset(pageHandle.mark_delete,rid.slot_no);
-    }
-    buffer_pool_manager_->unpin_page(PageId{fd_, rid.page_no}, true);
-
-    pageHandle.page->set_page_lsn(log_record->lsn_);
-    pageHandle.page->WUnlock();
-    buffer_pool_manager_->unpin_page(PageId{fd_, rid.page_no}, true);
-}
-
-bool RmFileHandle::is_mark_delete(const Rid &rid, Context *context) const {
-    RmPageHandle pageHandle = fetch_page_handle(rid.page_no);
-    pageHandle.page->RLock();
-    auto res = Bitmap::is_set(pageHandle.mark_delete, rid.slot_no);
-    pageHandle.page->RUnlock();
-    return res;
-
-}
-
-void
-RmFileHandle::mark_delete_record_recover(const Rid &rid, lsn_t lsn, int first_free_page, int num_pages, bool mark) {
-    file_hdr_.first_free_page_no = first_free_page;
-    file_hdr_.num_pages = num_pages;
-    // 1. 获取指定记录所在的page handle
-    // 2. 更新记录
-
-    // 1. 获取指定记录所在的page handle
-    RmPageHandle pageHandle = fetch_page_handle(rid.page_no);
-    pageHandle.page->WLock();
-    // 2. 更新记
-    if(mark) {
-        Bitmap::set(pageHandle.mark_delete, rid.slot_no);
-    } else {
-        Bitmap::reset(pageHandle.mark_delete, rid.slot_no);
-    }
-    pageHandle.page->set_page_lsn(lsn);
-    pageHandle.page->WUnlock();
-    buffer_pool_manager_->unpin_page(PageId{fd_,rid.page_no}, true);
-}
-
-
-
-

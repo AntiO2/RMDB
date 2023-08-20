@@ -373,7 +373,7 @@ private:
             if(res==0) return false; // 如果两个点相等，返回false
             return true;
         }
-        bool CheckSLock(GapLockRequest &request) {
+        bool CheckSLock(GapLockRequest &request, LockMode lock_mode) {
             // 检查是否和读锁冲突
             if(request.point_lock) {
                 for(auto &s_request:s_request_queue_) {
@@ -384,7 +384,7 @@ private:
                         }
                     }   else {
                         // 按照先请求，先授权的原则
-                        return request.txn_id==s_request->txn_id;
+                        break;
                     }
                 }
                 for(auto &s_point_request:s_point_queue_) {
@@ -396,7 +396,12 @@ private:
                         }
                     }  else {
                         // 按照先请求，先授权的原则
-                        return request.txn_id==s_point_request->txn_id;
+                        if(lock_mode==LockMode::SHARED) {
+                            if(request.txn_id!=s_point_request->txn_id) {
+                                return false;
+                            }
+                        }
+                        break;
                     }
                 }
 
@@ -410,7 +415,12 @@ private:
                         }
                     } else {
                         // 按照先请求，先授权的原则
-                        return request.txn_id==s_request->txn_id;
+                        if(lock_mode==LockMode::SHARED) {
+                            if(request.txn_id!=s_request->txn_id) {
+                                return false;
+                            }
+                        }
+                        break;
                     }
                 }
                 // 线段和点
@@ -421,13 +431,13 @@ private:
                         }
                     } else {
                         // 按照先请求，先授权的原则
-                        return request.txn_id==s_point_request->txn_id;
+                        break;
                     }
                 }
             }
             return true;
         }
-        bool CheckXLock(GapLockRequest &request) {
+        bool CheckXLock(GapLockRequest &request, LockMode lock_mode) {
             // 检查是否和写锁冲突
             if(request.point_lock) {
                 for(auto &x_request:x_request_queue_) {
@@ -438,7 +448,8 @@ private:
                         }
                     } else {
                         // 按照先请求，先授权的原则
-                        return request.txn_id==x_request->txn_id;
+                        // 想要请求x锁，并且是电锁
+                        break;
                     }
                 }
                 for(auto &x_point_request:x_point_queue_) {
@@ -450,7 +461,12 @@ private:
                         }
                     } else {
                         // 按照先请求，先授权的原则
-                        return request.txn_id==x_point_request->txn_id;
+                        if(lock_mode==LockMode::EXCLUSIVE) {
+                            if(request.txn_id!=x_point_request->txn_id) {
+                                return false;
+                            }
+                        }
+                        break;
                     }
                 }
             } else {
@@ -462,7 +478,13 @@ private:
                         }
                     } else {
                         // 按照先请求，先授权的原则
-                        return request.txn_id==x_request->txn_id;
+                        if(lock_mode==LockMode::EXCLUSIVE) {
+                            if(request.txn_id!=x_request->txn_id) {
+                                return false;
+                            }
+                        }
+
+                        break;
                     }
                 }
                 for(auto &x_point_request:x_point_queue_) {
@@ -472,7 +494,7 @@ private:
                         }
                     } else {
                         // 按照先请求，先授权的原则
-                        return request.txn_id==x_point_request->txn_id;
+                        break;
                     }
                 }
             }

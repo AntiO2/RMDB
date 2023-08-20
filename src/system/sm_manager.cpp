@@ -467,6 +467,7 @@ void SmManager::load_csv(std::string file_name,std::string tab_name,Context* con
     //思路是借鉴insert的方式，对csv里面的每一行进行insert
     //1.打开文件
     std::ifstream infile;
+    file_name="../"+file_name;
     infile.open(file_name);
     if(!infile.is_open()){
         throw UnixError();
@@ -479,7 +480,7 @@ void SmManager::load_csv(std::string file_name,std::string tab_name,Context* con
     //去拿sm_manager
     extern std::unique_ptr<SmManager>  sm_manager;
     auto sm_manager_ = sm_manager.get();
-    while(std::getline(infile,line)){
+    while(std::getline(infile,line)) {
         //将values清空
         values.clear();
         std::stringstream ss(line);

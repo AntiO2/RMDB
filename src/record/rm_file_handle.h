@@ -27,14 +27,14 @@ struct RmPageHandle {
     Page *page;                 // 页面的实际数据，包括页面存储的数据、元信息等
     RmPageHdr *page_hdr;        // page->data的第一部分，存储页面元信息，指针指向首地址，长度为sizeof(RmPageHdr)
     char *bitmap;               // page->data的第二部分，存储页面的bitmap，指针指向首地址，长度为file_hdr->bitmap_size
+    char *mark_delete;
     char *slots;                // page->data的第三部分，存储表的记录，指针指向首地址，每个slot的长度为file_hdr->record_size
-
     RmPageHandle(const RmFileHdr *fhdr_, Page *page_) : file_hdr(fhdr_), page(page_) {
         page_hdr = reinterpret_cast<RmPageHdr *>(page->get_data() + page->OFFSET_PAGE_HDR);
         bitmap = page->get_data() + sizeof(RmPageHdr) + page->OFFSET_PAGE_HDR;
-        slots = bitmap + file_hdr->bitmap_size;
+        mark_delete = page->get_data() + sizeof(RmPageHdr) + page->OFFSET_PAGE_HDR + file_hdr->bitmap_size;
+        slots = bitmap + 2 * file_hdr->bitmap_size;
     }
-
     // 返回指定slot_no的slot存储收地址
     char* get_slot(int slot_no) const {
         return slots + slot_no * file_hdr->record_size;  // slots的首地址 + slot个数 * 每个slot的大小(每个record的大小)
@@ -88,7 +88,9 @@ class RmFileHandle {
 
     Rid insert_record(char *buf, Context *context, std::string* table_name= nullptr,
                       LogOperation log_op = LogOperation::REDO, lsn_t undo_next = INVALID_LSN);
-
+    void mark_delete_record(const Rid &rid, Context *context, std::string* table_name,
+                            LogOperation log_op = LogOperation::REDO, lsn_t undo_next = INVALID_LSN);
+    bool is_mark_delete(const Rid &rid, Context *context) const;
     void delete_record(const Rid &rid, Context *context, std::string* table_name,
                        LogOperation log_op = LogOperation::REDO, lsn_t undo_next = INVALID_LSN);
 
@@ -104,9 +106,9 @@ class RmFileHandle {
      * @param num_pages
      */
     void insert_record_recover(const Rid &rid, char *buf, lsn_t lsn, int first_free_page, int num_pages);
-    void delete_record_recover(const Rid &rid,lsn_t lsn, int first_free_page, int num_pages);
+    void delete_record_recover(const Rid &rid, lsn_t lsn, int first_free_page, int num_pages);
     void update_record_recover(const Rid &rid, char *buf, lsn_t lsn, int first_free_page, int num_pages);
-
+    void mark_delete_record_recover(const Rid &rid, lsn_t lsn, int first_free_page, int num_pages, bool mark);
     RmPageHandle create_new_page_handle();
 
     RmPageHandle fetch_page_handle(int page_no) const;

@@ -30,13 +30,13 @@ class QlManager {
    private:
     SmManager *sm_manager_;
     TransactionManager *txn_mgr_;
-
+    bool output_file_{true};
    public:
     QlManager(SmManager *sm_manager, TransactionManager *txn_mgr) 
         : sm_manager_(sm_manager),  txn_mgr_(txn_mgr) {}
 
     void run_mutli_query(std::shared_ptr<Plan> plan, Context *context);
-    void run_cmd_utility(std::shared_ptr<Plan> plan, txn_id_t *txn_id, Context *context);
+    void run_cmd_utility(std::shared_ptr<Plan> plan, txn_id_t *txn_id,Context *context);
     void select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot, std::vector<TabCol> sel_cols,
                         Context *context);
     //liamY 新加入一个处理执行聚合函数plan的函数
@@ -44,4 +44,7 @@ class QlManager {
                                Context *context);
     void run_dml(std::unique_ptr<AbstractExecutor> exec);
 
+    bool isOutputFile() const;
+
+    void setOutputFile(bool outputFile);
 };

@@ -71,6 +71,14 @@ private:
         return m.at(type);
     }
 
+    static std::string type2str(CalType type) {
+        static std::map<CalType, std::string> m{
+                { SV_ADD," add"},
+                {SV_SUB, "SUB"},
+        };
+        return m.at(type);
+    }
+
     static std::string op2str(SvCompOp op) {
         static std::map<SvCompOp, std::string> m{
                 {SV_OP_EQ, "=="},
@@ -161,7 +169,7 @@ private:
         } else if (auto x = std::dynamic_pointer_cast<SetClause>(node)) {
             std::cout << "SET_CLAUSE\n";
             print_val(x->col_name, offset);
-            print_node(x->val, offset);
+            print_node(x->set_expr, offset);
         } else if (auto x = std::dynamic_pointer_cast<BinaryExpr>(node)) {
             std::cout << "BINARY_EXPR\n";
             print_node(x->lhs, offset);
@@ -208,7 +216,21 @@ private:
             std::cout << "ORDERBY\n";
             print_node(x->cols,offset);
             print_val(type2str(x->orderby_dir),offset);
-        } else {
+        } else if(auto x = std::dynamic_pointer_cast<ast::SetExpr>(node)){
+            std::cout << "SetExpr\n";
+            if(x->has_col){
+                print_val(type2str(x->cal_type),offset);
+            }
+
+            print_node(x->val,offset);
+        } else if(auto x = std::dynamic_pointer_cast<LoadStmt>(node)){
+            std::cout << "LoadStmt\n";
+            print_val(x->file_name,offset);
+            print_val(x->tab_name,offset);
+        } else if(auto x = std::dynamic_pointer_cast<SetOff>(node)){
+            std::cout << "set output_file off\n";
+        }
+        else {
             assert(0);
         }
     }

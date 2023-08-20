@@ -34,7 +34,7 @@ typedef enum portalTag{
     PORTAL_DML_WITHOUT_SELECT,
     PORTAL_MULTI_QUERY,
     PORTAL_CMD_UTILITY,
-    PORTAL_ONE_SELECT_AGGREGATE
+    PORTAL_ONE_SELECT_AGGREGATE,
 } portalTag;
 
 
@@ -71,13 +71,14 @@ class Portal
         // 这里可以将select进行拆分，例如：一个select，带有return的select等
         if (auto x = std::dynamic_pointer_cast<OtherPlan>(plan)) {
             return std::make_shared<PortalStmt>(PORTAL_CMD_UTILITY, std::vector<TabCol>(), std::unique_ptr<AbstractExecutor>(),plan);
+        } else if(auto x = std::dynamic_pointer_cast<LoadPlan>(plan)){
+            return std::make_shared<PortalStmt>(PORTAL_CMD_UTILITY,std::vector<TabCol>(),std::unique_ptr<AbstractExecutor>(),plan);
         } else if (auto x = std::dynamic_pointer_cast<DDLPlan>(plan)) {
             return std::make_shared<PortalStmt>(PORTAL_MULTI_QUERY, std::vector<TabCol>(), std::unique_ptr<AbstractExecutor>(),plan);
         } else if (auto x = std::dynamic_pointer_cast<DMLPlan>(plan)) {
             switch(x->tag) {
                 case T_select:
                 {
-
                     std::shared_ptr<ProjectionPlan> p = std::dynamic_pointer_cast<ProjectionPlan>(x->subplan_);
                     // root表示取出数据的执行器
                     std::unique_ptr<AbstractExecutor> root= convert_plan_executor(p, context, false);
@@ -199,16 +200,19 @@ class Portal
                     context->lock_mgr_->lock_shared_on_table(context->txn_,fd);
                 }
             }
+            if(context->txn_->get_isolation_level()==IsolationLevel::REPEATABLE_READ&&!dml_mode) {
+                //
+            }
             if(x->tag == T_SeqScan) {
 //                if(x->op_){//liamY 如果有聚合函数的操作
 //                    return std::make_unique<SeqScanExecutor>(sm_manager_, x->tab_name_, x->conds_, context,x->col_as_name_,x->op_);
 //                }else {
-                    return std::make_unique<SeqScanExecutor>(sm_manager_, x->tab_name_, x->conds_, context);
+                    return std::make_unique<SeqScanExecutor>(sm_manager_, x->tab_name_, x->conds_, context,dml_mode);
 //                }
             }
             else {
-                return std::make_unique<IndexScanExecutor>(sm_manager_, x->tab_name_, x->conds_, x->index_col_names_,x->index_meta_, x->index_match_length_, context);
-            } 
+                return std::make_unique<IndexScanExecutor>(sm_manager_, x->tab_name_, x->conds_, x->index_col_names_,x->index_meta_, x->index_match_length_, context, dml_mode);
+            }
         } else if(auto x = std::dynamic_pointer_cast<JoinPlan>(plan)) {
             std::unique_ptr<AbstractExecutor> left = convert_plan_executor(x->left_, context, dml_mode);
             std::unique_ptr<AbstractExecutor> right = convert_plan_executor(x->right_, context, dml_mode);

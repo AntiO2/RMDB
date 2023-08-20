@@ -2,7 +2,6 @@ include(GoogleTest)
 include_directories(${PROJECT_SOURCE_DIR}/src)
 include_directories(${PROJECT_SOURCE_DIR}/deps/fmt/include)
 add_subdirectory(my_concurrency_test)
-add_subdirectory(generate_data)
 #set(test_dependency
 #        gtest_main
 #        )
@@ -44,6 +43,7 @@ target_link_libraries(storage2_test
 target_link_libraries(executor_test
         execution)
 target_link_libraries(index_test
-        index)
+storage index
+        )
 target_link_libraries(crab_test
         index)

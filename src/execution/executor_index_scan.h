@@ -32,15 +32,17 @@ class IndexScanExecutor : public AbstractExecutor {
 
     size_t index_match_length_;
     IxIndexHandle* ix_handler_{nullptr};
-    Rid rid_;
+
+    Rid rid_{};
     SmManager *sm_manager_;
     std::unique_ptr<IxScan> ix_scan_;
     std::unique_ptr<RmRecord> rm_; //下一个Next返回的record
-
+    bool dml_mode_;
     bool is_end_{false};
    public:
     IndexScanExecutor(SmManager *sm_manager, std::string tab_name, std::vector<Condition> conds, std::vector<std::string> index_col_names,
-                    IndexMeta indexMeta, size_t index_match_length, Context *context) {
+                    IndexMeta indexMeta, size_t index_match_length, Context *context, bool dml_mode= false) {
+        dml_mode_ = dml_mode;
         sm_manager_ = sm_manager;
         context_ = context;
         tab_name_ = std::move(tab_name);
@@ -71,7 +73,7 @@ class IndexScanExecutor : public AbstractExecutor {
     }
 
     void beginTuple() override {
-        auto index_name = sm_manager_->get_ix_manager()->get_index_name(tab_name_,index_meta_.cols);
+        auto index_name = IxManager::get_index_name(tab_name_,index_meta_.cols);
         auto iter = sm_manager_->ihs_.find(index_name);
         if(iter==sm_manager_->ihs_.end()) {
             auto index_handler = sm_manager_->get_ix_manager()->open_index(index_name);
@@ -79,11 +81,15 @@ class IndexScanExecutor : public AbstractExecutor {
         }
         ix_handler_=iter->second.get(); // 获取索引
 
-        char upper_key[index_meta_.col_tot_len]; // 上限
-        char lower_key[index_meta_.col_tot_len]; //下限
+        auto upper_key = new char [index_meta_.col_tot_len]; // 上限
+        auto lower_key = new char [index_meta_.col_tot_len]; //下限
 
         bool upper = false;
+
+
         bool lower = false;
+        bool gt = false;
+        bool lt = false;
         long equal = -1;
         int offset = 0;
 
@@ -103,6 +109,8 @@ class IndexScanExecutor : public AbstractExecutor {
             if(pos!=prev_pos) {
                 //  如果移到了下一列
                 offset+=prev_len;
+                gt = false;
+                lt = false;
             }
             switch (conds_.at(i).op) {
                 case OP_EQ:
@@ -115,6 +123,7 @@ class IndexScanExecutor : public AbstractExecutor {
                     equal = pos;
                     break;
                 case OP_LT:
+                    lt = true;
                 case OP_LE:
                     if(equal==pos) {
                         // 如果在该列上已经有了等于条件
@@ -134,6 +143,7 @@ class IndexScanExecutor : public AbstractExecutor {
                     }
                     break;
                 case OP_GT:
+                    gt = true;
                 case OP_GE:
                     if(equal==pos) {
                         // 如果在该列上已经有了等于条件
@@ -159,34 +169,120 @@ class IndexScanExecutor : public AbstractExecutor {
             prev_len = col->len;
         }
         Iid lower_iid{},upper_iid{};
+        GapLockPoint left_point;
+        GapLockPoint right_point;
+        IxNodeHandle* begin_node;
         if(lower) {
             // 最后的判断条件有大于/大于等于
-            lower_iid = ix_handler_->lower_bound_cnt(lower_key,prev_pos + 1);
+            auto res = ix_handler_->lower_bound_cnt(lower_key,prev_pos + 1);
+            lower_iid = res.first;
+            begin_node = res.second;
+            size_t tot_len = 0;
+            for (int i = 0; i < prev_pos+1; ++i) {
+                tot_len+=cols_[i].len;
+            }
+            if(gt) {
+                left_point=GapLockPoint(lower_key,GapLockPointType::NE, tot_len, prev_pos + 1);
+                // 空心端点
+            } else {
+                left_point=GapLockPoint(lower_key,GapLockPointType::E, tot_len, prev_pos+1);
+            }
         } else {
             // 没有下限
             if(equal >=0) {
+                size_t tot_len = 0;
+                for (int i = 0; i < equal+1; ++i) {
+                    tot_len+=cols_[i].len;
+                }
                 // 前面有等于号，从等于号开始找
-                lower_iid = ix_handler_->lower_bound_cnt(lower_key,equal+1);
+                auto res = ix_handler_->lower_bound_cnt(lower_key,equal+1);
+                lower_iid = res.first;
+                begin_node = res.second;
+                left_point=GapLockPoint(lower_key,GapLockPointType::E, tot_len, equal+1);
             } else {
                 // 相当于没有下限了
-                lower_iid = ix_handler_->leaf_begin();
+                auto res = ix_handler_->leaf_begin();
+                lower_iid = res.first;
+                begin_node = res.second;
+                // 这里因为获取了ix_scan的page，所以暂时不能unpin
+                // 没有左端点
+                left_point=GapLockPoint(nullptr,GapLockPointType::INF, 0, 0);
             }
         }
+        size_t tot_len = 0;
         if(upper) {
             // 最后的判断条件有小于/小于等于
-            upper_iid = ix_handler_->upper_bound_cnt(upper_key,prev_pos + 1);
+            for (int i = 0; i < prev_pos+1; ++i) {
+                tot_len+=cols_[i].len;
+            }
+            if(lt) {
+                right_point=GapLockPoint(upper_key,GapLockPointType::NE, tot_len, prev_pos+1);
+                // 空心端点
+            } else {
+                // less equal
+                right_point=GapLockPoint(upper_key,GapLockPointType::E, tot_len, prev_pos+1);
+            }
+            auto res = ix_handler_->upper_bound_cnt(upper_key,prev_pos + 1);
+            upper_iid = res.first;
+            res.second->get_page()->RUnlock();
+            sm_manager_->get_bpm()->unpin_page(res.second->get_page_id(), false);
         } else {
             // 没有上限
             if(equal >=0) {
                 // 前面有等于号，从等于号开始找
-                upper_iid = ix_handler_->upper_bound_cnt(upper_key,equal+1);
+                auto[end_iid,node] = ix_handler_->upper_bound_cnt(upper_key,equal+1);
+                upper_iid = end_iid;
+                node->get_page()->RUnlock();
+                sm_manager_->get_bpm()->unpin_page(node->get_page_id(), false);
+
+                for (int i = 0; i < equal+1; ++i) {
+                    tot_len+=cols_[i].len;
+                }
+                right_point=GapLockPoint(upper_key,GapLockPointType::E, tot_len,equal+1);
             } else {
-                // 相当于没有下限了
-                upper_iid = ix_handler_->leaf_end();
+                // 相当于没有上限了
+                auto[end_iid,node] = ix_handler_->leaf_end();
+                upper_iid = end_iid;
+                node->get_page()->RUnlock();
+                sm_manager_->get_bpm()->unpin_page(node->get_page_id(), false);
+                right_point=GapLockPoint(nullptr,GapLockPointType::INF, 0, 0);
             }
         }
-        ix_scan_ = std::make_unique<IxScan>(ix_handler_,lower_iid,upper_iid,sm_manager_->get_bpm());
-        is_end_ = false;
+
+        if(context_->txn_->get_isolation_level()==IsolationLevel::REPEATABLE_READ) {
+            try {
+                if (equal + 1 == index_col_types.size()) {
+                    // 如果是单点查询，比如index w(a,b) ;select from w where a=1 and b=2
+                    GapLockRequest lock_request(left_point, context_->txn_->get_transaction_id());
+                    if (dml_mode_) {
+                        context_->lock_mgr_->lock_gap_on_index(context_->txn_, lock_request, ix_handler_->getFd(), cols_, LockManager::LockMode::EXCLUSIVE);
+                    } else {
+                        context_->lock_mgr_->lock_gap_on_index(context_->txn_, lock_request, ix_handler_->getFd(), cols_,
+                                                               LockManager::LockMode::SHARED);
+                    }
+                } else {
+                    // 加间隙锁
+                    GapLockRequest lock_request(left_point, right_point, context_->txn_->get_transaction_id());
+                    if (dml_mode_) {
+                        context_->lock_mgr_->lock_gap_on_index(context_->txn_, lock_request, ix_handler_->getFd(), cols_,
+                                                               LockManager::LockMode::EXCLUSIVE);
+                    } else {
+                        context_->lock_mgr_->lock_gap_on_index(context_->txn_, lock_request, ix_handler_->getFd(), cols_,
+                                                               LockManager::LockMode::SHARED);
+                    }
+                }
+            } catch (TransactionAbortException &e) {
+                begin_node->get_page()->RUnlock();
+                sm_manager_->get_bpm()->unpin_page(begin_node->get_page_id(), false);
+                throw e;
+            }
+
+        }
+        ix_scan_ = std::make_unique<IxScan>(ix_handler_,lower_iid,upper_key,tot_len,right_point.col_len_,sm_manager_->get_bpm()
+                ,begin_node, right_point.type_);
+        is_end_ = ix_scan_->is_end();
+        delete[] upper_key;
+        delete[] lower_key;
         nextTuple();
     }
 
@@ -196,13 +292,25 @@ class IndexScanExecutor : public AbstractExecutor {
         }
         while(!ix_scan_->is_end()) {
             rid_ = ix_scan_->rid(); // 获取下一个rid
+            if(context_->txn_->get_isolation_level()==IsolationLevel::REPEATABLE_READ) {
+                if(!context_->txn_->IsRowSharedLocked(fh_->GetFd(),rid_)&&!context_->txn_->IsRowExclusiveLocked(fh_->GetFd(),rid_)) {
+                    context_->lock_mgr_->lock_shared_on_record(context_->txn_, rid_, fh_->GetFd());
+                }
+            }
             rm_ = fh_->get_record(rid_,context_);
             if(CheckConditions()) {
                 // 如果条件为真（所有where 通过）
+                if(context_->txn_->get_isolation_level()==IsolationLevel::REPEATABLE_READ) {
+                    // 对行上锁
+                    if(dml_mode_) {
+                        context_->lock_mgr_->lock_exclusive_on_record(context_->txn_, rid_, fh_->GetFd());
+                    }
+                }
                 ix_scan_->next();
                 return;
             }
             ix_scan_->next();
+            // is_end_ = ix_scan_->is_end();
         }
         is_end_=true;
     }

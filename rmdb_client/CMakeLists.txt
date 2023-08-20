@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 project(rmdb_client)
 
+add_subdirectory(generate_data)
+add_subdirectory(src)
 set(CMAKE_CXX_STANDARD 20)
 find_package(Threads REQUIRED)
 

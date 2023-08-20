@@ -614,6 +614,7 @@ auto LockManager::CheckCompatible(LockManager::LockMode old_lock,
 }
 
 bool LockManager::lock_gap_on_index(Transaction *txn,GapLockRequest request, int iid, const std::vector<ColMeta> &col_meta,LockMode lock_mode) {
+    return true;
     if(txn->get_state()==TransactionState::SHRINKING) {
         txn->set_state(TransactionState::ABORTED);
         // 如果在收缩阶段加锁，抛出异常
@@ -629,6 +630,7 @@ bool LockManager::lock_gap_on_index(Transaction *txn,GapLockRequest request, int
     latch_.unlock();
     auto txn_id = txn->get_transaction_id();
     txn->set_state(TransactionState::GROWING);
+    // 在上锁前，先检查已有的事务是否冲突
     for (auto &x_request : lock_request_queue->x_request_queue_) {
         if(x_request->granted_) {
             if(txn_id!=x_request->txn_id) {
@@ -640,8 +642,9 @@ bool LockManager::lock_gap_on_index(Transaction *txn,GapLockRequest request, int
                     lock_request_queue->latch_.unlock();
                     throw TransactionAbortException(txn->get_transaction_id(),AbortReason::DEADLOCK_PREVENTION);
                 }
-
             }
+        } else {
+            break;
         }
         // 同一事务可能加上多个锁
     }
@@ -657,6 +660,8 @@ bool LockManager::lock_gap_on_index(Transaction *txn,GapLockRequest request, int
                     throw TransactionAbortException(txn->get_transaction_id(),AbortReason::DEADLOCK_PREVENTION);
                 }
             }
+        } else {
+            break;
         }
         // 同一事务可能加上多个锁
     }

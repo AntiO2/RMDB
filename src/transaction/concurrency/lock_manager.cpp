@@ -627,7 +627,7 @@ bool LockManager::lock_gap_on_index(Transaction *txn,GapLockRequest request, int
     }
     auto lock_request_queue = gap_request_queue_iter->second;
     // lock_request_queue->latch_.lock();
-    lock_request_queue->latch_.lock();
+    std::unique_lock<std::mutex> queue( lock_request_queue->latch_);
     latch_.unlock();
     auto txn_id = txn->get_transaction_id();
     txn->set_state(TransactionState::GROWING);
@@ -701,6 +701,30 @@ bool LockManager::lock_gap_on_index(Transaction *txn,GapLockRequest request, int
         }
     }
     // 循环完队列，没有冲突
+
+    request.granted_ = true;
+    auto no_wait_request = std::make_shared<GapLockRequest>(request);
+    switch (lock_mode) {
+
+        case LockMode::SHARED:
+            if(no_wait_request->point_lock) {
+                lock_request_queue->s_point_queue_.emplace_back(no_wait_request);
+            } else {
+                lock_request_queue->s_request_queue_.emplace_back(no_wait_request);
+            }
+            break;
+        case LockMode::EXCLUSIVE:
+            if(no_wait_request->point_lock) {
+                lock_request_queue->x_point_queue_.emplace_back(no_wait_request);
+            } else {
+                lock_request_queue->x_request_queue_.emplace_back(no_wait_request);
+            }
+            break;
+        default:
+            assert(false);
+    }
+    txn->gap_lock_set_->emplace(iid);
+    return true;
     // 以下为wait_die
     /**************************************************************
      *

@@ -24,7 +24,6 @@ typedef enum PlanTag{
     T_Help,
     T_ShowTable,
     T_ShowIndex,
-    T_SetOff,
     T_DescTable,
     T_CreateTable,
     T_DropTable,
@@ -206,19 +205,6 @@ class OtherPlan : public Plan
         }
         ~OtherPlan(){}
         std::string tab_name_;
-};
-
-class LoadPlan : public Plan
-{
-    public:
-       LoadPlan(std::string file_name,std::string tab_name)
-       {
-           file_name_ = std::move(file_name);
-           tab_name_ = std::move(tab_name);
-       }
-       ~LoadPlan(){}
-       std::string file_name_;
-       std::string tab_name_;
 };
 
 class plannerInfo{

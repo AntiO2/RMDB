@@ -49,11 +49,6 @@ void TransactionManager::commit(Transaction* txn, LogManager* log_manager) {
     auto write_set = txn->get_write_set();
     while(!write_set->empty()) {
       // log_manager->add_log_to_buffer(new log_record);
-      auto write = write_set->front().get();
-      if(write->GetWriteType()==WType::DELETE_TUPLE||write->GetWriteType()==WType::CLR_DELETE) {
-          auto fh = sm_manager_->fhs_[write->GetTableName()].get();
-          fh->delete_record(write->GetRid(), context, &write->GetTableName(), LogOperation::REDO);
-      }
       write_set->pop_front();
     }
     // 2. 释放所有锁
@@ -88,7 +83,7 @@ void TransactionManager::abort(Transaction * txn, LogManager *log_manager) {
     auto write_set = txn->get_write_set();
     auto context = new Context(lock_manager_, log_manager, txn);
     for(auto r_write_iter = write_set->rbegin();r_write_iter!=write_set->rend();++r_write_iter){//改成倒着读取record内容
-        auto write = (*r_write_iter).get();
+        auto write = *r_write_iter;
 //    }
 //    for(auto&write:*write_set) {
       auto tab_name = write->GetTableName();
@@ -106,44 +101,32 @@ void TransactionManager::abort(Transaction * txn, LogManager *log_manager) {
       }
       case WType::DELETE_TUPLE: {
         auto old_rec = write->GetRecord();
-//        auto rid = table->insert_record(old_rec.data,context, &write->GetTableName(),LogOperation::UNDO, write->getUndoNext());
-        // delete此时还没有被写入bitmap
-        // 取消删除的标记
-        table->mark_delete_record(write->GetRid(), context, &tab_name, LogOperation::UNDO, write->getUndoNext());
+        auto rid = table->insert_record(old_rec.data,context, &write->GetTableName(),LogOperation::UNDO, write->getUndoNext());
         for(const auto& index:sm_manager_->db_.get_table(tab_name).indexes) {
-          auto index_name = IxManager::get_index_name(tab_name,index.cols);
+          auto index_name = sm_manager_->get_ix_manager()->get_index_name(tab_name,index.cols);
           auto &index_handler = sm_manager_->ihs_.at(index_name);
-          index_handler->insert_entry(old_rec.key_from_rec(index.cols)->data, write->GetRid(),txn);
+          index_handler->insert_entry(old_rec.key_from_rec(index.cols)->data,rid,txn);
         }
         break;
       }
-      case WType::UPDATE_TUPLE: {
-          auto old_rec = write->GetRecord();
-          auto new_rec = table->get_record(write->GetRid(),context);
-          for(const auto& index:sm_manager_->db_.get_table(tab_name).indexes) {
-              auto index_name = IxManager::get_index_name(tab_name,index.cols);
-              auto &index_handler = sm_manager_->ihs_.at(index_name);
-              index_handler->delete_entry(new_rec->key_from_rec(index.cols)->data,txn);
-          }
-          auto rid = write->GetRid();
-          table->update_record(rid, old_rec.data, context, &write->GetTableName(),LogOperation::UNDO, write->getUndoNext());
-          for(const auto& index:sm_manager_->db_.get_table(tab_name).indexes) {
-              auto index_name = IxManager::get_index_name(tab_name,index.cols);
-              auto &index_handler = sm_manager_->ihs_.at(index_name);
-              index_handler->insert_entry(old_rec.key_from_rec(index.cols)->data,rid,txn);
-          }
-          break;
-      }
-      case WType::CLR_DELETE:{
-          // 因为索引重复或冲突引起的delete (delete临时插入的rid)
-          // begin -> insert(1) -> key=1重复， clr_delete 1
-          // abort -> apply delete 并跳到insert的前一个write
-          // r_write_iter = write->undo_next_write_;
-          ++r_write_iter;
+      case WType::UPDATE_TUPLE:
+        auto old_rec = write->GetRecord();
+        auto new_rec = table->get_record(write->GetRid(),context);
+        for(const auto& index:sm_manager_->db_.get_table(tab_name).indexes) {
+          auto index_name = sm_manager_->get_ix_manager()->get_index_name(tab_name,index.cols);
+          auto &index_handler = sm_manager_->ihs_.at(index_name);
+          index_handler->delete_entry(new_rec->key_from_rec(index.cols)->data,txn);
         }
+        auto rid = write->GetRid();
+        table->update_record(rid, old_rec.data, context, &write->GetTableName(),LogOperation::UNDO, write->getUndoNext());
+        for(const auto& index:sm_manager_->db_.get_table(tab_name).indexes) {
+          auto index_name = sm_manager_->get_ix_manager()->get_index_name(tab_name,index.cols);
+          auto &index_handler = sm_manager_->ihs_.at(index_name);
+          index_handler->insert_entry(old_rec.key_from_rec(index.cols)->data,rid,txn);
+        }
+        break;
       }
-
-      // delete write;
+      delete write;
     }
     delete context;
 
@@ -167,19 +150,12 @@ auto TransactionManager::ReleaseLocks(Transaction *txn) -> void {
 //  for(auto lock:*lock_set) {
 //    lock_manager_->unlock(txn,lock); // 这种写法是错的，因为unlock操作会改变lock_set
 //  }
-    std::vector<LockDataId> lock_list;
+  std::vector<LockDataId> lock_list;
     for(auto lock:*lock_set) {
       lock_list.emplace_back(lock);
     }
     for(auto lock:lock_list) {
       lock_manager_->unlock(txn,lock);
     }
-    std::vector<int> gap_lock_list;
-    for(auto index:*txn->gap_lock_set_) {
-        gap_lock_list.emplace_back(index);
-    }
-    for(auto index:gap_lock_list) {
-        lock_manager_->unlock_gap_on_index(txn, index);
-    }
-    txn->gap_lock_set_->clear();
+    lock_set->clear();
 }

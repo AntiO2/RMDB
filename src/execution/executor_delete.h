@@ -55,14 +55,15 @@ class DeleteExecutor : public AbstractExecutor {
             auto tuple_ptr = tuple.get();
             if(CheckConditions(tuple_ptr,conds_)) {
                 // 如果满足条件
+
                 auto index_size = index_handlers.size();
                 for(size_t i = 0; i < index_size;i++) {
                     index_handlers.at(i)->delete_entry(tuple->key_from_rec(tab_.indexes.at(i).cols)->data, context_->txn_);
                 }
                 RmRecord delete_record(*tuple);
-                auto undo_next =  context_->txn_->get_prev_lsn();
-                fh_->mark_delete_record(rid,context_,&tab_name_);
-                context_->txn_->append_write_record(std::make_unique<WriteRecord>(WType::DELETE_TUPLE,tab_name_,rid,delete_record,undo_next));
+                auto* writeRecord = new WriteRecord(WType::DELETE_TUPLE,tab_name_,rid,delete_record, context_->txn_->get_prev_lsn()); // 注意先获得了undo_next,再进行删除操作
+                fh_->delete_record(rid,context_,&tab_name_);
+                context_->txn_->append_write_record(writeRecord);
             }
       });
         LOG_DEBUG("Delete Complete");

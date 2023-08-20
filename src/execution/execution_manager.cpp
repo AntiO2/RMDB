@@ -78,7 +78,7 @@ void QlManager::run_mutli_query(std::shared_ptr<Plan> plan, Context *context){
 }
 
 // 执行help; show tables; desc table; begin; commit; abort;语句
-void QlManager::run_cmd_utility(std::shared_ptr<Plan> plan, txn_id_t *txn_id,Context *context) {
+void QlManager::run_cmd_utility(std::shared_ptr<Plan> plan, txn_id_t *txn_id, Context *context) {
     if (auto x = std::dynamic_pointer_cast<OtherPlan>(plan)) {
         switch(x->tag) {
             case T_Help:
@@ -90,11 +90,6 @@ void QlManager::run_cmd_utility(std::shared_ptr<Plan> plan, txn_id_t *txn_id,Con
             case T_ShowTable:
             {
                 sm_manager_->show_tables(context);
-                break;
-            }
-            case T_SetOff:
-            {
-                setOutputFile(false);
                 break;
             }
             case T_ShowIndex:
@@ -135,12 +130,9 @@ void QlManager::run_cmd_utility(std::shared_ptr<Plan> plan, txn_id_t *txn_id,Con
                 throw InternalError("Unexpected field type");
                 break;                        
         }
-    }
-    else if(auto x = std::dynamic_pointer_cast<LoadPlan>(plan)){
-        sm_manager_->load_csv(x->file_name_,x->tab_name_,context);
+
     }
 }
-
 //完成aggregate操作 分为sum min max count
 void QlManager::select_from_aggregate(std::unique_ptr<AbstractExecutor> executorTreeRoot, std::vector<TabCol> sel_cols,std::string col_as_name,AggregateOp op,
                                       Context *context){
@@ -334,52 +326,47 @@ void QlManager::select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot, 
     rec_printer.print_separator(context);
     // print header into file
     std::fstream outfile;
-    if(isOutputFile()) {
-        outfile.open("output.txt", std::ios::out | std::ios::app);
+    outfile.open("output.txt", std::ios::out | std::ios::app);
+    outfile << "|";
+    for(int i = 0; i < captions.size(); ++i) {
+        outfile << " " << captions[i] << " |";
+    }
+    outfile << "\n";
+
+    // Print records
+    size_t num_rec = 0;
+    // 执行query_plan
+    for (executorTreeRoot->beginTuple(); !executorTreeRoot->is_end(); executorTreeRoot->nextTuple()) {
+        auto Tuple = executorTreeRoot->Next();
+        std::vector<std::string> columns;
+        for (auto &col : executorTreeRoot->cols()) {
+            std::string col_str;
+            char *rec_buf = Tuple->data + col.offset;
+            if (col.type == TYPE_INT) {
+                col_str = std::to_string(*(int *)rec_buf);
+            } else if (col.type == TYPE_FLOAT) {
+                col_str = std::to_string(*(float *)rec_buf);
+            } else if (col.type == TYPE_STRING) {
+                col_str = std::string((char *)rec_buf, col.len);
+                col_str.resize(strlen(col_str.c_str()));
+            }else if(col.type == TYPE_BIGINT){
+                col_str = std::to_string(*(int64_t *)rec_buf);
+            }else if(col.type == TYPE_DATETIME){//liamY
+                col_str = datenum2datetime(std::to_string(*(int64_t *)rec_buf));
+            }
+            columns.push_back(col_str);
+        }
+        // print record into buffer
+        rec_printer.print_record(columns, context);
+        // print record into file
         outfile << "|";
-        for (int i = 0; i < captions.size(); ++i) {
-            outfile << " " << captions[i] << " |";
+        for(const auto & column : columns) {
+            outfile << " " << column << " |";
         }
         outfile << "\n";
+        num_rec++;
     }
-        // Print records
-        size_t num_rec = 0;
-        // 执行query_plan
-        for (executorTreeRoot->beginTuple(); !executorTreeRoot->is_end(); executorTreeRoot->nextTuple()) {
-            auto Tuple = executorTreeRoot->Next();
-            std::vector<std::string> columns;
-            for (auto &col: executorTreeRoot->cols()) {
-                std::string col_str;
-                char *rec_buf = Tuple->data + col.offset;
-                if (col.type == TYPE_INT) {
-                    col_str = std::to_string(*(int *) rec_buf);
-                } else if (col.type == TYPE_FLOAT) {
-                    col_str = std::to_string(*(float *) rec_buf);
-                } else if (col.type == TYPE_STRING) {
-                    col_str = std::string((char *) rec_buf, col.len);
-                    col_str.resize(strlen(col_str.c_str()));
-                } else if (col.type == TYPE_BIGINT) {
-                    col_str = std::to_string(*(int64_t *) rec_buf);
-                } else if (col.type == TYPE_DATETIME) {//liamY
-                    col_str = datenum2datetime(std::to_string(*(int64_t *) rec_buf));
-                }
-                columns.push_back(col_str);
-            }
-            // print record into buffer
-            rec_printer.print_record(columns, context);
-            if(isOutputFile()) {
-                // print record into file
-                outfile << "|";
-                for (const auto &column: columns) {
-                    outfile << " " << column << " |";
-                }
-                outfile << "\n";
-            }
-            num_rec++;
-        }
-    if(isOutputFile()){
-        outfile.close();
-    }
+    outfile.close();
     // Print footer into buffer
     rec_printer.print_separator(context);
     // Print record count into buffer
@@ -389,12 +376,4 @@ void QlManager::select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot, 
 // 执行DML语句
 void QlManager::run_dml(std::unique_ptr<AbstractExecutor> exec){
     exec->Next();
-}
-
-bool QlManager::isOutputFile() const {
-    return output_file_;
-}
-
-void QlManager::setOutputFile(bool outputFile) {
-    output_file_ = outputFile;
 }

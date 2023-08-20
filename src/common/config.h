@@ -19,9 +19,6 @@ See the Mulan PSL v2 for more details. */
 
 #define BUFFER_LENGTH 8192
 
-/* 系统的隔离级别，当前赛题中为可串行化隔离级别 */
-enum class IsolationLevel { READ_UNCOMMITTED, REPEATABLE_READ, READ_COMMITTED, SERIALIZABLE };
-constexpr IsolationLevel DEFAULT_ISOLATION_LEVEL=IsolationLevel::REPEATABLE_READ;
 /** Cycle detection is performed every CYCLE_DETECTION_INTERVAL milliseconds. */
 extern std::chrono::milliseconds cycle_detection_interval;
 

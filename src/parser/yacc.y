@@ -23,19 +23,18 @@ using namespace ast;
 // keywords
 %token SHOW TABLES CREATE TABLE DROP DESC INSERT INTO VALUES DELETE FROM ASC ORDER BY
 WHERE UPDATE SET SELECT INT CHAR FLOAT BIGINT DATETIME INDEX AND JOIN EXIT HELP TXN_BEGIN TXN_COMMIT TXN_ABORT TXN_ROLLBACK ORDER_BY COUNT MAX MIN SUM AS LIMIT
-OFF LOAD OUTPUT_FILE
 // non-keywords
 %token LEQ NEQ GEQ T_EOF
 
 // type-specific tokens
-%token <sv_str> IDENTIFIER VALUE_STRING PATH
+%token <sv_str> IDENTIFIER VALUE_STRING
 %token <sv_int> VALUE_INT
 %token <sv_float> VALUE_FLOAT
 %token <sv_str> VALUE_BIGINT
 %token <sv_str> VALUE_DATETIME
 
 // specify types for non-terminal symbol
-%type <sv_node> stmt dbStmt ddl dml txnStmt loadStmt offStmt
+%type <sv_node> stmt dbStmt ddl dml txnStmt
 %type <sv_field> field
 %type <sv_fields> fieldList
 %type <sv_type_len> type
@@ -43,13 +42,12 @@ OFF LOAD OUTPUT_FILE
 %type <sv_expr> expr
 %type <sv_val> value
 %type <sv_vals> valueList
-%type <sv_str> tbName colName fileName
+%type <sv_str> tbName colName
 %type <sv_strs> tableList colNameList
 %type <sv_col> col
 %type <sv_cols> colList selector
 %type <sv_aggregate> aggregator
 %type <sv_set_clause> setClause
-%type <sv_set_expr> setExpr
 %type <sv_set_clauses> setClauses
 %type <sv_cond> condition
 %type <sv_conds> whereClause optWhereClause
@@ -65,11 +63,6 @@ start:
     {
         parse_tree = $1;
         YYACCEPT;
-    }
-    |  offStmt
-    {
-       parse_tree = $1;
-       YYACCEPT;
     }
     |   HELP
     {
@@ -93,22 +86,7 @@ stmt:
     |   ddl
     |   dml
     |   txnStmt
-    |   loadStmt
     ;
-
-loadStmt:
-        LOAD fileName INTO tbName
-     {
-        $$ = std::make_shared<LoadStmt>( $2, $4);
-     }
-     ;
-
-offStmt:
-        SET OUTPUT_FILE OFF
-     {
-        $$ = std::make_shared<SetOff>();
-     }
-     ;
 
 txnStmt:
         TXN_BEGIN
@@ -370,23 +348,11 @@ setClauses:
     ;
 
 setClause:
-        colName '=' setExpr
+        colName '=' value
     {
         $$ = std::make_shared<SetClause>($1, $3);
     }
     ;
-
-setExpr:
-        value
-     {
-        $$ = std::make_shared<SetExpr>(false, $1);
-     }
-     |  colName value
-     {
-        $$ = std::make_shared<SetExpr>(true,$2);
-     }
-     ;
-
 
 selector:
         '*'
@@ -501,6 +467,4 @@ opt_asc_desc:
 tbName: IDENTIFIER;
 
 colName: IDENTIFIER;
-
-fileName: PATH;
 %%

@@ -181,4 +181,3 @@ std::list<std::unique_ptr<LogRecord>> LogManager::get_records() {
     return records;
 }
 
-

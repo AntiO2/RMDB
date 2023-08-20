@@ -302,7 +302,7 @@ void SmManager::create_index(const std::string& tab_name, const std::vector<std:
     }
     ix_manager_->create_index(tab_name,index_cols);
     auto index_name = ix_manager_->get_index_name(tab_name,index_cols);
-    // assert(ihs_.count(index_name)==0); // 确保之前没有创建过该index
+    assert(ihs_.count(index_name)==0); // 确保之前没有创建过该index
     ihs_.emplace(index_name,ix_manager_->open_index(tab_name, index_cols));
     auto index_handler = ihs_.find(index_name)->second.get();
     indexMeta.col_num = col_num;
@@ -385,7 +385,7 @@ void SmManager::rebuild_index(const std::string &tab_name, const IndexMeta&index
     // Key: index cols
     // Value: RID
     int btree_order = static_cast<int>((PAGE_SIZE - sizeof(IxPageHdr)) / (col_tot_len + sizeof(Rid)) - 1);
-    // assert(btree_order > 2);
+    assert(btree_order > 2);
 
     // Create file header and write to file
     IxFileHdr* fhdr = new IxFileHdr(IX_NO_PAGE, IX_INIT_NUM_PAGES, IX_INIT_ROOT_PAGE,
@@ -441,7 +441,7 @@ void SmManager::rebuild_index(const std::string &tab_name, const IndexMeta&index
 //    // Close index file
 //    disk_manager_->close_file(fd);
     const auto&index_name = ix_name;
-    // assert(ihs_.count(index_name)==0); // 确保之前没有创建过该index
+    assert(ihs_.count(index_name)==0); // 确保之前没有创建过该index
     ihs_.emplace(index_name, std::make_unique<IxIndexHandle>(disk_manager_, buffer_pool_manager_, fd));
     auto index_handler = ihs_.find(index_name)->second.get();
     auto table_file_handle = fhs_.find(tab_name)->second.get();
@@ -453,81 +453,5 @@ void SmManager::rebuild_index(const std::string &tab_name, const IndexMeta&index
         auto key = origin_key->key_from_rec(index_cols);
         index_handler->insert_entry(key->data,rid, &transaction);
         rm_scan.next();
-    }
-}
-
-//load lsy
-/**  TODO
- * @description: load data
- * @param {string} 要读取的文件名
- * @param {string} tab_name 表名称
- * @param {Context*} context
- */
-void SmManager::load_csv(std::string file_name,std::string tab_name,Context* context){
-    //思路是借鉴insert的方式，对csv里面的每一行进行insert
-    //1.打开文件
-    std::ifstream infile;
-    file_name="../"+file_name;
-    infile.open(file_name);
-    if(!infile.is_open()){
-        throw UnixError();
-    }
-    //2.读取文件 第一行 是每列的列名，舍弃
-    std::string line;
-    std::vector<std::string> values;
-    std::getline(infile,line);
-    //3.对每一行进行insert
-    //去拿sm_manager
-    extern std::unique_ptr<SmManager>  sm_manager;
-    auto sm_manager_ = sm_manager.get();
-    while(std::getline(infile,line)) {
-        //将values清空
-        values.clear();
-        std::stringstream ss(line);
-        std::string value;
-        while(std::getline(ss,value,',')){
-            values.push_back(value);
-        }
-
-        //这个时候values里面就是装有每一行的所有数据了，按照从左到右的顺序，先模仿portal的操作，对insert进行初始化
-//        if(context->txn_->get_isolation_level()==IsolationLevel::SERIALIZABLE) {
-//            auto fd = sm_manager->fhs_.at(tab_name).get()->GetFd();
-//            context->lock_mgr_->lock_exclusive_on_table(context->txn_,fd);
-//        }不需要加锁
-        auto fh_ = sm_manager_->fhs_.at(tab_name).get();
-        auto tab_ = sm_manager_->db_.get_table(tab_name);
-        // Make record buffer
-        RmRecord rec(fh_->get_file_hdr().record_size);
-        //根据table里面的数据得到各个列元素的类型，从而把values数据转化为std::vector<Value> values_
-        std::vector<Value> values_;
-        for (size_t i = 0; i < values.size(); i++) {//遍历一行的数据
-            auto &col = tab_.cols[i];
-            auto &val = values[i];
-            Value value_;//根据col来初始化value
-            if(col.type==ColType::TYPE_INT) {
-                value_.set_int(std::stoi(val));//将string转化为int
-            }else if(col.type==ColType::TYPE_FLOAT) {
-                value_.set_float(std::stof(val));//将string转化为float
-            }else if(col.type==ColType::TYPE_STRING) {
-                value_.set_str(val);//将string转化为string
-            }else if(col.type==ColType::TYPE_BIGINT) {
-                value_.set_bigint(val);//将string转化为bigint
-            }else if(col.type==TYPE_DATETIME){
-                value_.set_datetime(val);
-            }
-            values_.push_back(value_);//将value_放入values_中
-        }
-        //将values_中的数据存入rec中
-        for (size_t i = 0; i < values_.size(); i++) {
-            auto &col = tab_.cols[i];
-            auto &val = values_[i];
-            val.init_raw(col.len);
-            // 将Value数据存入rec中。
-            memcpy(rec.data + col.offset, val.raw->data, col.len);
-        }
-        auto undo_next = context->txn_->get_prev_lsn();
-        // Insert into record file
-        auto rid_ = fh_->insert_record(rec.data, context,&tab_name);
-        context->txn_->append_write_record(std::make_unique<WriteRecord>(WType::INSERT_TUPLE,tab_name,rid_, undo_next));
     }
 }

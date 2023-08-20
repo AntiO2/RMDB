@@ -32,9 +32,7 @@ enum LogType: int {
     CLR_DELETE,
     CLR_UPDATE,
     CKPT_BEGIN,
-    CKPT_END, // fuzzy checkpoint end
-    Mark_Delete,
-    CLR_MARK_DELETE
+    CKPT_END // fuzzy checkpoint end
 };
 static std::string LogTypeStr[] = {
     "UPDATE",
@@ -47,9 +45,7 @@ static std::string LogTypeStr[] = {
     "CLR_DELETE",
     "CLR_UPDATE",
     "CKPT_BEGIN",
-    "CKPT_END",
-    "Mark Delete",
-    "CLR Mark Delete"
+    "CKPT_END"
 };
 enum LogOperation {
     REDO,
@@ -666,6 +662,7 @@ public:
         offset += sizeof(int);
         memcpy(dest+offset, &undo_next_, sizeof(lsn_t));
 
+
     }
     // 从src中反序列化出一条Delete日志记录
     CLR_Delete_Record(char *src) {
@@ -686,6 +683,8 @@ public:
         num_pages_ =  *reinterpret_cast<const int*>(src + offset);
         offset += sizeof(int);
         undo_next_ = *reinterpret_cast<const lsn_t*>(src+offset);
+
+
     }
     void format_print() override {
         if(ARIES_DEBUG_MODE) {
@@ -699,60 +698,6 @@ public:
         }
     }
 
-};
-
-class Mark_Delete_Record: public CLR_Delete_Record {
-public:
-    Mark_Delete_Record(txn_id_t txn_id,const Rid& rid, const std::string& table_name, lsn_t prev_lsn, int  first_free_page_no, int num_page) {
-        log_type_ = LogType::Mark_Delete;
-        lsn_=INVALID_LSN;
-        log_tot_len_ = LOG_HEADER_SIZE;
-        log_tid_ = txn_id;
-        prev_lsn_ = prev_lsn;
-        // LOG HEAD 部分结束
-        rid_ = rid;
-        log_tot_len_ += sizeof(Rid);
-        table_name_size_ = table_name.length();
-        table_name_ = new char[table_name_size_];
-        memcpy(table_name_, table_name.c_str(), table_name_size_);
-        log_tot_len_ += sizeof(size_t) + table_name_size_; // table name长度和本体
-        first_free_page_no_ = first_free_page_no;
-        log_tot_len_+= sizeof(first_free_page_no);
-        num_pages_ = num_page;
-        log_tot_len_ += sizeof(num_page);
-        log_tot_len_ += sizeof(lsn_t);
-    }
-
-    void serialize(char *dest) const override {
-        CLR_Delete_Record::serialize(dest);
-    }
-
-    void deserialize(const char *src) override {
-        CLR_Delete_Record::deserialize(src);
-    }
-
-    void format_print() override {
-        CLR_Delete_Record::format_print();
-    }
-};
-class CLR_Mark_Delete_Record: public CLR_Delete_Record {
-public:
-    CLR_Mark_Delete_Record(txn_id_t txn_id,const Rid& rid, const std::string& table_name, lsn_t prev_lsn, lsn_t undo_next, int  first_free_page_no, int num_page)
-    : CLR_Delete_Record(txn_id, rid, table_name, prev_lsn, undo_next, first_free_page_no, num_page){
-        log_type_ = LogType::CLR_MARK_DELETE;
-    }
-
-    void serialize(char *dest) const override {
-        CLR_Delete_Record::serialize(dest);
-    }
-
-    void deserialize(const char *src) override {
-        CLR_Delete_Record::deserialize(src);
-    }
-
-    void format_print() override {
-        CLR_Delete_Record::format_print();
-    }
 };
 class CLR_Insert_Record : public InsertLogRecord {
 public:

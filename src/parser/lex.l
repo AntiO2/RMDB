@@ -38,7 +38,6 @@ white_space [ \t]+
 new_line "\r"|"\n"|"\r\n"
 sign "+"|"-"
 identifier {alpha}(_|{alpha}|{digit})*
-path ^\.(\/?(_|(\.)|{alpha}|{digit})+\/?)*(_|(\.)|{alpha}|{digit})+\.{alpha}{2,4}
 value_int {sign}?{digit}+
 value_float {sign}?{digit}+\.({digit}+)?
 value_string '[^']*'
@@ -97,28 +96,17 @@ single_op ";"|"("|")"|","|"*"|"="|">"|"<"|"."
 "SUM" { return SUM; }
 "AS" { return AS; }
 "LIMIT" { return LIMIT; }
-
-"LOAD" {return LOAD; }
-"OFF" {return OFF; }
-"OUTPUT_FILE" {return OUTPUT_FILE; }
-
     /* operators */
 ">=" { return GEQ; }
 "<=" { return LEQ; }
 "<>" { return NEQ; }
-
 {single_op} { return yytext[0]; }
     /* id */
 {identifier} {
     yylval->sv_str = yytext;
     return IDENTIFIER;
 }
-
-{path} {
-    yylval->sv_str = yytext;
-    return PATH;
-}
-
+    /* literals */
 {value_int} {
     int64_t num = atoll(yytext);
     if(num >= INT_MIN && num <= INT_MAX)

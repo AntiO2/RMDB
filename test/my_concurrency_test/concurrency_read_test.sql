@@ -5,8 +5,7 @@ insert into test_table values (1, 'Alice', 25);
 insert into test_table values (2, 'Bob', 30);
 insert into test_table2 values (3, 'Chalice', 25);
 insert into test_table2 values (4, 'David', 30);
-create index test_table(id);
-create index test_table2(id);
+
 txn1 4
 t1a begin;
 t1b select * from test_table where id = 1;

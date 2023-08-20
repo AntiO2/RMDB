@@ -5,5 +5,3 @@ set(SOURCES
         ../replacer/lru_replacer.cpp 
 )
 add_library(storage STATIC ${SOURCES})
-
-target_link_libraries(storage recovery)

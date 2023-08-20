@@ -41,11 +41,7 @@ struct RmRecord {
     int size;    // 记录的大小
     bool allocated_ = false;    // 是否已经为数据分配空间
 
-    RmRecord() {
-        allocated_ = false;
-        data = nullptr;
-        size = 0;
-    }
+    RmRecord() = default;
 
     RmRecord(const RmRecord& other) {
         size = other.size;

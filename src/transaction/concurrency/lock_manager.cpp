@@ -631,6 +631,76 @@ bool LockManager::lock_gap_on_index(Transaction *txn,GapLockRequest request, int
     latch_.unlock();
     auto txn_id = txn->get_transaction_id();
     txn->set_state(TransactionState::GROWING);
+    // 在上锁前，先检查已有的事务是否冲突
+    for (auto &x_request : lock_request_queue->x_request_queue_) {
+        if(x_request->granted_) {
+            if(txn_id!=x_request->txn_id) {
+                if((!request.point_lock&&!lock_request_queue->CheckGapLockCompat(request,*x_request)) || //两个gaplock
+                (request.point_lock&&!lock_request_queue->CheckPointGapLockCompat(request,*x_request)) // 查询point是否和x gap冲突
+                ) {
+                    // 采用no-wait策略
+                    txn->set_state(TransactionState::ABORTED);
+                    lock_request_queue->latch_.unlock();
+                    throw TransactionAbortException(txn->get_transaction_id(),AbortReason::DEADLOCK_PREVENTION);
+                }
+            }
+        } else {
+            break;
+        }
+        // 同一事务可能加上多个锁
+    }
+    for (auto &x_point_request : lock_request_queue->x_point_queue_) {
+        if(x_point_request->granted_) {
+            if(txn_id!=x_point_request->txn_id) {
+                if((!request.point_lock&&!lock_request_queue->CheckPointGapLockCompat(*x_point_request,request)) ||
+                   (request.point_lock&&!lock_request_queue->CheckTwoPointGapLockCompat(request,*x_point_request)) // 两个point
+                        ) {
+                    // 采用no-wait策略
+                    txn->set_state(TransactionState::ABORTED);
+                    lock_request_queue->latch_.unlock();
+                    throw TransactionAbortException(txn->get_transaction_id(),AbortReason::DEADLOCK_PREVENTION);
+                }
+            }
+        } else {
+            break;
+        }
+        // 同一事务可能加上多个锁
+    }
+
+    if(lock_mode==LockMode::EXCLUSIVE) {
+        // 如果是写锁，还需要检查读锁
+        for (auto &s_request : lock_request_queue->s_request_queue_) {
+            if(s_request->granted_) {
+                if(txn_id!=s_request->txn_id) {
+                    if((!request.point_lock&&!lock_request_queue->CheckGapLockCompat(request,*(s_request)))||
+                            (request.point_lock&&!lock_request_queue->CheckPointGapLockCompat(request,*s_request))
+                    ) {
+                        // 采用no-wait策略
+                        txn->set_state(TransactionState::ABORTED);
+                        lock_request_queue->latch_.unlock();
+                        throw TransactionAbortException(txn->get_transaction_id(),AbortReason::DEADLOCK_PREVENTION);
+                    }
+                 }
+            }
+            // 同一事务可能加上多个锁
+        }
+        for (auto &s_point_request : lock_request_queue->s_point_queue_) {
+            if(s_point_request->granted_) {
+                if(txn_id!=s_point_request->txn_id) {
+                    if((!request.point_lock&&!lock_request_queue->CheckPointGapLockCompat(*(s_point_request),request))||
+                       (request.point_lock&&!lock_request_queue->CheckTwoPointGapLockCompat(request,*s_point_request))
+                            ) {
+                        // 采用no-wait策略
+                        txn->set_state(TransactionState::ABORTED);
+                        lock_request_queue->latch_.unlock();
+                        throw TransactionAbortException(txn->get_transaction_id(),AbortReason::DEADLOCK_PREVENTION);
+                    }
+                }
+            }
+            // 同一事务可能加上多个锁
+        }
+    }
+    // 循环完队列，没有冲突
     // 以下为wait_die
     /**************************************************************
      *

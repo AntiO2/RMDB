@@ -382,6 +382,9 @@ private:
                             // 如果有区间重复
                             return false;
                         }
+                    }   else {
+                        // 按照先请求，先授权的原则
+                        return request.txn_id==s_request->txn_id;
                     }
                 }
                 for(auto &s_point_request:s_point_queue_) {
@@ -391,6 +394,9 @@ private:
                             // 如果有点重合
                             return false;
                         }
+                    }  else {
+                        // 按照先请求，先授权的原则
+                        return request.txn_id==s_point_request->txn_id;
                     }
                 }
 
@@ -402,6 +408,9 @@ private:
                             // 如果有区间重复
                             return false;
                         }
+                    } else {
+                        // 按照先请求，先授权的原则
+                        return request.txn_id==s_request->txn_id;
                     }
                 }
                 // 线段和点
@@ -410,6 +419,9 @@ private:
                         if(s_point_request->txn_id!=request.txn_id&&!CheckPointGapLockCompat(*s_point_request, request)) {
                             return false;
                         }
+                    } else {
+                        // 按照先请求，先授权的原则
+                        return request.txn_id==s_point_request->txn_id;
                     }
                 }
             }
@@ -424,6 +436,9 @@ private:
                             // 如果有区间重复
                             return false;
                         }
+                    } else {
+                        // 按照先请求，先授权的原则
+                        return request.txn_id==x_request->txn_id;
                     }
                 }
                 for(auto &x_point_request:x_point_queue_) {
@@ -433,6 +448,9 @@ private:
                             // 如果有点重合
                             return false;
                         }
+                    } else {
+                        // 按照先请求，先授权的原则
+                        return request.txn_id==x_point_request->txn_id;
                     }
                 }
             } else {
@@ -442,6 +460,9 @@ private:
                             // 如果有区间重复
                             return false;
                         }
+                    } else {
+                        // 按照先请求，先授权的原则
+                        return request.txn_id==x_request->txn_id;
                     }
                 }
                 for(auto &x_point_request:x_point_queue_) {
@@ -449,6 +470,9 @@ private:
                         if(x_point_request->txn_id!=request.txn_id&&!CheckPointGapLockCompat(*x_point_request, request)) {
                             return false;
                         }
+                    } else {
+                        // 按照先请求，先授权的原则
+                        return request.txn_id==x_point_request->txn_id;
                     }
                 }
             }

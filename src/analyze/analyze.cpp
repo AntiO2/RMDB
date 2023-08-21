@@ -53,6 +53,7 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
         //处理where条件
         get_clause(x->conds, query->conds,query->tables);
         check_clause(query->tables, query->conds);
+
     }
     else if (auto x = std::dynamic_pointer_cast<ast::UpdateStmt>(parse)) {
         /** TODO: */
@@ -62,7 +63,15 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
         {
             SetClause setClause;
             setClause.lhs = {.tab_name = x->tab_name, .col_name = set_clause->col_name};
-            setClause.rhs = convert_sv_value(set_clause->val);
+            if(set_clause->set_expr->has_col){
+                if(set_clause->set_expr->cal_type == ast::SV_ADD)
+                    setClause.set_expr = {.is_add = true, .has_col = true, .val = convert_sv_value(set_clause->set_expr->val)};
+                else
+                    setClause.set_expr = {.is_add = false, .has_col = true, .val = convert_sv_value(set_clause->set_expr->val)};
+            } else {
+                setClause.set_expr = {.is_add = true, .has_col = false,.val = convert_sv_value(set_clause->set_expr->val)};
+            }
+            //setClause.rhs = convert_sv_value(set_clause->val);
             //支持一下类型转换
             fix_setClause(setClause,{x->tab_name});
             query->set_clauses.push_back(setClause);
@@ -229,63 +238,63 @@ void Analyze::fix_setClause(SetClause &setClause, const std::vector<std::string>
     ColType lhs_type = lhs_col->type;
 
     //比照右值与左值列的类型,不相等则类型转换
-    if(setClause.rhs.type != lhs_type)
+    if(setClause.set_expr.val.type != lhs_type)
     {
         if(lhs_type == TYPE_FLOAT)
         {
             //如果要更新的值是bigint,直接抛出异常
-            if(setClause.rhs.type == TYPE_BIGINT)
-                throw BigintOutOfRangeError("",std::to_string(setClause.rhs.bigint_val));
+            if(setClause.set_expr.val.type == TYPE_BIGINT)
+                throw BigintOutOfRangeError("",std::to_string(setClause.set_expr.val.bigint_val));
 
             //int转float
-            if(setClause.rhs.type == TYPE_INT) {
-                auto num = static_cast<float>(setClause.rhs.int_val);
-                setClause.rhs.int_val = 0;
-                setClause.rhs.set_float(num);
+            if(setClause.set_expr.val.type == TYPE_INT) {
+                auto num = static_cast<float>(setClause.set_expr.val.int_val);
+                setClause.set_expr.val.int_val = 0;
+                setClause.set_expr.val.set_float(num);
             }
-            else if(setClause.rhs.type == TYPE_STRING){
-                float num = std::stof(setClause.rhs.str_val);
-                setClause.rhs.set_float(num);
+            else if(setClause.set_expr.val.type == TYPE_STRING){
+                float num = std::stof(setClause.set_expr.val.str_val);
+                setClause.set_expr.val.set_float(num);
             }
         }
         else if(lhs_type == TYPE_INT)
         {
             //如果要更新的值是bigint,直接抛出异常
-            if(setClause.rhs.type == TYPE_BIGINT)
-                throw BigintOutOfRangeError("",std::to_string(setClause.rhs.bigint_val));
+            if(setClause.set_expr.val.type == TYPE_BIGINT)
+                throw BigintOutOfRangeError("",std::to_string(setClause.set_expr.val.bigint_val));
 
             //float转int
-            if(setClause.rhs.type == TYPE_FLOAT){
-                int num = static_cast<int>(setClause.rhs.float_val);
-                setClause.rhs.float_val = 0;
-                setClause.rhs.set_int(num);
+            if(setClause.set_expr.val.type == TYPE_FLOAT){
+                int num = static_cast<int>(setClause.set_expr.val.float_val);
+                setClause.set_expr.val.float_val = 0;
+                setClause.set_expr.val.set_int(num);
             }
-            else if(setClause.rhs.type == TYPE_STRING){
-                int num = std::stoi(setClause.rhs.str_val);
-                setClause.rhs.set_int(num);
+            else if(setClause.set_expr.val.type == TYPE_STRING){
+                int num = std::stoi(setClause.set_expr.val.str_val);
+                setClause.set_expr.val.set_int(num);
             }
         }
         else if(lhs_type == TYPE_BIGINT){
             //int转bigint
-            if(setClause.rhs.type == TYPE_INT) {
+            if(setClause.set_expr.val.type == TYPE_INT) {
                 Value value;
-                value.set_bigint(setClause.rhs.int_val);
-                setClause.rhs = value;
+                value.set_bigint(setClause.set_expr.val.int_val);
+                setClause.set_expr.val = value;
             }
             //float转bigint
-            if(setClause.rhs.type == TYPE_FLOAT){
+            if(setClause.set_expr.val.type == TYPE_FLOAT){
                 Value value;
-                value.set_bigint(static_cast<int>(setClause.rhs.float_val));
-                setClause.rhs = value;
+                value.set_bigint(static_cast<int>(setClause.set_expr.val.float_val));
+                setClause.set_expr.val = value;
             }
         }
         //datetime转string liamY
         else if(lhs_type == TYPE_STRING) {
             //将datetime型数据转为string
-            if (setClause.rhs.type == TYPE_DATETIME) {
+            if (setClause.set_expr.val.type == TYPE_DATETIME) {
                 Value value;
-                value.set_str(datenum2datetime(std::to_string(setClause.rhs.datetime_val)));
-                setClause.rhs = value;
+                value.set_str(datenum2datetime(std::to_string(setClause.set_expr.val.datetime_val)));
+                setClause.set_expr.val = value;
             }
         }
     }

@@ -44,6 +44,9 @@ class IxNodeHandle {
     Rid *rids;                      // page->data的第三部分，指针指向首地址
 
    public:
+    Page* get_page() {
+        return page;
+    }
     IxNodeHandle() = default;
     // 存储结构： page_hdr| keys| rids
     IxNodeHandle(const IxFileHdr *file_hdr_, Page *page_) : file_hdr(file_hdr_), page(page_) {
@@ -199,15 +202,18 @@ class IxIndexHandle {
 
     bool coalesce(IxNodeHandle **neighbor_node, IxNodeHandle **node, IxNodeHandle **parent, int index,
                   Transaction *transaction, bool *root_is_latched);
+    // 注意page返回时是带R锁的
+    std::pair<Iid,IxNodeHandle*> lower_bound(const char *key);
+    std::pair<Iid,IxNodeHandle*> lower_bound_cnt(const char *key, size_t cnt);
+    std::pair<Iid,IxNodeHandle*> upper_bound(const char *key);
+    std::pair<Iid,IxNodeHandle*> upper_bound_cnt(const char *key, size_t cnt);
+    std::pair<Iid,IxNodeHandle*> leaf_end();
+    std::pair<Iid,IxNodeHandle*> leaf_begin();
 
-    Iid lower_bound(const char *key);
-    Iid lower_bound_cnt(const char *key, size_t cnt);
-    Iid upper_bound(const char *key);
-    Iid upper_bound_cnt(const char *key, size_t cnt);
-    Iid leaf_end();
-    Iid leaf_begin();
+    // for index test
+    Rid get_rid(const Iid &iid) const;
 
-   private:
+private:
     // 辅助函数
     void update_root_page_no(page_id_t root) { file_hdr_->root_page_ = root; }
 
@@ -227,6 +233,4 @@ class IxIndexHandle {
 
     void maintain_child(IxNodeHandle *node, int child_idx);
     void release_ancestors(Transaction*transaction);
-    // for index test
-    Rid get_rid(const Iid &iid) const;
 };

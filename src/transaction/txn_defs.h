@@ -20,11 +20,10 @@ See the Mulan PSL v2 for more details. */
 /* 标识事务状态 */
 enum class TransactionState { DEFAULT, GROWING, SHRINKING, COMMITTED, ABORTED };
 
-/* 系统的隔离级别，当前赛题中为可串行化隔离级别 */
-enum class IsolationLevel { READ_UNCOMMITTED, REPEATABLE_READ, READ_COMMITTED, SERIALIZABLE };
+
 
 /* 事务写操作类型，包括插入、删除、更新三种操作 */
-enum class WType { INSERT_TUPLE = 0, DELETE_TUPLE, UPDATE_TUPLE};
+enum class WType { INSERT_TUPLE = 0, DELETE_TUPLE, UPDATE_TUPLE, CLR_DELETE};
 
 /**
  * @brief 事务的写操作记录，用于事务的回滚
@@ -43,7 +42,9 @@ class WriteRecord {
 
     // constructor for insert operation
     WriteRecord(WType wtype, const std::string &tab_name, const Rid &rid, lsn_t undo_next)
-        : wtype_(wtype), tab_name_(tab_name), rid_(rid), undo_next_(undo_next) {}
+        : wtype_(wtype), tab_name_(tab_name), rid_(rid), undo_next_(undo_next) {
+        RmRecord();
+    }
 
     // constructor for delete & update operation
     WriteRecord(WType wtype, const std::string &tab_name, const Rid &rid, const RmRecord &record, lsn_t undo_next)
@@ -66,15 +67,46 @@ class WriteRecord {
     void setRid(const Rid &rid) {
         rid_ = rid;
     }
-
+    std::reverse_iterator<std::_Deque_iterator<std::unique_ptr<WriteRecord>, std::unique_ptr<WriteRecord> &, std::unique_ptr<WriteRecord> *>> undo_next_write_;
 private:
     WType wtype_;
     std::string tab_name_;
     Rid rid_;
     RmRecord record_;
     lsn_t undo_next_;
-};
 
+};
+/*间隙锁的端点*/
+enum GapLockPointType{INF,E,NE}; // 无端点，相等，空心端点
+class GapLockPoint {
+public:
+    GapLockPoint() {}
+
+    GapLockPoint(const char *key, GapLockPointType type, size_t tot_len,size_t col_len): col_len_{col_len}{
+        key_ = new char[tot_len];
+        type_ = type;
+        if(key!= nullptr) {
+            memcpy(key_,key,tot_len);
+        }
+    }
+    char* key_{};
+    size_t col_len_;
+    GapLockPointType type_;
+};
+class GapLockRequest {
+public:
+    GapLockRequest(const GapLockPoint &leftLock, const GapLockPoint &rightLock, txn_id_t txnId) : right_lock(rightLock), left_lock(
+            leftLock), txn_id(txnId) {}
+    GapLockRequest(const GapLockPoint &leftLock, txn_id_t txnId) : left_lock(leftLock), txn_id(txnId) {
+        point_lock = true;
+    }
+    GapLockPoint right_lock;
+    GapLockPoint left_lock;
+    txn_id_t txn_id;
+
+    bool point_lock{false}; // 是否为点目标
+    bool granted_{false};
+};
 /* 多粒度锁，加锁对象的类型，包括记录和表 */
 enum class LockDataType { TABLE = 0, RECORD = 1 };
 

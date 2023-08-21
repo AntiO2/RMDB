@@ -1,1 +1,0 @@
-add_executable(generate_data_file generate_data_file.cpp)

@@ -21,7 +21,7 @@ See the Mulan PSL v2 for more details. */
 
 /* 系统的隔离级别，当前赛题中为可串行化隔离级别 */
 enum class IsolationLevel { READ_UNCOMMITTED, REPEATABLE_READ, READ_COMMITTED, SERIALIZABLE };
-constexpr IsolationLevel DEFAULT_ISOLATION_LEVEL=IsolationLevel::REPEATABLE_READ;
+constexpr IsolationLevel DEFAULT_ISOLATION_LEVEL=IsolationLevel::SERIALIZABLE;
 /** Cycle detection is performed every CYCLE_DETECTION_INTERVAL milliseconds. */
 extern std::chrono::milliseconds cycle_detection_interval;
 
